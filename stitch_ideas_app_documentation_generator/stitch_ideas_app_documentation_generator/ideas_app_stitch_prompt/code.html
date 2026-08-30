@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Stitch Prompt Generator</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    "colors": {
+                        "on-secondary-fixed": "#2a1800",
+                        "on-error-container": "#93000a",
+                        "on-surface": "#1b1c1a",
+                        "surface": "#fbf9f6",
+                        "on-secondary-fixed-variant": "#643f00",
+                        "on-secondary": "#ffffff",
+                        "outline-variant": "#ddc0bc",
+                        "secondary": "#845400",
+                        "background-dark": "#2D2421",
+                        "surface-dark": "#3D322E",
+                        "on-primary-container": "#ffc6be",
+                        "inverse-surface": "#30312f",
+                        "tertiary": "#004d46",
+                        "primary": "#7d241d",
+                        "surface-variant": "#e4e2df",
+                        "background": "#fbf9f6",
+                        "surface-tint": "#a03e35",
+                        "success-warm": "#9C3B32",
+                        "text-muted-dark": "#A69994",
+                        "on-primary": "#ffffff",
+                        "on-error": "#ffffff",
+                        "on-primary-fixed": "#410001",
+                        "outline": "#89726e",
+                        "background-warm": "#F7F5F2",
+                        "on-tertiary-container": "#93e2d6",
+                        "primary-fixed-dim": "#ffb4aa",
+                        "tertiary-container": "#00675e",
+                        "secondary-fixed": "#ffddb5",
+                        "on-secondary-container": "#714800",
+                        "inverse-primary": "#ffb4aa",
+                        "error": "#ba1a1a",
+                        "on-tertiary-fixed-variant": "#005049",
+                        "primary-container": "#9c3b32",
+                        "tertiary-fixed": "#a1f1e5",
+                        "error-container": "#ffdad6",
+                        "danger-deep": "#7B231A",
+                        "surface-container": "#efeeeb",
+                        "primary-fixed": "#ffdad5",
+                        "inverse-on-surface": "#f2f0ed",
+                        "secondary-fixed-dim": "#ffb958",
+                        "secondary-container": "#fcb654",
+                        "surface-dim": "#dbdad7",
+                        "on-background": "#1b1c1a",
+                        "surface-container-highest": "#e4e2df",
+                        "surface-bright": "#fbf9f6",
+                        "surface-container-lowest": "#ffffff",
+                        "tertiary-fixed-dim": "#85d5c9",
+                        "surface-container-high": "#eae8e5",
+                        "on-surface-variant": "#56423f",
+                        "on-tertiary-fixed": "#00201d",
+                        "on-primary-fixed-variant": "#812720",
+                        "on-tertiary": "#ffffff",
+                        "surface-container-low": "#f5f3f0"
+                    },
+                    "borderRadius": {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                    "spacing": {
+                        "margin-mobile": "16px",
+                        "margin-desktop": "64px",
+                        "max-width": "1200px",
+                        "base": "8px",
+                        "gutter": "24px"
+                    },
+                    "fontFamily": {
+                        "headline-lg-mobile": ["Libre Caslon Text"],
+                        "body-md": ["Poppins"],
+                        "body-lg": ["Poppins"],
+                        "label-sm": ["IBM Plex Mono"],
+                        "headline-lg": ["Libre Caslon Text"],
+                        "display-xl": ["Libre Caslon Text"],
+                        "code-block": ["IBM Plex Mono"]
+                    },
+                    "fontSize": {
+                        "headline-lg-mobile": ["24px", { "lineHeight": "32px", "fontWeight": "400" }],
+                        "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "400" }],
+                        "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "400" }],
+                        "label-sm": ["13px", { "lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500" }],
+                        "headline-lg": ["32px", { "lineHeight": "40px", "fontWeight": "400" }],
+                        "display-xl": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "400" }],
+                        "code-block": ["14px", { "lineHeight": "22px", "fontWeight": "400" }]
+                    }
+                }
+            }
+        }
+    </script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Libre+Caslon+Text:wght@400;700&amp;family=Poppins:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<style>
+        body { font-family: 'Poppins', sans-serif; }
+        .material-symbols-outlined { font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24; }
+        /* Tonal Micro-Shadows */
+        .shadow-tonal { box-shadow: 0 2px 4px rgba(45, 36, 33, 0.05); }
+    </style>
+</head>
+<body class="bg-background text-on-background dark:bg-background-dark dark:text-on-surface min-h-screen">
+<!-- TopNavBar -->
+<nav class="bg-background dark:bg-background-dark docked full-width top-0 sticky border-b border-outline-variant dark:border-surface-variant shadow-sm dark:shadow-none z-50">
+<div class="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop max-w-max-width mx-auto h-16">
+<!-- Brand -->
+<div class="font-headline-lg text-headline-lg md:text-[28px] font-bold text-primary dark:text-primary-fixed-dim hidden md:block">
+                Ideas App
+            </div>
+<!-- Navigation Stepper -->
+<div class="flex-1 flex justify-center items-center">
+<div class="flex items-center space-x-4 relative">
+<!-- Step 1: Completed -->
+<div class="flex items-center space-x-2">
+<span class="flex items-center justify-center w-6 h-6 rounded-full bg-secondary-container text-on-secondary-container dark:bg-secondary-fixed-dim dark:text-on-secondary-container">
+<span class="material-symbols-outlined text-[16px]">check</span>
+</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant dark:text-text-muted-dark hover:text-primary dark:hover:text-primary-fixed-dim transition-colors cursor-pointer">
+                            Ideas
+                        </span>
+</div>
+<div class="w-8 h-[1px] bg-outline-variant dark:bg-surface-variant"></div>
+<!-- Step 2: Active -->
+<div class="flex items-center space-x-2 text-primary dark:text-primary-fixed-dim font-bold border-b-2 border-primary dark:border-primary-fixed-dim pb-1 transition-all hover:opacity-80 scale-95 duration-100">
+<span class="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-on-primary dark:bg-primary-fixed-dim dark:text-on-primary-container">
+<span class="font-label-sm text-label-sm">2</span>
+</span>
+<span class="font-label-sm text-label-sm">Design</span>
+</div>
+<div class="w-8 h-[1px] bg-outline-variant dark:bg-surface-variant"></div>
+<!-- Step 3: Upcoming -->
+<div class="flex items-center space-x-2">
+<span class="flex items-center justify-center w-6 h-6 rounded-full bg-surface-variant dark:bg-surface-dark text-on-surface-variant dark:text-text-muted-dark">
+<span class="font-label-sm text-label-sm">3</span>
+</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant dark:text-text-muted-dark hover:text-primary dark:hover:text-primary-fixed-dim transition-colors cursor-pointer">
+                            Docs
+                        </span>
+</div>
+<div class="w-8 h-[1px] bg-outline-variant dark:bg-surface-variant"></div>
+<!-- Step 4: Upcoming -->
+<div class="flex items-center space-x-2">
+<span class="flex items-center justify-center w-6 h-6 rounded-full bg-surface-variant dark:bg-surface-dark text-on-surface-variant dark:text-text-muted-dark">
+<span class="font-label-sm text-label-sm">4</span>
+</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant dark:text-text-muted-dark hover:text-primary dark:hover:text-primary-fixed-dim transition-colors cursor-pointer">
+                            Export
+                        </span>
+</div>
+</div>
+</div>
+<!-- Trailing Icon Actions -->
+<div class="flex items-center">
+<button aria-label="Toggle dark mode" class="p-2 rounded-full text-primary dark:text-primary-fixed-dim hover:bg-surface-container-high dark:hover:bg-surface-dark transition-colors">
+<span class="material-symbols-outlined" data-icon="dark_mode">dark_mode</span>
+</button>
+</div>
+</div>
+</nav>
+<!-- Main Content Canvas -->
+<main class="w-full px-margin-mobile md:px-margin-desktop max-w-max-width mx-auto py-[80px]">
+<!-- Breadcrumb -->
+<a class="inline-flex items-center space-x-2 text-on-surface-variant dark:text-text-muted-dark hover:text-primary dark:hover:text-primary-fixed-dim transition-colors mb-8 font-label-sm text-label-sm" href="#">
+<span class="material-symbols-outlined text-[18px]">arrow_back</span>
+<span>Back to ideas</span>
+</a>
+<!-- Header -->
+<div class="mb-12">
+<h1 class="font-display-xl text-display-xl text-on-background dark:text-on-surface mb-4">🎨 Stitch Prompt Generator</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant dark:text-text-muted-dark max-w-2xl">
+                Review your final design prompt below. Copy and paste it directly into Google Stitch to generate your fully functional, styled application prototype.
+            </p>
+</div>
+<!-- Layout Grid -->
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Main Prompt Area (Span 7) -->
+<div class="lg:col-span-7 flex flex-col space-y-6">
+<!-- Main Prompt Card -->
+<div class="bg-surface dark:bg-surface-dark border border-outline-variant dark:border-outline shadow-tonal rounded-xl p-6 flex flex-col h-full transition-all hover:border-outline dark:hover:border-surface-variant">
+<div class="flex justify-between items-center mb-4">
+<h2 class="font-body-md text-body-md font-semibold text-on-background dark:text-on-surface">Your Stitch prompt</h2>
+<button class="bg-primary text-on-primary hover:opacity-80 transition-opacity font-label-sm text-label-sm px-4 py-2 rounded-lg flex items-center space-x-2">
+<span>Copy prompt</span>
+<span class="material-symbols-outlined text-[16px]">content_copy</span>
+</button>
+</div>
+<div class="bg-surface-container-high dark:bg-inverse-surface rounded-lg p-6 flex-grow relative group overflow-hidden">
+<div class="absolute inset-0 bg-primary/5 dark:bg-primary-fixed/5 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"></div>
+<p class="font-code-block text-code-block text-on-surface-variant dark:text-surface-container whitespace-pre-wrap select-all">Create a modern, responsive web application serving as a comprehensive dashboard for a SaaS platform. The layout should follow a Fixed-Fluid hybrid model with a 12-column grid.
+
+Theme: Warm cream backgrounds (#fbf9f6), maroon accents (#7d241d), and amber secondary states (#fcb654). Avoid heavy drop shadows; use tonal layering and 1px borders (#ddc0bc).
+
+Typography: 
+- Headings: Libre Caslon Text
+- Body: Poppins
+- Code/Labels: IBM Plex Mono
+
+Include a Top Navigation bar with a horizontal stepper, a sidebar for main navigation items, and a central canvas featuring glassmorphism cards. Ensure all interactive elements have subtle hover states utilizing scale or opacity shifts.</p>
+</div>
+</div>
+<!-- Action Row -->
+<div class="flex items-center space-x-4">
+<button class="bg-secondary-container text-on-secondary-container hover:opacity-80 transition-opacity font-label-sm text-label-sm px-6 py-3 rounded-lg flex items-center space-x-2 shadow-tonal">
+<span>Open Google Stitch</span>
+<span class="material-symbols-outlined text-[18px]">open_in_new</span>
+</button>
+<button class="border border-on-surface-variant text-on-surface-variant dark:border-text-muted-dark dark:text-text-muted-dark hover:bg-surface-container-high dark:hover:bg-inverse-surface transition-colors font-label-sm text-label-sm px-6 py-3 rounded-lg flex items-center space-x-2">
+<span>Regenerate</span>
+<span class="material-symbols-outlined text-[18px]">sync</span>
+</button>
+</div>
+</div>
+<!-- Attributes Grid (Span 5) -->
+<div class="lg:col-span-5">
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 h-full content-start">
+<!-- Definition Card 1 -->
+<div class="bg-surface dark:bg-surface-dark border border-outline-variant dark:border-outline shadow-tonal rounded-lg p-5 flex flex-col hover:border-primary/50 transition-colors group">
+<div class="font-label-sm text-label-sm text-primary dark:text-primary-fixed-dim uppercase tracking-wider mb-2 flex items-center justify-between">
+                            App Type
+                            <span class="material-symbols-outlined text-[16px] opacity-0 group-hover:opacity-100 transition-opacity">edit</span>
+</div>
+<div class="font-body-md text-body-md text-on-background dark:text-on-surface font-medium">
+                            SaaS Dashboard
+                        </div>
+</div>
+<!-- Definition Card 2 -->
+<div class="bg-surface dark:bg-surface-dark border border-outline-variant dark:border-outline shadow-tonal rounded-lg p-5 flex flex-col hover:border-primary/50 transition-colors group">
+<div class="font-label-sm text-label-sm text-primary dark:text-primary-fixed-dim uppercase tracking-wider mb-2 flex items-center justify-between">
+                            Platform
+                            <span class="material-symbols-outlined text-[16px] opacity-0 group-hover:opacity-100 transition-opacity">edit</span>
+</div>
+<div class="font-body-md text-body-md text-on-background dark:text-on-surface font-medium">
+                            Web (Responsive)
+                        </div>
+</div>
+<!-- Definition Card 3 -->
+<div class="bg-surface dark:bg-surface-dark border border-outline-variant dark:border-outline shadow-tonal rounded-lg p-5 flex flex-col hover:border-primary/50 transition-colors group">
+<div class="font-label-sm text-label-sm text-primary dark:text-primary-fixed-dim uppercase tracking-wider mb-2 flex items-center justify-between">
+                            Color Scheme
+                            <span class="material-symbols-outlined text-[16px] opacity-0 group-hover:opacity-100 transition-opacity">edit</span>
+</div>
+<div class="font-body-md text-body-md text-on-background dark:text-on-surface font-medium">
+                            Warm Cream &amp; Maroon
+                        </div>
+</div>
+<!-- Definition Card 4 -->
+<div class="bg-surface dark:bg-surface-dark border border-outline-variant dark:border-outline shadow-tonal rounded-lg p-5 flex flex-col hover:border-primary/50 transition-colors group">
+<div class="font-label-sm text-label-sm text-primary dark:text-primary-fixed-dim uppercase tracking-wider mb-2 flex items-center justify-between">
+                            Style
+                            <span class="material-symbols-outlined text-[16px] opacity-0 group-hover:opacity-100 transition-opacity">edit</span>
+</div>
+<div class="font-body-md text-body-md text-on-background dark:text-on-surface font-medium">
+                            Modern Editorial
+                        </div>
+</div>
+<!-- Definition Card 5 -->
+<div class="bg-surface dark:bg-surface-dark border border-outline-variant dark:border-outline shadow-tonal rounded-lg p-5 flex flex-col hover:border-primary/50 transition-colors group">
+<div class="font-label-sm text-label-sm text-primary dark:text-primary-fixed-dim uppercase tracking-wider mb-2 flex items-center justify-between">
+                            Screens
+                            <span class="material-symbols-outlined text-[16px] opacity-0 group-hover:opacity-100 transition-opacity">edit</span>
+</div>
+<div class="font-body-md text-body-md text-on-background dark:text-on-surface font-medium">
+                            5 Key Views
+                        </div>
+</div>
+<!-- Definition Card 6 -->
+<div class="bg-surface dark:bg-surface-dark border border-outline-variant dark:border-outline shadow-tonal rounded-lg p-5 flex flex-col hover:border-primary/50 transition-colors group">
+<div class="font-label-sm text-label-sm text-primary dark:text-primary-fixed-dim uppercase tracking-wider mb-2 flex items-center justify-between">
+                            Components
+                            <span class="material-symbols-outlined text-[16px] opacity-0 group-hover:opacity-100 transition-opacity">edit</span>
+</div>
+<div class="font-body-md text-body-md text-on-background dark:text-on-surface font-medium">
+                            High-End UI Patterns
+                        </div>
+</div>
+</div>
+</div>
+</div>
+</main>
+<script>
+        // Simple dark mode toggle functionality for demo
+        const toggleBtn = document.querySelector('button[aria-label="Toggle dark mode"]');
+        if(toggleBtn) {
+            toggleBtn.addEventListener('click', () => {
+                document.documentElement.classList.toggle('dark');
+                document.documentElement.classList.toggle('light');
+            });
+        }
+    </script>
+</body></html>

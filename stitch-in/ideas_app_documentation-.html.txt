@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ideas App - Documentation Generator</title>
+<!-- Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Google Fonts -->
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=Libre+Caslon+Text:wght@400;700&amp;family=Poppins:wght@400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Tailwind CSS -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Config -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary-fixed": "#2a1800",
+                    "on-error-container": "#93000a",
+                    "on-surface": "#1b1c1a",
+                    "surface": "#fbf9f6",
+                    "on-secondary-fixed-variant": "#643f00",
+                    "on-secondary": "#ffffff",
+                    "outline-variant": "#ddc0bc",
+                    "secondary": "#845400",
+                    "background-dark": "#2D2421",
+                    "surface-dark": "#3D322E",
+                    "on-primary-container": "#ffc6be",
+                    "inverse-surface": "#30312f",
+                    "tertiary": "#004d46",
+                    "primary": "#7d241d",
+                    "surface-variant": "#e4e2df",
+                    "background": "#fbf9f6",
+                    "surface-tint": "#a03e35",
+                    "success-warm": "#9C3B32",
+                    "text-muted-dark": "#A69994",
+                    "on-primary": "#ffffff",
+                    "on-error": "#ffffff",
+                    "on-primary-fixed": "#410001",
+                    "outline": "#89726e",
+                    "background-warm": "#F7F5F2",
+                    "on-tertiary-container": "#93e2d6",
+                    "primary-fixed-dim": "#ffb4aa",
+                    "tertiary-container": "#00675e",
+                    "secondary-fixed": "#ffddb5",
+                    "on-secondary-container": "#714800",
+                    "inverse-primary": "#ffb4aa",
+                    "error": "#ba1a1a",
+                    "on-tertiary-fixed-variant": "#005049",
+                    "primary-container": "#9c3b32",
+                    "tertiary-fixed": "#a1f1e5",
+                    "error-container": "#ffdad6",
+                    "danger-deep": "#7B231A",
+                    "surface-container": "#efeeeb",
+                    "primary-fixed": "#ffdad5",
+                    "inverse-on-surface": "#f2f0ed",
+                    "secondary-fixed-dim": "#ffb958",
+                    "secondary-container": "#fcb654",
+                    "surface-dim": "#dbdad7",
+                    "on-background": "#1b1c1a",
+                    "surface-container-highest": "#e4e2df",
+                    "surface-bright": "#fbf9f6",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary-fixed-dim": "#85d5c9",
+                    "surface-container-high": "#eae8e5",
+                    "on-surface-variant": "#56423f",
+                    "on-tertiary-fixed": "#00201d",
+                    "on-primary-fixed-variant": "#812720",
+                    "on-tertiary": "#ffffff",
+                    "surface-container-low": "#f5f3f0"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "margin-desktop": "64px",
+                    "max-width": "1200px",
+                    "base": "8px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "headline-lg-mobile": [
+                            "Libre Caslon Text"
+                    ],
+                    "body-md": [
+                            "Poppins"
+                    ],
+                    "body-lg": [
+                            "Poppins"
+                    ],
+                    "label-sm": [
+                            "IBM Plex Mono"
+                    ],
+                    "headline-lg": [
+                            "Libre Caslon Text"
+                    ],
+                    "display-xl": [
+                            "Libre Caslon Text"
+                    ],
+                    "code-block": [
+                            "IBM Plex Mono"
+                    ]
+            },
+            "fontSize": {
+                    "headline-lg-mobile": [
+                            "24px",
+                            {
+                                    "lineHeight": "32px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "body-md": [
+                            "16px",
+                            {
+                                    "lineHeight": "24px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "body-lg": [
+                            "18px",
+                            {
+                                    "lineHeight": "28px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "label-sm": [
+                            "13px",
+                            {
+                                    "lineHeight": "16px",
+                                    "letterSpacing": "0.05em",
+                                    "fontWeight": "500"
+                            }
+                    ],
+                    "headline-lg": [
+                            "32px",
+                            {
+                                    "lineHeight": "40px",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "display-xl": [
+                            "48px",
+                            {
+                                    "lineHeight": "56px",
+                                    "letterSpacing": "-0.02em",
+                                    "fontWeight": "400"
+                            }
+                    ],
+                    "code-block": [
+                            "14px",
+                            {
+                                    "lineHeight": "22px",
+                                    "fontWeight": "400"
+                            }
+                    ]
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        .card-shadow {
+            box-shadow: 0 2px 4px rgba(45, 36, 33, 0.05);
+        }
+        .markdown-content h1 { font-family: 'Libre Caslon Text'; font-size: 24px; margin-bottom: 16px; color: #1b1c1a; }
+        .markdown-content h2 { font-family: 'Libre Caslon Text'; font-size: 20px; margin-top: 24px; margin-bottom: 12px; color: #1b1c1a; }
+        .markdown-content p { margin-bottom: 16px; color: #56423f; }
+        .markdown-content ul { list-style-type: disc; padding-left: 24px; margin-bottom: 16px; color: #56423f; }
+        .markdown-content code { background-color: #f5f3f0; padding: 2px 4px; border-radius: 4px; font-family: 'IBM Plex Mono'; font-size: 13px; color: #7d241d; }
+    </style>
+</head>
+<body class="bg-background text-on-surface font-body-md min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<nav class="docked full-width top-0 sticky bg-background border-b border-outline-variant shadow-sm z-50">
+<div class="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop max-w-max-width mx-auto h-16">
+<!-- Brand -->
+<div class="font-headline-lg text-headline-lg font-bold text-primary flex-shrink-0">
+                Ideas App
+            </div>
+<!-- Stepper -->
+<div class="hidden md:flex items-center justify-center flex-grow mx-8">
+<div class="flex items-center gap-2">
+<span class="flex items-center justify-center w-6 h-6 rounded-full bg-secondary text-white font-label-sm text-label-sm">
+<span class="material-symbols-outlined" style="font-size: 14px;">check</span>
+</span>
+<span class="font-label-sm text-label-sm text-secondary">Ideas</span>
+<div class="w-8 h-px bg-outline-variant mx-2"></div>
+<span class="flex items-center justify-center w-6 h-6 rounded-full bg-secondary text-white font-label-sm text-label-sm">
+<span class="material-symbols-outlined" style="font-size: 14px;">check</span>
+</span>
+<span class="font-label-sm text-label-sm text-secondary">Design</span>
+<div class="w-8 h-px bg-outline-variant mx-2"></div>
+<span class="flex items-center justify-center w-6 h-6 rounded-full bg-primary text-white font-label-sm text-label-sm">3</span>
+<span class="font-label-sm text-label-sm text-primary font-bold">Docs</span>
+<div class="w-8 h-px bg-outline-variant mx-2"></div>
+<span class="flex items-center justify-center w-6 h-6 rounded-full bg-surface-container-high text-on-surface-variant font-label-sm text-label-sm">4</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant">Export</span>
+</div>
+</div>
+<!-- Actions -->
+<div class="flex items-center gap-4 flex-shrink-0">
+<button class="text-on-surface-variant hover:text-primary transition-colors hover:opacity-80">
+<span class="material-symbols-outlined">dark_mode</span>
+</button>
+</div>
+</div>
+</nav>
+<!-- Main Content -->
+<main class="flex-grow w-full px-margin-mobile md:px-margin-desktop max-w-max-width mx-auto py-[80px]">
+<!-- Breadcrumb -->
+<a class="inline-flex items-center text-on-surface-variant hover:text-primary font-body-md text-body-md mb-8 transition-colors group" href="#">
+<span class="material-symbols-outlined mr-2 text-sm group-hover:-translate-x-1 transition-transform">arrow_left</span>
+            Back to ideas
+        </a>
+<!-- Header -->
+<div class="mb-12 flex flex-col md:flex-row md:items-center justify-between gap-4">
+<div>
+<h1 class="font-display-xl text-display-xl text-on-surface flex items-center gap-4">
+                    📄 Documentation Generator
+                </h1>
+<div class="mt-4 inline-flex items-center bg-surface-container px-3 py-1 rounded-full border border-outline-variant">
+<span class="font-label-sm text-label-sm text-on-surface-variant uppercase">Idea: E-Commerce Mobile App Redesign</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Left Column: Controls & Status (4 cols) -->
+<div class="lg:col-span-4 flex flex-col gap-6">
+<!-- Progress Card -->
+<div class="bg-surface rounded-xl p-6 border border-outline-variant card-shadow">
+<h2 class="font-headline-lg text-body-lg mb-4 text-on-surface">Generation Progress</h2>
+<div class="flex justify-between items-end mb-2">
+<span class="font-body-md text-body-md text-on-surface-variant">3/11 documents generated</span>
+<span class="font-label-sm text-label-sm text-primary">27%</span>
+</div>
+<div class="w-full bg-surface-container-high rounded-full h-2 mb-6 overflow-hidden">
+<div class="bg-primary h-2 rounded-full transition-all duration-500" style="width: 27%"></div>
+</div>
+<button class="w-full bg-primary text-white font-body-md text-body-md py-3 px-4 rounded-lg hover:bg-danger-deep transition-colors flex items-center justify-center gap-2">
+                        Generate all docs ⚡
+                    </button>
+<!-- <button class="w-full bg-surface-container text-on-surface-variant font-body-md py-3 px-4 rounded-lg flex items-center justify-center gap-2 cursor-not-allowed">
+                        <span class="material-symbols-outlined animate-spin text-sm">sync</span>
+                        Generating PRD.md (4/11)...
+                    </button> -->
+</div>
+<!-- Upload Card -->
+<div class="bg-surface rounded-xl p-6 border border-outline-variant card-shadow">
+<h2 class="font-headline-lg text-body-lg mb-4 text-on-surface flex justify-between items-center">
+                        Upload Stitch Exports
+                        <span class="font-label-sm text-label-sm bg-surface-container-high px-2 py-1 rounded text-on-surface-variant">Optional</span>
+</h2>
+<p class="font-body-md text-body-md text-on-surface-variant mb-4 text-sm">Provide existing designs to improve doc accuracy.</p>
+<div class="border-2 border-dashed border-outline-variant rounded-lg p-8 flex flex-col items-center justify-center text-center cursor-pointer hover:border-secondary hover:bg-background-warm transition-all mb-4 group">
+<span class="material-symbols-outlined text-outline-variant text-4xl mb-2 group-hover:text-secondary">upload_file</span>
+<span class="font-body-md text-body-md text-on-surface-variant group-hover:text-secondary">Drag &amp; drop files here<br/>or <span class="underline">browse</span></span>
+</div>
+<div class="space-y-3">
+<div class="flex items-center justify-between p-3 bg-surface-container-low rounded-lg border border-outline-variant">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-on-surface-variant">description</span>
+<span class="font-label-sm text-label-sm text-on-surface">home_screen.png</span>
+</div>
+<button class="text-on-surface-variant hover:text-error"><span class="material-symbols-outlined text-sm">close</span></button>
+</div>
+</div>
+</div>
+</div>
+<!-- Right Column: Document Viewer (8 cols) -->
+<div class="lg:col-span-8 flex flex-col gap-6">
+<!-- Doc Tabs -->
+<div class="flex flex-wrap gap-2">
+<button class="px-4 py-2 rounded-full border border-primary bg-primary text-white font-label-sm text-label-sm flex items-center gap-2 transition-colors">
+                        PRD.md
+                    </button>
+<button class="px-4 py-2 rounded-full border border-secondary bg-surface-container-low text-on-surface font-label-sm text-label-sm flex items-center gap-2 transition-colors hover:bg-surface-container">
+<span class="material-symbols-outlined text-secondary" style="font-size: 14px;">check</span>
+                        API_SPEC.md
+                    </button>
+<button class="px-4 py-2 rounded-full border border-secondary bg-surface-container-low text-on-surface font-label-sm text-label-sm flex items-center gap-2 transition-colors hover:bg-surface-container">
+<span class="material-symbols-outlined text-secondary" style="font-size: 14px;">check</span>
+                        USER_FLOW.md
+                    </button>
+<button class="px-4 py-2 rounded-full border border-outline-variant bg-surface text-on-surface-variant font-label-sm text-label-sm flex items-center gap-2 transition-colors hover:border-outline">
+                        DATA_MODEL.md
+                    </button>
+<button class="px-4 py-2 rounded-full border border-outline-variant bg-surface text-on-surface-variant font-label-sm text-label-sm flex items-center gap-2 transition-colors hover:border-outline">
+                        COMPONENTS.md
+                    </button>
+<button class="px-4 py-2 rounded-full border border-outline-variant bg-surface text-on-surface-variant font-label-sm text-label-sm flex items-center gap-2 transition-colors hover:border-outline">
+                        TEST_CASES.md
+                    </button>
+</div>
+<!-- Viewer Card -->
+<div class="bg-surface rounded-xl border border-outline-variant card-shadow flex flex-col flex-grow min-h-[600px]">
+<!-- Viewer Header -->
+<div class="p-4 border-b border-outline-variant flex justify-between items-center bg-surface-container-lowest rounded-t-xl">
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-primary">markdown</span>
+<span class="font-label-sm text-label-sm text-on-surface">PRD.md</span>
+</div>
+<button class="flex items-center gap-2 px-3 py-1.5 rounded-md text-on-surface-variant hover:text-primary hover:bg-surface-container-low transition-colors font-label-sm text-label-sm">
+<span class="material-symbols-outlined" style="font-size: 16px;">content_copy</span>
+                            Copy
+                        </button>
+</div>
+<!-- Viewer Content -->
+<div class="p-8 overflow-y-auto font-code-block text-code-block text-on-surface markdown-content flex-grow bg-white rounded-b-xl">
+<h1>Product Requirements Document (PRD)</h1>
+<p><strong>Project:</strong> E-Commerce Mobile App Redesign</p>
+<p><strong>Status:</strong> Draft</p>
+<p><strong>Date:</strong> October 24, 2023</p>
+<h2>1. Overview</h2>
+<p>The goal of this project is to redesign the core mobile shopping experience to improve conversion rates and user engagement. We aim to simplify the checkout process, enhance product discovery, and modernize the visual aesthetic.</p>
+<h2>2. Objectives</h2>
+<ul>
+<li>Increase mobile conversion rate by 15% within Q1.</li>
+<li>Reduce average checkout time by 30 seconds.</li>
+<li>Improve accessibility compliance to AA standards.</li>
+</ul>
+<h2>3. User Personas</h2>
+<p><strong>Persona 1: The Bargain Hunter</strong> - Looking for quick deals and easy navigation to sale items.</p>
+<p><strong>Persona 2: The Brand Loyalist</strong> - Seeks a premium, seamless experience with personalized recommendations.</p>
+<h2>4. Core Features</h2>
+<ul>
+<li><strong>One-Tap Checkout:</strong> Implement Apple Pay and Google Pay integration (<code>/api/v1/checkout/express</code>).</li>
+<li><strong>Enhanced Search:</strong> Predictive search with image results.</li>
+<li><strong>Wishlist Collections:</strong> Allow users to group saved items into distinct collections.</li>
+</ul>
+</div>
+</div>
+</div>
+</div>
+</main>
+</body></html>

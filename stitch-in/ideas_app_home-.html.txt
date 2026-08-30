@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ideas App - Turn your idea into a buildable app</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=Libre+Caslon+Text:ital,wght@0,400;0,700;1,400&amp;family=Poppins:wght@300;400;500;600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+          darkMode: "class",
+          theme: {
+            extend: {
+              "colors": {
+                      "on-secondary-fixed": "#2a1800",
+                      "on-error-container": "#93000a",
+                      "on-surface": "#1b1c1a",
+                      "surface": "#fbf9f6",
+                      "on-secondary-fixed-variant": "#643f00",
+                      "on-secondary": "#ffffff",
+                      "outline-variant": "#ddc0bc",
+                      "secondary": "#845400",
+                      "background-dark": "#2D2421",
+                      "surface-dark": "#3D322E",
+                      "on-primary-container": "#ffc6be",
+                      "inverse-surface": "#30312f",
+                      "tertiary": "#004d46",
+                      "primary": "#7d241d",
+                      "surface-variant": "#e4e2df",
+                      "background": "#fbf9f6",
+                      "surface-tint": "#a03e35",
+                      "success-warm": "#9C3B32",
+                      "text-muted-dark": "#A69994",
+                      "on-primary": "#ffffff",
+                      "on-error": "#ffffff",
+                      "on-primary-fixed": "#410001",
+                      "outline": "#89726e",
+                      "background-warm": "#F7F5F2",
+                      "on-tertiary-container": "#93e2d6",
+                      "primary-fixed-dim": "#ffb4aa",
+                      "tertiary-container": "#00675e",
+                      "secondary-fixed": "#ffddb5",
+                      "on-secondary-container": "#714800",
+                      "inverse-primary": "#ffb4aa",
+                      "error": "#ba1a1a",
+                      "on-tertiary-fixed-variant": "#005049",
+                      "primary-container": "#9c3b32",
+                      "tertiary-fixed": "#a1f1e5",
+                      "error-container": "#ffdad6",
+                      "danger-deep": "#7B231A",
+                      "surface-container": "#efeeeb",
+                      "primary-fixed": "#ffdad5",
+                      "inverse-on-surface": "#f2f0ed",
+                      "secondary-fixed-dim": "#ffb958",
+                      "secondary-container": "#fcb654",
+                      "surface-dim": "#dbdad7",
+                      "on-background": "#1b1c1a",
+                      "surface-container-highest": "#e4e2df",
+                      "surface-bright": "#fbf9f6",
+                      "surface-container-lowest": "#ffffff",
+                      "tertiary-fixed-dim": "#85d5c9",
+                      "surface-container-high": "#eae8e5",
+                      "on-surface-variant": "#56423f",
+                      "on-tertiary-fixed": "#00201d",
+                      "on-primary-fixed-variant": "#812720",
+                      "on-tertiary": "#ffffff",
+                      "surface-container-low": "#f5f3f0"
+              },
+              "borderRadius": {
+                      "DEFAULT": "0.25rem",
+                      "lg": "0.5rem",
+                      "xl": "0.75rem",
+                      "full": "9999px"
+              },
+              "spacing": {
+                      "margin-mobile": "16px",
+                      "margin-desktop": "64px",
+                      "max-width": "1200px",
+                      "base": "8px",
+                      "gutter": "24px"
+              },
+              "fontFamily": {
+                      "headline-lg-mobile": [
+                              "Libre Caslon Text"
+                      ],
+                      "body-md": [
+                              "Poppins"
+                      ],
+                      "body-lg": [
+                              "Poppins"
+                      ],
+                      "label-sm": [
+                              "IBM Plex Mono"
+                      ],
+                      "headline-lg": [
+                              "Libre Caslon Text"
+                      ],
+                      "display-xl": [
+                              "Libre Caslon Text"
+                      ],
+                      "code-block": [
+                              "IBM Plex Mono"
+                      ]
+              },
+              "fontSize": {
+                      "headline-lg-mobile": [
+                              "24px",
+                              {
+                                      "lineHeight": "32px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-md": [
+                              "16px",
+                              {
+                                      "lineHeight": "24px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "body-lg": [
+                              "18px",
+                              {
+                                      "lineHeight": "28px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "label-sm": [
+                              "13px",
+                              {
+                                      "lineHeight": "16px",
+                                      "letterSpacing": "0.05em",
+                                      "fontWeight": "500"
+                              }
+                      ],
+                      "headline-lg": [
+                              "32px",
+                              {
+                                      "lineHeight": "40px",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "display-xl": [
+                              "48px",
+                              {
+                                      "lineHeight": "56px",
+                                      "letterSpacing": "-0.02em",
+                                      "fontWeight": "400"
+                              }
+                      ],
+                      "code-block": [
+                              "14px",
+                              {
+                                      "lineHeight": "22px",
+                                      "fontWeight": "400"
+                              }
+                      ]
+              }
+      },
+          },
+        }
+    </script>
+<style>
+        .card-shadow {
+            box-shadow: 0 2px 4px rgba(45, 36, 33, 0.05);
+        }
+        .skeleton-loader {
+            background: linear-gradient(90deg, #fbf9f6 25%, #f5f3f0 50%, #fbf9f6 75%);
+            background-size: 200% 100%;
+            animation: loading 1.5s infinite;
+        }
+        .dark .skeleton-loader {
+            background: linear-gradient(90deg, #3D322E 25%, #4A3E39 50%, #3D322E 75%);
+            background-size: 200% 100%;
+        }
+        @keyframes loading {
+            0% {
+                background-position: 200% 0;
+            }
+            100% {
+                background-position: -200% 0;
+            }
+        }
+    </style>
+</head>
+<body class="bg-background dark:bg-background-dark text-on-surface dark:text-text-muted-dark font-body-md text-body-md transition-colors duration-300">
+<!-- Navigation Stepper -->
+<header class="bg-background dark:bg-background-dark text-primary dark:text-primary-fixed-dim docked full-width top-0 sticky border-b border-outline-variant dark:border-surface-variant shadow-sm dark:shadow-none z-50 transition-colors duration-300">
+<div class="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop max-w-max-width mx-auto h-16">
+<div class="font-headline-lg text-headline-lg font-bold text-primary dark:text-primary-fixed-dim">
+                Ideas App
+            </div>
+<nav class="hidden md:flex items-center space-x-8 relative">
+<!-- Stepper Line -->
+<div class="absolute top-1/2 left-0 right-0 h-[1px] bg-surface-variant dark:bg-surface-variant/20 -z-10 transform -translate-y-1/2"></div>
+<a class="text-primary dark:text-primary-fixed-dim font-bold border-b-2 border-primary dark:border-primary-fixed-dim pb-1 hover:opacity-80 transition-opacity bg-background dark:bg-background-dark px-2 active:scale-95 duration-100 flex items-center gap-2" href="#">
+<span class="w-6 h-6 rounded-full bg-primary text-on-primary flex items-center justify-center font-label-sm text-label-sm">1</span>
+                    Ideas
+                </a>
+<a class="text-on-surface-variant dark:text-text-muted-dark hover:text-primary dark:hover:text-primary-fixed-dim transition-colors hover:opacity-80 transition-opacity bg-background dark:bg-background-dark px-2 flex items-center gap-2" href="#">
+<span class="w-6 h-6 rounded-full bg-surface-variant text-on-surface-variant flex items-center justify-center font-label-sm text-label-sm">2</span>
+                    Design
+                </a>
+<a class="text-on-surface-variant dark:text-text-muted-dark hover:text-primary dark:hover:text-primary-fixed-dim transition-colors hover:opacity-80 transition-opacity bg-background dark:bg-background-dark px-2 flex items-center gap-2" href="#">
+<span class="w-6 h-6 rounded-full bg-surface-variant text-on-surface-variant flex items-center justify-center font-label-sm text-label-sm">3</span>
+                    Docs
+                </a>
+<a class="text-on-surface-variant dark:text-text-muted-dark hover:text-primary dark:hover:text-primary-fixed-dim transition-colors hover:opacity-80 transition-opacity bg-background dark:bg-background-dark px-2 flex items-center gap-2" href="#">
+<span class="w-6 h-6 rounded-full bg-surface-variant text-on-surface-variant flex items-center justify-center font-label-sm text-label-sm">4</span>
+                    Export
+                </a>
+</nav>
+<button class="text-primary dark:text-primary-fixed-dim hover:opacity-80 transition-opacity active:scale-95 duration-100 p-2" onclick="toggleDarkMode()">
+<span class="material-symbols-outlined" data-icon="dark_mode">dark_mode</span>
+</button>
+</div>
+</header>
+<main class="w-full px-margin-mobile md:px-margin-desktop max-w-max-width mx-auto pt-20 pb-32">
+<!-- Hero Section -->
+<section class="text-center mb-24 max-w-3xl mx-auto">
+<div class="inline-flex items-center gap-2 px-3 py-1 bg-surface-container-low dark:bg-surface-dark border border-outline-variant/50 rounded-full font-label-sm text-label-sm text-on-surface-variant dark:text-text-muted-dark mb-6">
+<span class="w-2 h-2 rounded-full bg-secondary"></span>
+                powered by AI + live trends
+            </div>
+<h1 class="font-display-xl text-display-xl text-on-surface dark:text-surface-bright mb-6">Turn your idea into a buildable app</h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant dark:text-text-muted-dark">Describe your vision, and we'll craft the architecture, features, and documentation needed to start building today.</p>
+</section>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+<!-- Generate Input Column -->
+<div class="lg:col-span-4">
+<div class="bg-surface dark:bg-surface-dark border border-outline-variant/60 dark:border-outline/20 rounded-lg p-6 card-shadow sticky top-24">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface dark:text-surface-bright mb-4">Generate ideas</h2>
+<div class="mb-4">
+<label class="block font-label-sm text-label-sm text-on-surface-variant dark:text-text-muted-dark mb-2" for="category">Category</label>
+<select class="w-full bg-background dark:bg-background-dark border border-outline-variant/60 dark:border-outline/30 rounded focus:border-primary focus:ring-0 text-on-surface dark:text-surface-bright font-body-md text-body-md p-3" id="category">
+<option>SaaS Platform</option>
+<option>AI Tool</option>
+<option>Mobile App</option>
+<option>Developer Tool</option>
+</select>
+</div>
+<div class="mb-6">
+<label class="block font-label-sm text-label-sm text-on-surface-variant dark:text-text-muted-dark mb-2" for="preferences">Preferences &amp; Goals</label>
+<textarea class="w-full bg-background dark:bg-background-dark border border-outline-variant/60 dark:border-outline/30 rounded focus:border-primary focus:border-l-2 focus:ring-0 text-on-surface dark:text-surface-bright font-body-md text-body-md p-3 resize-none" id="preferences" placeholder="E.g., I want to build a tool for remote teams that integrates with Notion and focuses on asynchronous communication." rows="4"></textarea>
+</div>
+<button class="w-full bg-primary hover:bg-primary-container text-on-primary font-body-md text-body-md font-medium py-3 px-4 rounded transition-colors flex items-center justify-center gap-2">
+                        Generate Idea 
+                        <span class="material-symbols-outlined text-lg" data-icon="bolt">bolt</span>
+</button>
+</div>
+</div>
+<!-- Idea Grid Column -->
+<div class="lg:col-span-8 flex flex-col gap-6">
+<!-- Card 1: Draft -->
+<div class="bg-surface dark:bg-surface-dark border border-outline-variant/60 dark:border-outline/20 rounded-lg p-6 card-shadow transition-colors hover:border-outline-variant dark:hover:border-outline/40">
+<div class="flex justify-between items-start mb-4">
+<div>
+<span class="inline-block px-2 py-1 bg-secondary-fixed/20 text-secondary font-label-sm text-label-sm rounded uppercase tracking-wider mb-2">Idea</span>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface dark:text-surface-bright">Async Sync: Remote Team Standups</h3>
+</div>
+</div>
+<p class="mb-6 text-on-surface-variant dark:text-text-muted-dark">A lightweight platform that replaces live daily standups with structured, async updates that automatically sync to Notion and Slack, using AI to summarize blockers.</p>
+<div class="mb-6">
+<h4 class="font-label-sm text-label-sm text-on-surface dark:text-surface-bright mb-3 uppercase tracking-wider">Core Features</h4>
+<ul class="space-y-2">
+<li class="flex items-start gap-2">
+<span class="material-symbols-outlined text-primary text-base mt-0.5" data-icon="check_circle">check_circle</span>
+<span>Slack/Discord slash command integration for updates</span>
+</li>
+<li class="flex items-start gap-2">
+<span class="material-symbols-outlined text-primary text-base mt-0.5" data-icon="check_circle">check_circle</span>
+<span>AI-generated weekly blocker reports</span>
+</li>
+<li class="flex items-start gap-2">
+<span class="material-symbols-outlined text-primary text-base mt-0.5" data-icon="check_circle">check_circle</span>
+<span>Notion database auto-population</span>
+</li>
+</ul>
+</div>
+<div class="grid grid-cols-2 gap-4 py-4 border-t border-outline-variant/30 mb-6">
+<div>
+<span class="block font-label-sm text-label-sm text-on-surface-variant dark:text-text-muted-dark uppercase tracking-wider mb-1">Audience</span>
+<span class="font-medium">Distributed Teams (10-50)</span>
+</div>
+<div>
+<span class="block font-label-sm text-label-sm text-on-surface-variant dark:text-text-muted-dark uppercase tracking-wider mb-1">Monetization</span>
+<span class="font-medium">$5/user/month (SaaS)</span>
+</div>
+</div>
+<button class="bg-primary hover:bg-primary-container text-on-primary font-body-md text-body-md font-medium py-2 px-6 rounded transition-colors">
+                        I Like This!
+                    </button>
+</div>
+<!-- Card 2: Approved -->
+<div class="bg-surface dark:bg-surface-dark border border-outline-variant/60 dark:border-outline/20 rounded-lg p-6 card-shadow">
+<div class="flex justify-between items-start mb-4">
+<div>
+<span class="inline-block px-2 py-1 bg-secondary text-on-secondary font-label-sm text-label-sm rounded uppercase tracking-wider mb-2 flex items-center gap-1 w-max">
+                                Approved <span class="material-symbols-outlined text-sm" data-icon="check">check</span>
+</span>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface dark:text-surface-bright">DesignToCode AI</h3>
+</div>
+</div>
+<p class="mb-6 text-on-surface-variant dark:text-text-muted-dark">An intelligent assistant that analyzes Figma links and generates production-ready React/Tailwind components with documented prop structures.</p>
+<div class="flex flex-wrap gap-3">
+<button class="bg-primary hover:bg-primary-container text-on-primary font-body-md text-body-md font-medium py-2 px-4 rounded transition-colors flex items-center gap-2">
+                            Stitch Prompt <span class="material-symbols-outlined text-sm" data-icon="palette">palette</span>
+</button>
+<button class="border border-on-surface dark:border-surface-bright text-on-surface dark:text-surface-bright hover:bg-surface-container-low dark:hover:bg-surface-container-high font-body-md text-body-md font-medium py-2 px-4 rounded transition-colors flex items-center gap-2">
+                            Docs <span class="material-symbols-outlined text-sm" data-icon="description">description</span>
+</button>
+<button class="bg-secondary hover:bg-secondary-container text-on-secondary hover:text-on-secondary-container font-body-md text-body-md font-medium py-2 px-4 rounded transition-colors flex items-center gap-2">
+                            Export <span class="material-symbols-outlined text-sm" data-icon="smart_toy">smart_toy</span>
+</button>
+</div>
+</div>
+<!-- Card 3: Loading Skeleton -->
+<div class="bg-surface dark:bg-surface-dark border border-outline-variant/30 dark:border-outline/10 rounded-lg p-6 card-shadow">
+<div class="w-16 h-6 skeleton-loader rounded mb-4"></div>
+<div class="w-3/4 h-8 skeleton-loader rounded mb-6"></div>
+<div class="space-y-3 mb-8">
+<div class="w-full h-4 skeleton-loader rounded"></div>
+<div class="w-full h-4 skeleton-loader rounded"></div>
+<div class="w-2/3 h-4 skeleton-loader rounded"></div>
+</div>
+<div class="grid grid-cols-2 gap-4 py-4 border-t border-outline-variant/20 mb-6">
+<div>
+<div class="w-20 h-3 skeleton-loader rounded mb-2"></div>
+<div class="w-32 h-5 skeleton-loader rounded"></div>
+</div>
+<div>
+<div class="w-24 h-3 skeleton-loader rounded mb-2"></div>
+<div class="w-32 h-5 skeleton-loader rounded"></div>
+</div>
+</div>
+<div class="w-32 h-10 skeleton-loader rounded"></div>
+</div>
+</div>
+</div>
+</main>
+<script>
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+        }
+    </script>
+</body></html>

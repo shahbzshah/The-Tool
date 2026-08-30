@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+
+<html class="light" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Ideas App - Export for AI Coding Tools</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Libre+Caslon+Text:wght@400;700&amp;family=Poppins:wght@300;400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-secondary-fixed": "#2a1800",
+                    "on-error-container": "#93000a",
+                    "on-surface": "#1b1c1a",
+                    "surface": "#fbf9f6",
+                    "on-secondary-fixed-variant": "#643f00",
+                    "on-secondary": "#ffffff",
+                    "outline-variant": "#ddc0bc",
+                    "secondary": "#845400",
+                    "background-dark": "#2D2421",
+                    "surface-dark": "#3D322E",
+                    "on-primary-container": "#ffc6be",
+                    "inverse-surface": "#30312f",
+                    "tertiary": "#004d46",
+                    "primary": "#7d241d",
+                    "surface-variant": "#e4e2df",
+                    "background": "#fbf9f6",
+                    "surface-tint": "#a03e35",
+                    "success-warm": "#9C3B32",
+                    "text-muted-dark": "#A69994",
+                    "on-primary": "#ffffff",
+                    "on-error": "#ffffff",
+                    "on-primary-fixed": "#410001",
+                    "outline": "#89726e",
+                    "background-warm": "#F7F5F2",
+                    "on-tertiary-container": "#93e2d6",
+                    "primary-fixed-dim": "#ffb4aa",
+                    "tertiary-container": "#00675e",
+                    "secondary-fixed": "#ffddb5",
+                    "on-secondary-container": "#714800",
+                    "inverse-primary": "#ffb4aa",
+                    "error": "#ba1a1a",
+                    "on-tertiary-fixed-variant": "#005049",
+                    "primary-container": "#9c3b32",
+                    "tertiary-fixed": "#a1f1e5",
+                    "error-container": "#ffdad6",
+                    "danger-deep": "#7B231A",
+                    "surface-container": "#efeeeb",
+                    "primary-fixed": "#ffdad5",
+                    "inverse-on-surface": "#f2f0ed",
+                    "secondary-fixed-dim": "#ffb958",
+                    "secondary-container": "#fcb654",
+                    "surface-dim": "#dbdad7",
+                    "on-background": "#1b1c1a",
+                    "surface-container-highest": "#e4e2df",
+                    "surface-bright": "#fbf9f6",
+                    "surface-container-lowest": "#ffffff",
+                    "tertiary-fixed-dim": "#85d5c9",
+                    "surface-container-high": "#eae8e5",
+                    "on-surface-variant": "#56423f",
+                    "on-tertiary-fixed": "#00201d",
+                    "on-primary-fixed-variant": "#812720",
+                    "on-tertiary": "#ffffff",
+                    "surface-container-low": "#f5f3f0"
+            },
+            "borderRadius": {
+                    "DEFAULT": "0.25rem",
+                    "lg": "0.5rem",
+                    "xl": "0.75rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-mobile": "16px",
+                    "margin-desktop": "64px",
+                    "max-width": "1200px",
+                    "base": "8px",
+                    "gutter": "24px"
+            },
+            "fontFamily": {
+                    "headline-lg-mobile": ["Libre Caslon Text"],
+                    "body-md": ["Poppins"],
+                    "body-lg": ["Poppins"],
+                    "label-sm": ["IBM Plex Mono"],
+                    "headline-lg": ["Libre Caslon Text"],
+                    "display-xl": ["Libre Caslon Text"],
+                    "code-block": ["IBM Plex Mono"]
+            },
+            "fontSize": {
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "400"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "400"}],
+                    "label-sm": ["13px", {"lineHeight": "16px", "letterSpacing": "0.05em", "fontWeight": "500"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "400"}],
+                    "display-xl": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "400"}],
+                    "code-block": ["14px", {"lineHeight": "22px", "fontWeight": "400"}]
+            },
+            "boxShadow": {
+                'warm-soft': '0 2px 4px rgba(45, 36, 33, 0.05)',
+            }
+          }
+        }
+      }
+    </script>
+<style>
+        .warm-border {
+            border-color: #EAE4DD;
+        }
+        .dark .warm-border {
+            border-color: rgba(255,255,255,0.1);
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #e4e2df;
+            border-radius: 4px;
+        }
+        .dark .custom-scrollbar::-webkit-scrollbar-thumb {
+            background-color: #56423f;
+        }
+    </style>
+</head>
+<body class="bg-background dark:bg-background-dark text-on-surface dark:text-surface font-body-md text-body-md antialiased min-h-screen flex flex-col">
+<!-- TopNavBar -->
+<header class="bg-background dark:bg-background-dark docked full-width top-0 sticky border-b border-outline-variant dark:border-surface-variant shadow-sm dark:shadow-none z-50">
+<div class="flex justify-between items-center w-full px-margin-mobile md:px-margin-desktop max-w-max-width mx-auto h-16">
+<div class="font-headline-lg text-headline-lg font-bold text-primary dark:text-primary-fixed-dim">
+                Ideas App
+            </div>
+<!-- Pipeline Stepper -->
+<div class="hidden md:flex items-center space-x-4 relative">
+<!-- Step 1 -->
+<div class="flex items-center z-10 bg-background dark:bg-background-dark px-2">
+<div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-label-sm text-label-sm shadow-warm-soft">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<span class="ml-2 font-label-sm text-label-sm text-secondary-container uppercase">Ideas</span>
+</div>
+<div class="h-[1px] w-8 bg-surface-variant dark:bg-surface-dark absolute top-1/2 left-20 z-0"></div>
+<!-- Step 2 -->
+<div class="flex items-center z-10 bg-background dark:bg-background-dark px-2">
+<div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-label-sm text-label-sm shadow-warm-soft">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<span class="ml-2 font-label-sm text-label-sm text-secondary-container uppercase">Design</span>
+</div>
+<div class="h-[1px] w-8 bg-surface-variant dark:bg-surface-dark absolute top-1/2 left-52 z-0"></div>
+<!-- Step 3 -->
+<div class="flex items-center z-10 bg-background dark:bg-background-dark px-2">
+<div class="w-8 h-8 rounded-full bg-secondary-container text-on-secondary-container flex items-center justify-center font-label-sm text-label-sm shadow-warm-soft">
+<span class="material-symbols-outlined text-[16px]" style="font-variation-settings: 'FILL' 1;">check</span>
+</div>
+<span class="ml-2 font-label-sm text-label-sm text-secondary-container uppercase">Docs</span>
+</div>
+<div class="h-[1px] w-8 bg-surface-variant dark:bg-surface-dark absolute top-1/2 left-[21.5rem] z-0"></div>
+<!-- Step 4 Active -->
+<div class="flex items-center z-10 bg-background dark:bg-background-dark px-2">
+<div class="w-8 h-8 rounded-full bg-primary text-on-primary flex items-center justify-center font-label-sm text-label-sm shadow-warm-soft">
+                        4
+                    </div>
+<span class="ml-2 font-label-sm text-label-sm text-primary dark:text-primary-fixed-dim uppercase font-bold">Export</span>
+</div>
+</div>
+<div class="flex items-center space-x-4">
+<button aria-label="Toggle dark mode" class="text-primary dark:text-primary-fixed-dim hover:opacity-80 transition-opacity Active: scale-95 duration-100" onclick="document.documentElement.classList.toggle('dark')">
+<span class="material-symbols-outlined">dark_mode</span>
+</button>
+</div>
+</div>
+</header>
+<main class="flex-grow flex flex-col items-center pt-8 md:pt-16 pb-24 px-margin-mobile md:px-margin-desktop max-w-max-width mx-auto w-full">
+<div class="w-full flex items-center mb-12">
+<a class="inline-flex items-center text-on-surface-variant hover:text-primary transition-colors font-body-md text-body-md" href="#">
+<span class="material-symbols-outlined mr-2 text-[18px]">arrow_back</span>
+                Back to ideas
+            </a>
+</div>
+<div class="text-center w-full max-w-3xl mb-16">
+<h1 class="font-display-xl text-display-xl text-on-surface dark:text-surface-bright mb-4">
+                🤖 Export for AI Coding Tools
+            </h1>
+<p class="font-body-lg text-body-lg text-on-surface-variant dark:text-text-muted-dark">
+                Select your preferred AI coding environment. We'll bundle your ideas, designs, and docs into an optimized context package.
+            </p>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter w-full mb-16">
+<!-- Tool Grid -->
+<div class="lg:col-span-7 xl:col-span-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+<!-- Selected Card -->
+<div class="bg-surface dark:bg-surface-dark border-2 border-primary bg-primary/5 rounded-lg p-6 shadow-warm-soft cursor-pointer relative overflow-hidden group">
+<div class="absolute top-2 right-2 text-primary">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">check_circle</span>
+</div>
+<div class="flex flex-col items-center text-center">
+<span class="text-4xl mb-3">⚡️</span>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile mb-1">Cursor</h3>
+<p class="font-body-md text-body-md text-on-surface-variant dark:text-text-muted-dark text-sm">Optimized for .cursorrules</p>
+</div>
+</div>
+<!-- Unselected Card -->
+<div class="bg-surface-container-lowest dark:bg-surface-dark border border-surface-variant dark:border-surface-variant rounded-lg p-6 shadow-warm-soft cursor-pointer hover:border-surface-tint hover:bg-surface-low transition-all group">
+<div class="flex flex-col items-center text-center">
+<span class="text-4xl mb-3">🧠</span>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile mb-1">Claude Code</h3>
+<p class="font-body-md text-body-md text-on-surface-variant dark:text-text-muted-dark text-sm">Rich context prompt</p>
+</div>
+</div>
+<!-- Unselected Card -->
+<div class="bg-surface-container-lowest dark:bg-surface-dark border border-surface-variant dark:border-surface-variant rounded-lg p-6 shadow-warm-soft cursor-pointer hover:border-surface-tint hover:bg-surface-low transition-all group">
+<div class="flex flex-col items-center text-center">
+<span class="text-4xl mb-3">💻</span>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile mb-1">VS Code</h3>
+<p class="font-body-md text-body-md text-on-surface-variant dark:text-text-muted-dark text-sm">Copilot ready workspace</p>
+</div>
+</div>
+<!-- Unselected Card -->
+<div class="bg-surface-container-lowest dark:bg-surface-dark border border-surface-variant dark:border-surface-variant rounded-lg p-6 shadow-warm-soft cursor-pointer hover:border-surface-tint hover:bg-surface-low transition-all group">
+<div class="flex flex-col items-center text-center">
+<span class="text-4xl mb-3">🚀</span>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile mb-1">Bolt.new</h3>
+<p class="font-body-md text-body-md text-on-surface-variant dark:text-text-muted-dark text-sm">Web container setup</p>
+</div>
+</div>
+<!-- Unselected Card -->
+<div class="bg-surface-container-lowest dark:bg-surface-dark border border-surface-variant dark:border-surface-variant rounded-lg p-6 shadow-warm-soft cursor-pointer hover:border-surface-tint hover:bg-surface-low transition-all group">
+<div class="flex flex-col items-center text-center">
+<span class="text-4xl mb-3">V</span>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile mb-1">v0</h3>
+<p class="font-body-md text-body-md text-on-surface-variant dark:text-text-muted-dark text-sm">UI component gen</p>
+</div>
+</div>
+<!-- Unselected Card -->
+<div class="bg-surface-container-lowest dark:bg-surface-dark border border-surface-variant dark:border-surface-variant rounded-lg p-6 shadow-warm-soft cursor-pointer hover:border-surface-tint hover:bg-surface-low transition-all group">
+<div class="flex flex-col items-center text-center">
+<span class="text-4xl mb-3">🤖</span>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile mb-1">ChatGPT</h3>
+<p class="font-body-md text-body-md text-on-surface-variant dark:text-text-muted-dark text-sm">Standard prompt</p>
+</div>
+</div>
+<!-- Unselected Card -->
+<div class="bg-surface-container-lowest dark:bg-surface-dark border border-surface-variant dark:border-surface-variant rounded-lg p-6 shadow-warm-soft cursor-pointer hover:border-surface-tint hover:bg-surface-low transition-all group">
+<div class="flex flex-col items-center text-center">
+<span class="text-4xl mb-3">🛠️</span>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile mb-1">Devin</h3>
+<p class="font-body-md text-body-md text-on-surface-variant dark:text-text-muted-dark text-sm">Agent workflow file</p>
+</div>
+</div>
+<!-- Unselected Card -->
+<div class="bg-surface-container-lowest dark:bg-surface-dark border border-surface-variant dark:border-surface-variant rounded-lg p-6 shadow-warm-soft cursor-pointer hover:border-surface-tint hover:bg-surface-low transition-all group">
+<div class="flex flex-col items-center text-center">
+<span class="text-4xl mb-3">📝</span>
+<h3 class="font-headline-lg-mobile text-headline-lg-mobile mb-1">Raw MD</h3>
+<p class="font-body-md text-body-md text-on-surface-variant dark:text-text-muted-dark text-sm">Just the text</p>
+</div>
+</div>
+</div>
+<!-- Detail Panel -->
+<div class="lg:col-span-5 xl:col-span-4">
+<div class="bg-surface-container-lowest dark:bg-surface-dark border border-surface-variant dark:border-surface-variant rounded-xl p-8 shadow-warm-soft h-full flex flex-col">
+<div class="flex items-center mb-6">
+<span class="text-3xl mr-4">⚡️</span>
+<h2 class="font-headline-lg text-headline-lg text-on-surface dark:text-surface-bright">Cursor Setup</h2>
+</div>
+<div class="font-body-md text-body-md text-on-surface-variant dark:text-text-muted-dark space-y-4 flex-grow custom-scrollbar overflow-y-auto pr-2">
+<p>This package is tailored for the Cursor IDE. It includes a specifically formatted `.cursorrules` file alongside your documentation.</p>
+<h4 class="font-label-sm text-label-sm text-on-surface dark:text-surface-bright uppercase mt-6 mb-2 border-b border-surface-variant pb-1">How to use</h4>
+<ol class="list-decimal pl-5 space-y-3">
+<li>Download the zip package below.</li>
+<li>Extract the contents into the root directory of your new or existing project.</li>
+<li>Open the folder in Cursor.</li>
+<li>Press <kbd class="font-code-block text-code-block bg-surface-container-high dark:bg-surface-container-highest px-1 py-0.5 rounded border border-outline-variant">Cmd/Ctrl + K</kbd> or <kbd class="font-code-block text-code-block bg-surface-container-high dark:bg-surface-container-highest px-1 py-0.5 rounded border border-outline-variant">Cmd/Ctrl + L</kbd> and Cursor will automatically reference the project context.</li>
+</ol>
+<div class="mt-6 p-4 bg-surface-container-low dark:bg-surface-container-highest rounded-lg border-l-4 border-amber-500">
+<p class="text-sm"><strong class="font-semibold">Note:</strong> The export includes high-res base64 images of your designs for vision model consumption.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<!-- Action Row -->
+<div class="flex flex-col items-center justify-center w-full max-w-2xl mx-auto space-y-6 pt-8 border-t border-surface-variant dark:border-surface-variant">
+<div class="flex flex-col sm:flex-row space-y-4 sm:space-y-0 sm:space-x-4 w-full sm:w-auto">
+<button class="bg-primary hover:bg-primary-container text-on-primary font-body-lg text-body-lg px-8 py-4 rounded-lg flex items-center justify-center transition-colors shadow-sm">
+                    Download pack 📦
+                </button>
+<button class="bg-transparent border border-on-surface text-on-surface dark:border-surface dark:text-surface hover:bg-surface-container-low dark:hover:bg-surface-container-highest font-body-lg text-body-lg px-8 py-4 rounded-lg flex items-center justify-center transition-colors">
+                    Save to folder 📁
+                </button>
+</div>
+<p class="font-label-sm text-label-sm text-on-surface-variant dark:text-text-muted-dark text-center opacity-80">
+                Downloads are generated client-side. Some large projects may take a moment to compress.
+            </p>
+</div>
+</main>
+</body></html>

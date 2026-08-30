@@ -1,0 +1,21 @@
+
+> ideas-app@0.1.0 dev
+> next dev
+
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+  - Environments: .env.local, .env
+
+ ✓ Starting...
+ ✓ Ready in 8.9s
+ ○ Compiling / ...
+ ✓ Compiled / in 13.4s (508 modules)
+ GET / 200 in 13946ms
+ GET / 200 in 54ms
+ ○ Compiling /api/ideas ...
+ ✓ Compiled /api/ideas in 759ms (284 modules)
+ GET /api/ideas 200 in 1904ms
+ GET /api/ideas 200 in 19ms
+ GET / 200 in 170ms
+ GET /api/ideas 200 in 18ms
+ GET /api/ideas 200 in 40ms
