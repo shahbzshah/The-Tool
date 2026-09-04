@@ -1,6 +1,7 @@
 node_modules/
 .next/
 out/
+dist/
 *.tsbuildinfo
 next-env.d.ts
 
@@ -10,3 +11,8 @@ next-env.d.ts
 prisma/dev.db
 prisma/dev.db-journal
 uploads/
+backend/prisma/dev.db
+backend/prisma/dev.db-journal
+npm-debug.log*
+*.log
+

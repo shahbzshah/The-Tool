@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import UploadPanel, { type UploadItem } from "@/components/UploadPanel";
+import StackLockPanel from "@/components/StackLockPanel";
 import { DOC_KINDS } from "@/lib/constants";
 
 type Idea = {
@@ -21,6 +22,7 @@ export default function DocsPage() {
   const [idea, setIdea] = useState<Idea | null>(null);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [docs, setDocs] = useState<Record<string, string>>({});
+  const [stackLock, setStackLock] = useState<string | null>(null);
   const [activeKind, setActiveKind] = useState<string>(DOC_KINDS[0].kind);
   const [loading, setLoading] = useState(true);
   const [genState, setGenState] = useState<{
@@ -41,11 +43,16 @@ export default function DocsPage() {
       const ideaData = await ideaRes.json();
       if (ideaRes.ok) {
         setIdea(ideaData.idea);
-        const upRes = await fetch(
-          `/api/uploads?projectId=${ideaData.idea.projectId}`
-        );
+        const [upRes, projRes] = await Promise.all([
+          fetch(`/api/uploads?projectId=${ideaData.idea.projectId}`),
+          fetch(`/api/projects/${ideaData.idea.projectId}`),
+        ]);
         const upData = await upRes.json();
         setUploads(upData.uploads ?? []);
+        if (projRes.ok) {
+          const projData = await projRes.json();
+          setStackLock(projData.project?.stackLock ?? null);
+        }
       }
       const docsData = await docsRes.json();
       if (docsRes.ok) {
@@ -193,6 +200,19 @@ export default function DocsPage() {
             {error}
           </p>
         )}
+      </div>
+
+      <div className="mb-6">
+        <StackLockPanel
+          projectId={idea.projectId}
+          ideaId={ideaId}
+          stackLock={stackLock}
+          onStackLockChange={setStackLock}
+          docs={docs}
+          onDocsUpdated={(updated) =>
+            setDocs((prev) => ({ ...prev, ...updated }))
+          }
+        />
       </div>
 
       <div className="mb-6">

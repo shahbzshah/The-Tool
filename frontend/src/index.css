@@ -1,0 +1,22 @@
+﻿@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-surface text-on-surface font-sans antialiased;
+}
+
+/* Breathing guide pulsing circle */
+@keyframes breathe {
+  0%, 100% { transform: scale(0.55); }
+  40% { transform: scale(1); }
+  60% { transform: scale(1); }
+}
+
+.breathe-circle {
+  animation: breathe 10s ease-in-out infinite;
+}

@@ -1,0 +1,146 @@
+// CodeZen Flow - Prisma schema (SQLite for local dev; swap provider to "postgresql" for prod)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                 String             @id @default(cuid())
+  email              String             @unique
+  name               String?
+  avatarUrl          String?            @map("avatar_url")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+  integrations       Integration[]
+  commits            Commit[]
+  issues             Issue[]
+  meditationSessions MeditationSession[]
+  zenStreaks         ZenStreak[]
+  moodCheckIns       MoodCheckIn[]
+  mindfulnessScores  MindfulnessScore[]
+  settings           Setting?
+
+  @@map("users")
+}
+
+model Integration {
+  id           String    @id @default(cuid())
+  userId       String    @map("user_id")
+  provider     String
+  accessToken  String?   @map("access_token")
+  refreshToken String?   @map("refresh_token")
+  expiresAt    DateTime? @map("expires_at")
+  isActive     Boolean   @default(true) @map("is_active")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  commits      Commit[]
+  issues       Issue[]
+
+  @@unique([userId, provider])
+  @@map("integrations")
+}
+
+model Commit {
+  id             String      @id @default(cuid())
+  integrationId  String?     @map("integration_id")
+  userId         String      @map("user_id")
+  hash           String
+  message        String
+  linesChanged   Int         @default(0) @map("lines_changed")
+  sentimentTag   String?     @map("sentiment_tag")
+  committedAt    DateTime    @map("committed_at")
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  integration    Integration? @relation(fields: [integrationId], references: [id])
+
+  @@unique([integrationId, hash])
+  @@index([integrationId, committedAt(sort: Desc)])
+  @@map("commits")
+}
+
+model Issue {
+  id             String      @id @default(cuid())
+  integrationId  String?     @map("integration_id")
+  userId         String      @map("user_id")
+  providerIssueId String     @map("provider_issue_id")
+  title          String
+  status         String      @default("open")
+  openedAt       DateTime    @default(now()) @map("opened_at")
+  closedAt       DateTime?   @map("closed_at")
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  integration    Integration? @relation(fields: [integrationId], references: [id])
+
+  @@index([integrationId, status])
+  @@map("issues")
+}
+
+model MeditationSession {
+  id               String    @id @default(cuid())
+  userId           String    @map("user_id")
+  type             String
+  title            String
+  durationSeconds  Int       @map("duration_seconds")
+  completionStatus String    @default("in_progress") @map("completion_status")
+  startedAt        DateTime  @default(now()) @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt(sort: Desc)])
+  @@map("meditation_sessions")
+}
+
+model ZenStreak {
+  id             String    @id @default(cuid())
+  userId         String    @unique @map("user_id")
+  currentStreak  Int       @default(0) @map("current_streak")
+  longestStreak  Int       @default(0) @map("longest_streak")
+  lastSessionDate DateTime? @map("last_session_date")
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("zen_streaks")
+}
+
+model MoodCheckIn {
+  id        String   @id @default(cuid())
+  userId    String   @map("user_id")
+  tag       String
+  source    String   @default("manual")
+  note      String?
+  timestamp DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, timestamp(sort: Desc)])
+  @@map("mood_check_ins")
+}
+
+model MindfulnessScore {
+  id             String   @id @default(cuid())
+  userId         String   @map("user_id")
+  weekStartDate  DateTime @map("week_start_date")
+  score          Float
+  velocityRatio  Float    @map("velocity_ratio")
+  details        String?
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekStartDate])
+  @@index([userId, weekStartDate(sort: Desc)])
+  @@map("mindfulness_scores")
+}
+
+model Setting {
+  id              String  @id @default(cuid())
+  userId          String  @unique @map("user_id")
+  ideSyncEnabled  Boolean @default(true) @map("ide_sync_enabled")
+  notificationsOn Boolean @default(true) @map("notifications_on")
+  preferredTheme  String  @default("dark") @map("preferred_theme")
+  language        String  @default("en")
+  triggersJson    String? @map("triggers_json")
+  user            User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("settings")
+}

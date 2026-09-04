@@ -16,6 +16,13 @@ type StitchPrompt = {
   platform: string;
 };
 
+type StitchReview = {
+  alignmentScore: number;
+  matches: string[];
+  gaps: string[];
+  recommendations: string[];
+};
+
 function parseArr(json: string): string[] {
   try {
     const arr = JSON.parse(json);
@@ -45,6 +52,8 @@ export default function StitchPromptPage() {
   const [generating, setGenerating] = useState(false);
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [review, setReview] = useState<StitchReview | null>(null);
+  const [reviewing, setReviewing] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -89,6 +98,25 @@ export default function StitchPromptPage() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setError("Clipboard blocked — select the text and copy manually.");
+    }
+  }
+
+  async function runReview() {
+    setReviewing(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/stitch-review", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Review failed.");
+      setReview(data.review);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Something went wrong.");
+    } finally {
+      setReviewing(false);
     }
   }
 
@@ -210,6 +238,86 @@ export default function StitchPromptPage() {
               </ul>
             </ElementCard>
           </div>
+
+          {/* Design review — AI checks the design/prompt covers the idea */}
+          <section className="rounded-xl border border-border bg-card p-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Design review 🔍
+              </h2>
+              <button
+                onClick={runReview}
+                disabled={reviewing}
+                className="rounded-lg border border-border px-4 py-1.5 text-sm font-medium text-foreground/80 transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+              >
+                {reviewing
+                  ? "Reviewing…"
+                  : review
+                    ? "Re-run review"
+                    : "Review my design"}
+              </button>
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Compares your idea&apos;s features against the Stitch prompt and any
+              uploaded design exports — flags gaps and suggests fixes.
+            </p>
+
+            {review && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3">
+                  <span className="font-serif text-3xl text-primary">
+                    {review.alignmentScore}/10
+                  </span>
+                  <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                    design alignment
+                  </span>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <h3 className="mb-2 font-mono text-xs uppercase tracking-wider text-foreground">
+                      ✓ Covered
+                    </h3>
+                    <ul className="space-y-1 text-sm">
+                      {review.matches?.map((m, i) => (
+                        <li key={i} className="text-foreground/80">
+                          {m}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <div>
+                    <h3 className="mb-2 font-mono text-xs uppercase tracking-wider text-foreground">
+                      ⚠ Gaps
+                    </h3>
+                    <ul className="space-y-1 text-sm">
+                      {review.gaps?.map((g, i) => (
+                        <li key={i} className="text-foreground/80">
+                          {g}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+                {review.recommendations?.length > 0 && (
+                  <div>
+                    <h3 className="mb-2 font-mono text-xs uppercase tracking-wider text-foreground">
+                      → Recommended fixes (paste into Stitch)
+                    </h3>
+                    <ul className="space-y-2 text-sm">
+                      {review.recommendations.map((r, i) => (
+                        <li
+                          key={i}
+                          className="rounded bg-background p-2 text-foreground/80"
+                        >
+                          {r}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </section>
         </section>
       )}
     </main>

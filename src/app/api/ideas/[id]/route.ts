@@ -24,6 +24,16 @@ export async function PATCH(
 ) {
   try {
     const body = await req.json();
+
+    // Toggle favorite
+    if (typeof body?.favorite === "boolean") {
+      const idea = await prisma.idea.update({
+        where: { id: params.id },
+        data: { favorite: body.favorite },
+      });
+      return NextResponse.json({ idea });
+    }
+
     const status = String(body?.status ?? "");
     if (!["draft", "approved"].includes(status)) {
       return NextResponse.json({ error: "Invalid status." }, { status: 400 });

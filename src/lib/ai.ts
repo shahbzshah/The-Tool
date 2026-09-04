@@ -1,11 +1,11 @@
 /**
  * Provider-agnostic AI adapter.
- * Currently wired to DeepSeek (OpenAI-compatible chat completions API).
+ * Currently wired to poolside (OpenAI-compatible chat completions API).
  * To switch providers later, only this file needs to change.
  */
 
-const BASE_URL = process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com";
-const MODEL = process.env.DEEPSEEK_MODEL || "deepseek-chat";
+const BASE_URL = process.env.POOLSIDE_BASE_URL || "https://inference.poolside.ai/v1";
+const MODEL = process.env.POOLSIDE_MODEL || "poolside/laguna-s-2.1";
 
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -18,10 +18,10 @@ export async function chat(
   messages: ChatMessage[],
   opts: { temperature?: number; maxTokens?: number } = {}
 ): Promise<string> {
-  const apiKey = process.env.DEEPSEEK_API_KEY;
+  const apiKey = process.env.POOLSIDE_API_KEY;
   if (!apiKey || apiKey === "paste-your-key-here") {
     throw new AIConfigError(
-      "DEEPSEEK_API_KEY is not set. Add your key to .env.local (get one at https://platform.deepseek.com)."
+      "POOLSIDE_API_KEY is not set. Add your key to .env.local."
     );
   }
 
@@ -44,14 +44,14 @@ export async function chat(
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(
-      `DeepSeek API error ${res.status}: ${body.slice(0, 500) || res.statusText}`
+      `poolside API error ${res.status}: ${body.slice(0, 500) || res.statusText}`
     );
   }
 
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content;
   if (typeof content !== "string" || !content.trim()) {
-    throw new Error("DeepSeek API returned an empty response.");
+    throw new Error("poolside API returned an empty response.");
   }
   return content;
 }
@@ -86,5 +86,67 @@ export function parseJsonLoose<T>(raw: string): T {
   const end = Math.max(lastObj, lastArr);
   if (end !== -1) text = text.slice(0, end + 1);
 
-  return JSON.parse(text) as T;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    // Model output may be malformed (trailing commas) or truncated
+    // mid-JSON (hit max_tokens). Sanitize, then repair.
+    console.error(
+      "[ai] JSON parse failed — raw model output:\n",
+      text.slice(0, 2000)
+    );
+    const sanitized = text.replace(/,\s*([}\]])/g, "$1");
+    const repaired = repairTruncatedJson(sanitized);
+    return JSON.parse(repaired) as T;
+  }
+}
+
+/**
+ * Best-effort repair of JSON truncated mid-stream: tracks string state and
+ * brace/bracket nesting, then closes everything in reverse order. Drops a
+ * trailing incomplete value (e.g. a half-written object) first.
+ */
+function repairTruncatedJson(text: string): string {
+  // Drop a trailing incomplete segment after the last complete top-level element
+  let cut = text;
+  const lastComplete = Math.max(
+    cut.lastIndexOf("},"),
+    cut.lastIndexOf("}, ") > -1 ? cut.lastIndexOf("}, ") : -1,
+    cut.lastIndexOf("}\n"),
+    cut.lastIndexOf("}")
+  );
+  if (cut.trimEnd().endsWith(",")) {
+    cut = cut.trimEnd().slice(0, -1);
+  } else if (lastComplete > -1 && !cut.slice(0, lastComplete + 1).includes("]")) {
+    // keep as-is; the closing logic below handles the rest
+  }
+
+  const stack: string[] = [];
+  let inString = false;
+  let escaped = false;
+  for (const ch of cut) {
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (ch === "\\") {
+      if (inString) escaped = true;
+      continue;
+    }
+    if (ch === '"') {
+      inString = !inString;
+      continue;
+    }
+    if (inString) continue;
+    if (ch === "{" || ch === "[") stack.push(ch);
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+
+  let repaired = cut.trimEnd();
+  if (repaired.endsWith(",")) repaired = repaired.slice(0, -1);
+  if (inString) repaired += '"';
+  while (stack.length > 0) {
+    repaired += stack.pop() === "{" ? "}" : "]";
+  }
+  return repaired;
 }

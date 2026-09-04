@@ -101,4 +101,35 @@ export type GeneratedIdea = {
   features: string[];
   targetAudience: string;
   monetization?: string;
+  scores?: IdeaScores;
 };
+
+export type IdeaScores = {
+  novelty: number; // 1-10
+  feasibility: number; // 1-10
+  marketDemand: number; // 1-10
+};
+
+export type IdeaValidation = {
+  verdict: "strong" | "promising" | "risky";
+  summary: string;
+  strengths: string[];
+  risks: string[];
+  competitors: { name: string; note: string }[];
+  suggestions: string[];
+};
+
+export function averageScore(scores: IdeaScores | null | undefined): number {
+  if (!scores) return 0;
+  const { novelty = 0, feasibility = 0, marketDemand = 0 } = scores;
+  return Math.round(((novelty + feasibility + marketDemand) / 3) * 10) / 10;
+}
+
+export function parseJsonField<T>(json: string | null | undefined): T | null {
+  if (!json) return null;
+  try {
+    return JSON.parse(json) as T;
+  } catch {
+    return null;
+  }
+}

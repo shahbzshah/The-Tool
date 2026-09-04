@@ -12,6 +12,7 @@ model Project {
   name         String
   category     String
   preferences  String?
+  stackLock    String? // canonical tech stack — injected into all doc generation
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   ideas        Idea[]
@@ -28,6 +29,9 @@ model Idea {
   features       String // JSON array of strings
   targetAudience String
   monetization   String?
+  scores         String? // JSON: { novelty, feasibility, marketDemand }
+  validation     String? // JSON red-team report (see /api/ideas/[id]/validate)
+  favorite       Boolean       @default(false)
   status         String        @default("draft") // draft | approved
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt

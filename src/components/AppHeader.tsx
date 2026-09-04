@@ -9,12 +9,14 @@ const STEPS = [
   { label: "Design", href: null },
   { label: "Docs", href: null },
   { label: "Export", href: null },
+  { label: "History", href: "/history" },
 ];
 
 function activeStep(pathname: string): number {
   if (pathname.startsWith("/stitch")) return 1;
   if (pathname.startsWith("/docs")) return 2;
   if (pathname.startsWith("/export")) return 3;
+  if (pathname.startsWith("/history")) return 4;
   return 0;
 }
 
