@@ -72,10 +72,80 @@ model Document {
   id        String   @id @default(cuid())
   ideaId    String
   idea      Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
-  kind      String // PRD | BRD | TECHNICAL_SPEC | USER_STORIES | WORKFLOW | DATABASE_SCHEMA | API_SPEC | DESIGN_SYSTEM | FOLDER_STRUCTURE | RULES | MASTER_PROMPT
+  kind      String // PRD | BRD | TECHNICAL_SPEC | USER_STORIES | WORKFLOW | DATABASE_SCHEMA | API_SPEC | DESIGN_SYSTEM | FOLDER_STRUCTURE | RULES | MASTER_PROMPT | BUILD_GUIDE
   content   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@unique([ideaId, kind])
+}
+
+// ---- Opportunity Hunter models (merged) ----
+
+model ScanJob {
+  id           String        @id @default(cuid())
+  keyword      String
+  status       String        @default("pending") // pending | running | completed | failed
+  resultsCount Int           @default(0)
+  error        String?
+  startedAt    DateTime?
+  finishedAt   DateTime?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  opportunities Opportunity[]
+
+  @@index([status])
+}
+
+model Opportunity {
+  id           String   @id @default(cuid())
+  scanJobId    String?
+  scanJob      ScanJob? @relation(fields: [scanJobId], references: [id], onDelete: Cascade)
+  appId        String
+  title        String
+  developer    String?
+  iconUrl      String?
+  rating       Float?
+  installs     String?
+  installsMin  BigInt?
+  reviewsCount BigInt?
+  score        Float    @default(0)
+  category     String?
+  summary      String?
+  url          String?
+  isBookmarked Boolean  @default(false)
+  breakdown    String? // JSON: { quality, gap, market, competition }
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  analyses     OpportunityAnalysis[]
+
+  @@index([appId])
+  @@index([scanJobId])
+}
+
+model OpportunityAnalysis {
+  id            String      @id @default(cuid())
+  opportunityId String?
+  opportunity   Opportunity? @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  appId         String
+  provider      String      @default("nvidia")
+  content       String // JSON: full AI analysis shape
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([appId])
+}
+
+model TrendIdea {
+  id        String   @id @default(cuid())
+  title     String
+  source    String // Hacker News | Reddit | Lobsters
+  hotness   Int      @default(0)
+  url       String?
+  text      String?
+  analysis  String? // JSON: cached AI deep-dive
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([source])
 }

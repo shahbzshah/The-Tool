@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 type StitchPrompt = {
   id: string;
@@ -46,6 +46,8 @@ function ElementCard({ title, children }: { title: string; children: React.React
 export default function StitchPromptPage() {
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
+  const searchParams = useSearchParams();
+  const ideaId = searchParams.get("idea");
 
   const [prompt, setPrompt] = useState<StitchPrompt | null>(null);
   const [loading, setLoading] = useState(true);
@@ -319,6 +321,18 @@ export default function StitchPromptPage() {
             )}
           </section>
         </section>
+      )}
+
+      {/* Strict pipeline: Design → Docs (no skipping, no back) */}
+      {ideaId && (
+        <div className="mt-10 flex justify-end border-t border-border pt-6">
+          <Link
+            href={`/docs/${ideaId}`}
+            className="rounded-md bg-primary px-6 py-2.5 font-medium text-primary-foreground"
+          >
+            Continue to Docs →
+          </Link>
+        </div>
       )}
     </main>
   );

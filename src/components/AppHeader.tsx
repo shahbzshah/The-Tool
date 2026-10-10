@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
 const STEPS = [
-  { label: "Ideas", href: "/" },
+  { label: "Hunter", href: "/" },
   { label: "Design", href: null },
   { label: "Docs", href: null },
   { label: "Export", href: null },

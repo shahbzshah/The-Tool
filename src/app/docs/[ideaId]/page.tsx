@@ -278,6 +278,24 @@ export default function DocsPage() {
           </p>
         )}
       </section>
+
+      {/* Strict pipeline: ← Design | Docs → Export */}
+      <div className="mt-10 flex items-center justify-between border-t border-border pt-6">
+        {idea && (
+          <Link
+            href={`/stitch/${idea.projectId}?idea=${ideaId}`}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            ← Back to Design
+          </Link>
+        )}
+        <Link
+          href={`/export/${ideaId}`}
+          className="rounded-md bg-primary px-6 py-2.5 font-medium text-primary-foreground"
+        >
+          Continue to Export →
+        </Link>
+      </div>
     </main>
   );
 }

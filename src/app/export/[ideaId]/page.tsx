@@ -254,6 +254,16 @@ export default function ExportPage() {
           </p>
         )}
       </section>
+
+      {/* Strict pipeline: Export → Docs only (no jump to Design) */}
+      <div className="mt-10 border-t border-border pt-6">
+        <Link
+          href={`/docs/${ideaId}`}
+          className="text-sm text-muted-foreground hover:text-foreground"
+        >
+          ← Back to Docs
+        </Link>
+      </div>
     </main>
   );
 }
