@@ -76,6 +76,13 @@ export const DOC_KINDS = [
     instructions:
       "Write ONE comprehensive self-contained prompt that a developer can paste into an AI coding tool (Cursor, Bolt, v0, etc.) to build this app. Weave together: the app concept, tech stack, all features, design system summary, database schema summary, API surface, folder structure, and coding rules. It must be complete enough that an AI tool could build the app from it alone.",
   },
+  {
+    kind: "BUILD_GUIDE",
+    label: "BUILD_GUIDE.md",
+    title: "Vibe Coding Build Guide",
+    instructions:
+      "Write a step-by-step vibe-coding playbook tailored to THIS project and its locked tech stack — a beginner-to-production guide the developer follows while building with AI coding tools. Structure it as numbered steps: 1) Define the build (problem, user, MVP scope, explicit out-of-scope list to prevent scope creep), 2) Research (users, competitors with strengths/weaknesses, technical feasibility for THIS stack), 3) Environment setup (exact install steps for the locked stack), 4) Project scaffolding (folder structure, git init, .env.example), 5) Documentation order (which docs to write first and why), 6) Giving AI context (which files to have the AI read before coding, in what order), 7) Vertical-slice build loop (one user flow at a time: understand → plan → implement → test → review → commit), 8) Structured prompting template (CONTEXT / TASK / FILES / CONSTRAINTS / ACCEPTANCE CRITERIA / TESTING) with a worked example from THIS app's features, 9) Testing checklist (unit, integration, E2E, responsive breakpoints), 10) Debugging with AI (how to report errors: expected vs actual, repro steps, constraints), 11) Git discipline (small commits, branch per feature), 12) Pre-deploy QA checklist, 13) Deploy pipeline (local → preview → production) for the locked hosting target, 14) Post-launch (monitoring, documentation upkeep). Keep every step concrete to this project's stack and features — no generic placeholders.",
+  },
 ] as const;
 
 export type DocKind = (typeof DOC_KINDS)[number]["kind"];

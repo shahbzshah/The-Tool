@@ -8,6 +8,7 @@ export const STACK_SENSITIVE_KINDS = [
   "FOLDER_STRUCTURE",
   "RULES",
   "MASTER_PROMPT",
+  "BUILD_GUIDE",
 ] as const;
 
 /**
