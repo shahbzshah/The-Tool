@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import JSZip from "jszip";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const IS_BUILD = process.env.NEXT_PHASE === "phase-production-build";
-const MAX_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_BYTES = 5 * 1024 * 1024; // 5 MB per file
+const MAX_ZIP_BYTES = 25 * 1024 * 1024; // 25 MB per zip
 const MAX_CONTENT_CHARS = 60000;
 
 function classify(filename: string, mime: string): "design_md" | "html" | "screenshot" | null {
@@ -27,6 +29,57 @@ function classify(filename: string, mime: string): "design_md" | "html" | "scree
     return "screenshot";
   }
   return null;
+}
+
+function isJunk(path: string): boolean {
+  return (
+    path.includes("__MACOSX") ||
+    path.endsWith(".DS_Store") ||
+    path.endsWith("Thumbs.db")
+  );
+}
+
+/**
+ * Unpack a Stitch export zip: one Upload record per screen file, with the
+ * folder structure preserved in the filename (e.g. "home/index.html").
+ */
+async function extractZip(
+  projectId: string,
+  file: File
+): Promise<{ id: string; type: string; filename: string; createdAt: Date }[]> {
+  const buffer = await file.arrayBuffer();
+  const zip = await JSZip.loadAsync(buffer);
+  const created: { id: string; type: string; filename: string; createdAt: Date }[] = [];
+
+  // Strip a single top-level wrapper folder if everything sits inside one.
+  const paths = Object.keys(zip.files).filter((p) => !zip.files[p].dir && !isJunk(p));
+
+  for (const path of paths) {
+    // Normalize: "export/home/index.html" -> "home/index.html"
+    const parts = path.split("/").filter(Boolean);
+    const filename = parts.length > 2 ? parts.slice(1).join("/") : parts.join("/");
+    const type = classify(filename, "");
+    if (!type) continue; // skip non-design files
+
+    let content: string | null = null;
+    if (type === "design_md" || type === "html") {
+      const text = await zip.files[path].async("string");
+      content = text.slice(0, MAX_CONTENT_CHARS);
+    }
+
+    const upload = await prisma.upload.create({
+      data: {
+        projectId,
+        type,
+        filename,
+        path: `uploads/${projectId}/${filename}`,
+        content,
+      },
+      select: { id: true, type: true, filename: true, createdAt: true },
+    });
+    created.push(upload);
+  }
+  return created;
 }
 
 /**
@@ -73,10 +126,27 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Project not found." }, { status: 404 });
     }
 
+    // Zip of a Stitch export folder: unpack it screen by screen.
+    const isZip =
+      file.name.toLowerCase().endsWith(".zip") || file.type === "application/zip";
+    if (isZip) {
+      if (file.size > MAX_ZIP_BYTES) {
+        return NextResponse.json({ error: "Zip is too large (max 25 MB)." }, { status: 400 });
+      }
+      const created = await extractZip(projectId, file);
+      if (created.length === 0) {
+        return NextResponse.json(
+          { error: "No design files found in the zip." },
+          { status: 400 }
+        );
+      }
+      return NextResponse.json({ uploads: created, count: created.length });
+    }
+
     const type = classify(file.name, file.type || "");
     if (!type) {
       return NextResponse.json(
-        { error: "Unsupported file type. Upload .md, .html, or an image." },
+        { error: "Unsupported file type. Upload .md, .html, an image, or a .zip of your Stitch export." },
         { status: 400 }
       );
     }

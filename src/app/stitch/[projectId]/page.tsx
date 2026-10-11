@@ -287,7 +287,7 @@ export default function StitchPromptPage() {
               <input
                 ref={fileRef}
                 type="file"
-                accept=".md,.markdown,.txt,.html,.htm,.png,.jpg,.jpeg,.webp,.gif"
+                accept=".md,.markdown,.txt,.html,.htm,.png,.jpg,.jpeg,.webp,.gif,.zip"
                 className="hidden"
                 onChange={async (e) => {
                   const file = e.target.files?.[0];
@@ -305,7 +305,8 @@ export default function StitchPromptPage() {
                     });
                     const data = await res.json();
                     if (!res.ok) throw new Error(data.error || "Upload failed.");
-                    setUploads((prev) => [data.upload, ...prev]);
+                    const list = data.uploads ?? (data.upload ? [data.upload] : []);
+                    setUploads((prev) => [...list, ...prev]);
                   } catch (err) {
                     setError(err instanceof Error ? err.message : "Upload failed.");
                   } finally {
@@ -315,9 +316,10 @@ export default function StitchPromptPage() {
               />
             </div>
             <p className="mb-4 text-sm text-muted-foreground">
-              Export your screens from Stitch (markdown, HTML, or screenshots) and
-              upload them here. The design review and your Docs will be built from
-              what was actually designed — not just the prompt.
+              Zip your Stitch export folder and upload the zip — the app unpacks
+              it screen by screen (each screen&apos;s HTML and images become
+              separate entries). Single files work too. The design review and
+              your Docs are then built from what was actually designed.
             </p>
             {uploads.length === 0 ? (
               <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
