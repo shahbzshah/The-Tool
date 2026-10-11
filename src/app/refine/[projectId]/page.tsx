@@ -26,6 +26,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [briefUpdatedAt, setBriefUpdatedAt] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const loadIdea = useCallback(async () => {
@@ -51,6 +52,16 @@ export default function RefinePage({ params }: { params: { projectId: string } }
         // ignore
       }
       setIdea({ ...data.idea, features });
+
+      // Check for an existing saved brief.
+      try {
+        const d = await fetch(`/api/docs?ideaId=${ideaId}`);
+        const dd = await d.json();
+        const brief = (dd.docs ?? []).find((x: any) => x.kind === "REFINED_BRIEF");
+        if (brief) setBriefUpdatedAt(brief.updatedAt);
+      } catch {
+        // ignore
+      }
 
       // Restore saved conversation; a refresh no longer loses anything.
       try {
@@ -84,9 +95,9 @@ export default function RefinePage({ params }: { params: { projectId: string } }
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  async function send(e?: React.FormEvent) {
+  async function send(e?: React.FormEvent, overrideText?: string) {
     if (e) e.preventDefault();
-    const text = input.trim();
+    const text = (overrideText ?? input).trim();
     if (!text || sending || !ideaId) return;
     setInput("");
     setSending(true);
@@ -108,6 +119,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
       }
       setMessages([...next, { role: "assistant", content: data.reply }]);
       if (data.idea) setIdea(data.idea);
+      if (data.briefSaved) setBriefUpdatedAt(new Date().toISOString());
     } catch {
       setMessages([
         ...next,
@@ -116,6 +128,10 @@ export default function RefinePage({ params }: { params: { projectId: string } }
     } finally {
       setSending(false);
     }
+  }
+
+  function saveBrief() {
+    send(undefined, "Save the refined brief now — write the complete file with everything we've decided.");
   }
 
   if (error) {
@@ -221,6 +237,30 @@ export default function RefinePage({ params }: { params: { projectId: string } }
               )}
             </div>
           )}
+
+          {/* Refined brief file */}
+          <div className="mt-4 border-t border-border pt-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Refined brief
+              </h3>
+              {briefUpdatedAt && (
+                <span className="text-xs text-green-600">
+                  Saved {new Date(briefUpdatedAt).toLocaleString()}
+                </span>
+              )}
+            </div>
+            <button
+              onClick={saveBrief}
+              disabled={sending}
+              className="mt-2 w-full rounded-md border border-border px-3 py-2 text-sm hover:border-primary disabled:opacity-50"
+            >
+              {sending ? "Saving…" : briefUpdatedAt ? "Update saved brief" : "Save refined brief"}
+            </button>
+            <p className="mt-1 text-xs text-muted-foreground">
+              The AI writes the full brief from your discussion — or just say "save the brief" in chat.
+            </p>
+          </div>
         </aside>
       </div>
 

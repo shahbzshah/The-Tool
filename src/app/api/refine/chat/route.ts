@@ -28,7 +28,21 @@ Rules for the update block:
 - Omit keys that didn't change.
 - The user sees your words, not the JSON — keep the visible reply natural and mention what you updated in one line.
 
-If the user just wants to discuss or asks a question, reply normally with no update block.`;
+If the user just wants to discuss or asks a question, reply normally with no update block.
+
+SAVING THE REFINED BRIEF:
+You also maintain the Refined Brief — the saved file that records every product decision from this conversation. Write it as a fenced block:
+
+\`\`\`brief
+# Refined Brief: {app title}
+...full markdown brief: the problem, target user, final feature list (must-have vs later), what was cut and why, positioning vs the analyzed competitor, monetization, open questions...
+\`\`\`
+
+Rules for the brief block:
+- Write it when the user says "save" (or similar), OR when the product definition has solidified after a few decisions — don't wait to be asked twice.
+- UPDATE it whenever a later decision changes something already in the brief. Always write the COMPLETE new brief, not a diff.
+- The brief block may appear in the same reply as an update block (update first, then brief).
+- Keep the visible reply natural — one line saying the brief was saved/updated.`;
 
 /**
  * GET /api/refine/chat?projectId=&ideaId= — load saved conversation history.
@@ -119,9 +133,24 @@ export async function POST(req: Request) {
   );
 
   // Extract a trailing ```update block, apply it, strip it from the reply.
+  // A ```brief block (anywhere in the reply) saves/updates the Refined Brief file.
   let cleaned = reply;
   let updatedIdea: any = null;
-  const match = reply.match(/```update\s*([\s\S]*?)\s*```\s*$/);
+  let briefSaved = false;
+
+  const briefMatch = reply.match(/```brief\s*([\s\S]*?)\s*```/);
+  if (briefMatch && briefMatch[1].trim().length > 50) {
+    const briefContent = briefMatch[1].trim().slice(0, 20000);
+    await prisma.document.upsert({
+      where: { ideaId_kind: { ideaId: idea.id, kind: "REFINED_BRIEF" } },
+      create: { ideaId: idea.id, kind: "REFINED_BRIEF", content: briefContent },
+      update: { content: briefContent },
+    });
+    briefSaved = true;
+    cleaned = cleaned.replace(briefMatch[0], "").trim();
+  }
+
+  const match = cleaned.match(/```update\s*([\s\S]*?)\s*```\s*$/);
   if (match) {
     cleaned = reply.slice(0, match.index).trim();
     try {
@@ -163,6 +192,7 @@ export async function POST(req: Request) {
 
   return NextResponse.json({
     reply: cleaned,
+    briefSaved,
     idea: updatedIdea
       ? {
           id: updatedIdea.id,

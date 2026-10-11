@@ -1,5 +1,12 @@
 export const DOC_KINDS = [
   {
+    kind: "REFINED_BRIEF",
+    label: "REFINED_BRIEF.md",
+    title: "Refined Product Brief",
+    instructions:
+      "Write the refined product brief from the Refine discussion: the problem, the target user, the final feature list (must-have vs later), what was cut and why, positioning against the analyzed competitor, monetization, and open questions. This is the human-readable record of every product decision made in Refine.",
+  },
+  {
     kind: "PRD",
     label: "PRD.md",
     title: "Product Requirements Document",
