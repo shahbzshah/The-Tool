@@ -4,6 +4,7 @@ import { chatJson, AIConfigError } from "@/lib/ai";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
+export const dynamic = "force-dynamic";
 
 function parseFeatures(json: string): string[] {
   try {

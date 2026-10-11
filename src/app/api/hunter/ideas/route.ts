@@ -2,6 +2,9 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { ideasFeed } from "@/lib/hunter/trends";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 /**

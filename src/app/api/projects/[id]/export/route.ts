@@ -5,6 +5,7 @@ import { DOC_KINDS } from "@/lib/constants";
 import { averageScore, parseJsonField, type IdeaScores } from "@/lib/constants";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function slug(text: string): string {
   return (

@@ -3,6 +3,9 @@ import { prisma } from "@/lib/db";
 import { scanKeyword } from "@/lib/hunter/scraper";
 import { rankApps } from "@/lib/hunter/scoring";
 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
 /**
  * POST /api/hunter/scans — run a Play Store opportunity scan.
  * Body: { keyword: string, maxApps?: number }
