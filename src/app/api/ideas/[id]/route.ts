@@ -10,7 +10,7 @@ export async function GET(
 ) {
   const idea = await prisma.idea.findUnique({
     where: { id: params.id },
-    include: { project: { select: { id: true, category: true } } },
+    include: { project: { select: { id: true, category: true, preferences: true } } },
   });
   if (!idea) {
     return NextResponse.json({ error: "Idea not found." }, { status: 404 });

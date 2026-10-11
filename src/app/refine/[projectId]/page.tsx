@@ -27,6 +27,9 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [briefUpdatedAt, setBriefUpdatedAt] = useState<string | null>(null);
+  const [briefContent, setBriefContent] = useState<string | null>(null);
+  const [analysisText, setAnalysisText] = useState<string | null>(null);
+  const [showFullIdea, setShowFullIdea] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const loadIdea = useCallback(async () => {
@@ -53,14 +56,20 @@ export default function RefinePage({ params }: { params: { projectId: string } }
       }
       setIdea({ ...data.idea, features });
 
-      // Check for an existing saved brief.
+      // Check for an existing saved brief and the market analysis.
       try {
         const d = await fetch(`/api/docs?ideaId=${ideaId}`);
         const dd = await d.json();
         const brief = (dd.docs ?? []).find((x: any) => x.kind === "REFINED_BRIEF");
-        if (brief) setBriefUpdatedAt(brief.updatedAt);
+        if (brief) {
+          setBriefUpdatedAt(brief.updatedAt);
+          setBriefContent(brief.content);
+        }
       } catch {
         // ignore
+      }
+      if (data.idea.project?.preferences) {
+        setAnalysisText(data.idea.project.preferences);
       }
 
       // Restore saved conversation; a refresh no longer loses anything.
@@ -198,9 +207,16 @@ export default function RefinePage({ params }: { params: { projectId: string } }
           </form>
         </section>
 
-        {/* Idea snapshot */}
-        <aside className="h-fit rounded-lg border border-border bg-card p-5 lg:sticky lg:top-4">
-          <h2 className="font-serif text-lg font-semibold">The idea so far</h2>
+        {/* Idea snapshot — click to re-read the full idea */}
+        <aside
+          onClick={() => setShowFullIdea(true)}
+          className="h-fit cursor-pointer rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary/50 lg:sticky lg:top-4"
+          title="Click to read the full idea"
+        >
+          <div className="flex items-center justify-between">
+            <h2 className="font-serif text-lg font-semibold">The idea so far</h2>
+            <span className="text-xs text-muted-foreground">Read full →</span>
+          </div>
           {!idea ? (
             <p className="mt-2 text-sm text-muted-foreground">Loading…</p>
           ) : (
@@ -251,7 +267,10 @@ export default function RefinePage({ params }: { params: { projectId: string } }
               )}
             </div>
             <button
-              onClick={saveBrief}
+              onClick={(e) => {
+                e.stopPropagation();
+                saveBrief();
+              }}
               disabled={sending}
               className="mt-2 w-full rounded-md border border-border px-3 py-2 text-sm hover:border-primary disabled:opacity-50"
             >
@@ -273,6 +292,89 @@ export default function RefinePage({ params }: { params: { projectId: string } }
           >
             Continue to Design →
           </Link>
+        </div>
+      )}
+
+      {/* Full idea reader modal */}
+      {showFullIdea && idea && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setShowFullIdea(false)}
+        >
+          <div
+            className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-card p-6 md:p-8"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-start justify-between">
+              <h2 className="font-serif text-2xl font-bold">{idea.title}</h2>
+              <button
+                onClick={() => setShowFullIdea(false)}
+                className="rounded-md border border-border px-3 py-1 text-sm hover:border-primary"
+              >
+                Close ✕
+              </button>
+            </div>
+
+            <div className="space-y-6 text-sm">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Pitch
+                </h3>
+                <p className="mt-1 leading-relaxed">{idea.pitch}</p>
+              </div>
+
+              {idea.features.length > 0 && (
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Features ({idea.features.length})
+                  </h3>
+                  <ul className="mt-1 list-disc space-y-1 pl-5">
+                    {idea.features.map((f, i) => (
+                      <li key={i}>{f}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  Target audience
+                </h3>
+                <p className="mt-1">{idea.targetAudience}</p>
+              </div>
+
+              {idea.monetization && (
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Monetization
+                  </h3>
+                  <p className="mt-1">{idea.monetization}</p>
+                </div>
+              )}
+
+              {briefContent && (
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Refined brief
+                  </h3>
+                  <div className="mt-1 whitespace-pre-wrap rounded-md bg-muted p-4 text-sm leading-relaxed">
+                    {briefContent}
+                  </div>
+                </div>
+              )}
+
+              {analysisText && (
+                <div>
+                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    Original market analysis
+                  </h3>
+                  <div className="mt-1 whitespace-pre-wrap rounded-md bg-muted p-4 text-sm leading-relaxed">
+                    {analysisText}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </main>
