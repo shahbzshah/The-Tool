@@ -220,14 +220,15 @@ export default function StitchPromptPage() {
               {prompt.promptText}
             </p>
             <div className="mt-4 flex flex-wrap gap-3">
-              <a
-                href="https://stitch.withgoogle.com/"
-                target="_blank"
-                rel="noopener noreferrer"
+              <button
+                onClick={async () => {
+                  await copyPrompt();
+                  window.open("https://stitch.withgoogle.com/", "_blank", "noopener");
+                }}
                 className="rounded-lg bg-secondary px-4 py-2 text-sm font-semibold text-secondary-foreground hover:bg-secondary/80"
               >
-                Open Google Stitch ↗
-              </a>
+                {copied ? "Copied! Opening Stitch… ✅" : "Copy prompt & Open Stitch ↗"}
+              </button>
               <button
                 onClick={generate}
                 disabled={generating}
