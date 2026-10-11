@@ -56,6 +56,68 @@ export async function chat(
 }
 
 /**
+ * Streaming chat helper — yields content tokens as they arrive (SSE).
+ */
+export async function* chatStream(
+  messages: ChatMessage[],
+  opts: { temperature?: number; maxTokens?: number } = {}
+): AsyncGenerator<string> {
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) {
+    throw new AIConfigError(
+      "NVIDIA_API_KEY is not set. Add your key to .env.local."
+    );
+  }
+
+  const res = await fetch(`${BASE_URL}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: MODEL,
+      messages,
+      temperature: opts.temperature ?? 1.0,
+      max_tokens: opts.maxTokens ?? 2000,
+      stream: true,
+    }),
+    signal: AbortSignal.timeout(300_000),
+  });
+
+  if (!res.ok || !res.body) {
+    const body = await res.text().catch(() => "");
+    throw new Error(
+      `nvidia API error ${res.status}: ${body.slice(0, 500) || res.statusText}`
+    );
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split("\n");
+    buf = lines.pop() ?? "";
+    for (const line of lines) {
+      const t = line.trim();
+      if (!t.startsWith("data:")) continue;
+      const payload = t.slice(5).trim();
+      if (payload === "[DONE]") return;
+      try {
+        const json = JSON.parse(payload);
+        const token = json?.choices?.[0]?.delta?.content;
+        if (typeof token === "string" && token) yield token;
+      } catch {
+        // skip malformed SSE lines
+      }
+    }
+  }
+}
+
+/**
  * Chat helper that expects the model to return JSON.
  * Tolerates markdown code fences and stray prose around the JSON.
  */

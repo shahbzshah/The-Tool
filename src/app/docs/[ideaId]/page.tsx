@@ -136,23 +136,59 @@ export default function DocsPage() {
     if (!idea || regenerating) return;
     setRegenerating(true);
     setError(null);
+    // Clear the view so the user watches the doc being written live.
+    setDocs((prev) => ({ ...prev, [activeKind]: "" }));
     try {
-      const res = await fetch("/api/docs/generate", {
+      const res = await fetch("/api/docs/generate?stream=1", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ideaId, kind: activeKind }),
       });
-      const text = await res.text();
-      let data: { doc?: { content?: string }; error?: string };
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error("The server didn't respond in time. Try again.");
+      if (!res.ok || !res.body) {
+        const text = await res.text().catch(() => "");
+        let msg = "Regeneration failed.";
+        try {
+          msg = JSON.parse(text).error || msg;
+        } catch {
+          // non-JSON error body
+        }
+        throw new Error(msg);
       }
-      if (!res.ok) throw new Error(data.error || "Regeneration failed.");
-      setDocs((prev) => ({ ...prev, [activeKind]: data.doc?.content ?? prev[activeKind] }));
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      let settled = false;
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n");
+        buf = lines.pop() ?? "";
+        for (const line of lines) {
+          const t = line.trim();
+          if (!t.startsWith("data:")) continue;
+          let evt: { token?: string; done?: boolean; error?: string };
+          try {
+            evt = JSON.parse(t.slice(5).trim());
+          } catch {
+            continue;
+          }
+          if (evt.error) throw new Error(evt.error);
+          if (evt.token) {
+            const tok = evt.token;
+            setDocs((prev) => ({
+              ...prev,
+              [activeKind]: (prev[activeKind] ?? "") + tok,
+            }));
+          }
+          if (evt.done) settled = true;
+        }
+      }
+      if (!settled) throw new Error("The stream ended unexpectedly. Try again.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Regeneration failed.");
+      // Restore the previous version on failure.
+      loadAll();
     } finally {
       setRegenerating(false);
     }
@@ -226,7 +262,7 @@ export default function DocsPage() {
           </select>
         </div>
 
-        {activeContent ? (
+        {activeContent || regenerating ? (
           <div className="rounded-xl border border-border bg-card">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div>

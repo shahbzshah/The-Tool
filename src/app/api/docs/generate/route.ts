@@ -1,27 +1,81 @@
 import { NextResponse } from "next/server";
-import { generateDocForIdea } from "@/lib/docgen";
-import { AIConfigError } from "@/lib/ai";
+import { prisma } from "@/lib/db";
+import { buildDocMessages, generateDocForIdea } from "@/lib/docgen";
+import { AIConfigError, chatStream } from "@/lib/ai";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
   try {
+    const stream = new URL(req.url).searchParams.get("stream") === "1";
     const body = await req.json();
     const ideaId = String(body?.ideaId ?? "");
     const kind = String(body?.kind ?? "");
 
-    const doc = await generateDocForIdea(ideaId, kind);
-    return NextResponse.json({ doc });
+    if (!stream) {
+      const doc = await generateDocForIdea(ideaId, kind);
+      return NextResponse.json({ doc });
+    }
+
+    // Streaming mode: Server-Sent Events, one {token} per chunk,
+    // then a final {done:true} once the doc is saved.
+    const { messages } = await buildDocMessages(ideaId, kind);
+    const startedAt = Date.now();
+    const encoder = new TextEncoder();
+    let full = "";
+
+    const readable = new ReadableStream({
+      async start(controller) {
+        const send = (obj: unknown) =>
+          controller.enqueue(
+            encoder.encode(`data: ${JSON.stringify(obj)}\n\n`)
+          );
+        try {
+          for await (const token of chatStream(messages, {
+            temperature: 0.7,
+            maxTokens: 3500,
+          })) {
+            full += token;
+            send({ token });
+          }
+          const doc = await prisma.document.upsert({
+            where: { ideaId_kind: { ideaId, kind } },
+            create: { ideaId, kind, content: full },
+            update: { content: full },
+          });
+          send({ done: true, docId: doc.id, durationMs: Date.now() - startedAt });
+        } catch (err) {
+          const message =
+            err instanceof AIConfigError
+              ? err.message
+              : err instanceof Error
+                ? err.message
+                : "Generation failed.";
+          send({ error: message });
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(readable, {
+      headers: {
+        "Content-Type": "text/event-stream",
+        "Cache-Control": "no-cache, no-transform",
+        Connection: "keep-alive",
+      },
+    });
   } catch (err) {
     if (err instanceof AIConfigError) {
       return NextResponse.json({ error: err.message }, { status: 500 });
     }
     const message =
       err instanceof Error ? err.message : "Failed to generate document.";
-    const status = message.includes("not found") || message.includes("Approve") ? 400 : 500;
+    const status =
+      message.includes("not found") || message.includes("Approve") ? 400 : 500;
     console.error("Doc generation failed:", err);
     return NextResponse.json({ error: message }, { status });
   }
 }
-
