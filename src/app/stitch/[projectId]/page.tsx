@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 
@@ -56,6 +56,21 @@ export default function StitchPromptPage() {
   const [error, setError] = useState<string | null>(null);
   const [review, setReview] = useState<StitchReview | null>(null);
   const [reviewing, setReviewing] = useState(false);
+  const [uploads, setUploads] = useState<
+    { id: string; type: string; filename: string; createdAt: string }[]
+  >([]);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const loadUploads = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/uploads?projectId=${projectId}`);
+      const data = await res.json();
+      setUploads(data.uploads ?? []);
+    } catch {
+      // ignore
+    }
+  }, [projectId]);
 
   const load = useCallback(async () => {
     try {
@@ -71,7 +86,8 @@ export default function StitchPromptPage() {
 
   useEffect(() => {
     load();
-  }, [load]);
+    loadUploads();
+  }, [load, loadUploads]);
 
   async function generate() {
     setGenerating(true);
@@ -100,6 +116,15 @@ export default function StitchPromptPage() {
       setTimeout(() => setCopied(false), 2000);
     } catch {
       setError("Clipboard blocked — select the text and copy manually.");
+    }
+  }
+
+  async function deleteUpload(id: string) {
+    try {
+      const res = await fetch(`/api/uploads?id=${id}`, { method: "DELETE" });
+      if (res.ok) setUploads((prev) => prev.filter((u) => u.id !== id));
+    } catch {
+      // ignore
     }
   }
 
@@ -244,6 +269,88 @@ export default function StitchPromptPage() {
               </ul>
             </ElementCard>
           </div>
+
+          {/* Stitch exports — close the loop: bring designs back in */}
+          <section className="rounded-xl border border-border bg-card p-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                Stitch exports 📤
+              </h2>
+              <button
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading}
+                className="rounded-lg border border-border px-4 py-1.5 text-sm font-medium text-foreground/80 transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+              >
+                {uploading ? "Uploading…" : "Upload export"}
+              </button>
+              <input
+                ref={fileRef}
+                type="file"
+                accept=".md,.markdown,.txt,.html,.htm,.png,.jpg,.jpeg,.webp,.gif"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = "";
+                  if (!file) return;
+                  setUploading(true);
+                  setError(null);
+                  try {
+                    const form = new FormData();
+                    form.append("file", file);
+                    form.append("projectId", projectId);
+                    const res = await fetch("/api/uploads", {
+                      method: "POST",
+                      body: form,
+                    });
+                    const data = await res.json();
+                    if (!res.ok) throw new Error(data.error || "Upload failed.");
+                    setUploads((prev) => [data.upload, ...prev]);
+                  } catch (err) {
+                    setError(err instanceof Error ? err.message : "Upload failed.");
+                  } finally {
+                    setUploading(false);
+                  }
+                }}
+              />
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Export your screens from Stitch (markdown, HTML, or screenshots) and
+              upload them here. The design review and your Docs will be built from
+              what was actually designed — not just the prompt.
+            </p>
+            {uploads.length === 0 ? (
+              <p className="rounded-lg border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                No exports yet.
+              </p>
+            ) : (
+              <ul className="space-y-2">
+                {uploads.map((u) => (
+                  <li
+                    key={u.id}
+                    className="flex items-center justify-between rounded-lg border border-border px-3 py-2 text-sm"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                        {u.type}
+                      </span>
+                      <span className="font-medium">{u.filename}</span>
+                    </span>
+                    <button
+                      onClick={() => deleteUpload(u.id)}
+                      className="text-muted-foreground hover:text-red-500"
+                    >
+                      Delete
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {error && (
+              <p className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
+            )}
+          </section>
 
           {/* Design review — AI checks the design/prompt covers the idea */}
           <section className="rounded-xl border border-border bg-card p-5">
