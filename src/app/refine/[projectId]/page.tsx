@@ -30,6 +30,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   const [briefContent, setBriefContent] = useState<string | null>(null);
   const [analysisText, setAnalysisText] = useState<string | null>(null);
   const [showFullIdea, setShowFullIdea] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const loadIdea = useCallback(async () => {
@@ -143,6 +144,30 @@ export default function RefinePage({ params }: { params: { projectId: string } }
     send(undefined, "Save the refined brief now — write the complete file with everything we've decided.");
   }
 
+  async function draftFromAnalysis() {
+    if (!ideaId || drafting) return;
+    setDrafting(true);
+    setError("");
+    try {
+      const res = await fetch("/api/refine/draft", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId, ideaId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Draft failed.");
+      setIdea(data.idea);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", content: data.summary },
+      ]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Draft failed.");
+    } finally {
+      setDrafting(false);
+    }
+  }
+
   if (error) {
     return (
       <main className="mx-auto w-full max-w-[1200px] px-4 py-8">
@@ -217,6 +242,23 @@ export default function RefinePage({ params }: { params: { projectId: string } }
             <h2 className="font-serif text-lg font-semibold">The idea so far</h2>
             <span className="text-xs text-muted-foreground">Read full →</span>
           </div>
+          {idea && idea.features.length === 0 && analysisText && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                draftFromAnalysis();
+              }}
+              disabled={drafting}
+              className="mt-3 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+            >
+              {drafting ? "Drafting…" : "✨ Draft idea from analysis"}
+            </button>
+          )}
+          {idea && idea.features.length === 0 && analysisText && (
+            <p className="mt-1 text-xs text-muted-foreground">
+              The AI reads the Hunter market analysis and drafts features, pitch, audience, and monetization for you.
+            </p>
+          )}
           {!idea ? (
             <p className="mt-2 text-sm text-muted-foreground">Loading…</p>
           ) : (
