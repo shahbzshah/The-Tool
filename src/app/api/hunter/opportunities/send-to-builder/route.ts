@@ -65,6 +65,7 @@ export async function POST(req: Request) {
     data: {
       name: opp.title,
       category: "from-play-store-scan",
+      platform: "mobile", // Play Store opportunity → Android + iOS native app, web optional
       preferences: [
         `Source: Play Store scan (opportunity score ${opp.score}/100)`,
         opp.url ? `Play Store: ${opp.url}` : "",

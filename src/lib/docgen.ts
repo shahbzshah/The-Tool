@@ -105,6 +105,13 @@ export async function generateDocForIdea(
           .map((u) => `### ${u.filename} (${u.type})\n${condenseUpload(u)}`)
           .join("\n\n")}`;
 
+  const platformLine =
+    idea.project.platform === "mobile"
+      ? "- Target platforms: Android + iOS NATIVE MOBILE APP (this idea came from a Play Store scan). Web is optional, never the primary client."
+      : idea.project.platform === "web"
+        ? "- Target platforms: Web application."
+        : "";
+
   const context = `# Project Context
 
 ## Approved App Idea
@@ -114,6 +121,7 @@ export async function generateDocForIdea(
 - Target audience: ${idea.targetAudience}
 - Monetization: ${idea.monetization ?? "not defined"}
 - Category: ${idea.project.category}
+${platformLine}
 - User preferences: ${idea.project.preferences ?? "none"}
 ${stackLockBlock(idea.project.stackLock)}
 
@@ -121,7 +129,7 @@ ${stitchContext}
 
 ${uploadContext}`;
 
-  const system = `You are a senior technical product manager, software architect, and technical writer. You produce complete, professional, immediately-usable markdown documents for software teams. Use proper markdown: headings, tables, lists, and code blocks where appropriate. Be specific to THIS project — never generic filler. If a canonical tech stack is provided, it is MANDATORY and must be followed exactly with no alternatives. CRITICAL RULE: the Key features list under "Approved App Idea" is the canonical, complete, locked feature list from the start of the project. The Stitch exports define the UI ONLY — they never add, remove, or rename features. If a canonical feature has no corresponding screen or component in the Stitch exports, flag it explicitly as a gap. Never silently drop a feature, and never invent features that are not in the list. Respond ONLY with the markdown document content, starting with a level-1 heading.`;
+  const system = `You are a senior technical product manager, software architect, and technical writer. You produce complete, professional, immediately-usable markdown documents for software teams. Use proper markdown: headings, tables, lists, and code blocks where appropriate. Be specific to THIS project — never generic filler. If a canonical tech stack is provided, it is MANDATORY and must be followed exactly with no alternatives. CRITICAL RULE: the Key features list under "Approved App Idea" is the canonical, complete, locked feature list from the start of the project. The Stitch exports define the UI ONLY — they never add, remove, or rename features. If a canonical feature has no corresponding screen or component in the Stitch exports, flag it explicitly as a gap. Never silently drop a feature, and never invent features that are not in the list. PLATFORM RULE: if the context says the target is a native mobile app (Android + iOS), the recommended stack MUST be cross-platform mobile (React Native/Expo or Flutter) — NEVER a web-only frontend (plain React, Next.js web app) as the primary client. Web is optional and secondary for mobile apps. Respond ONLY with the markdown document content, starting with a level-1 heading.`;
 
   const user = `${context}
 

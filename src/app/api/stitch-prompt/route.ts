@@ -69,6 +69,12 @@ export async function POST(req: Request) {
         ? features.map((f, i) => `${i + 1}. ${f}`).join("\n")
         : "n/a";
 
+    // Play Store opportunities are mobile apps — don't let the AI guess web.
+    const platformRequirement =
+      project.platform === "mobile"
+        ? '- "platform": MUST be "mobile (Android + iOS native app)". This is a Play Store opportunity — a mobile app, not a website.\n'
+        : '- "platform": mobile or web recommendation that best fits the idea.\n';
+
     const user = `Create a copy-paste-ready prompt for Google Stitch based on this approved app idea.
 
 App: ${approvedIdea.title}
@@ -85,8 +91,7 @@ Requirements:
 - "colorScheme": specific palette direction (name actual colors/mood, e.g. "dark mode with emerald green accents").
 - "style": visual style direction (e.g. "minimal, clean, card-based layout with generous whitespace").
 - "components": 5-8 key UI components (e.g. "bottom nav bar", "line charts", "FAB button") needed to implement the features.
-- "platform": mobile or web recommendation that best fits the idea.
-- "promptText": the full Stitch prompt as ONE detailed paragraph (120-250 words) that weaves together the app type, all screens, the color scheme, style, components, and platform. It must be ready to paste directly into Stitch and produce a consistent, beautiful multi-screen design.
+${platformRequirement}- "promptText": the full Stitch prompt as ONE detailed paragraph (120-250 words) that weaves together the app type, all screens, the color scheme, style, components, and platform. It must be ready to paste directly into Stitch and produce a consistent, beautiful multi-screen design.
 
 Respond with JSON:
 {"appType": string, "screens": string[], "colorScheme": string, "style": string, "components": string[], "platform": string, "promptText": string}`;
