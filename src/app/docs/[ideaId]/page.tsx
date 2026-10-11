@@ -227,23 +227,19 @@ export default function DocsPage() {
         <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
           4. Review Documents
         </h2>
-        <div className="mb-4 flex flex-wrap gap-2">
-          {DOC_KINDS.map((d) => (
-            <button
-              key={d.kind}
-              onClick={() => setActiveKind(d.kind)}
-              className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                activeKind === d.kind
-                  ? "bg-primary text-primary-foreground"
-                  : docs[d.kind]
-                    ? "bg-muted text-foreground hover:bg-secondary"
-                    : "bg-card text-muted-foreground/70 hover:text-muted-foreground"
-              }`}
-            >
-              {docs[d.kind] ? "✓ " : ""}
-              {d.label}
-            </button>
-          ))}
+        <div className="mb-4">
+          <select
+            value={activeKind}
+            onChange={(e) => setActiveKind(e.target.value)}
+            className="w-full max-w-md rounded-lg border border-input bg-background px-3 py-2 text-sm"
+          >
+            {DOC_KINDS.map((d) => (
+              <option key={d.kind} value={d.kind}>
+                {docs[d.kind] ? "✓ " : ""}
+                {d.label} — {d.title}
+              </option>
+            ))}
+          </select>
         </div>
 
         {activeContent ? (
