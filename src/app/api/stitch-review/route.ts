@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { chatJson, AIConfigError } from "@/lib/ai";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 export type StitchReview = {
   alignmentScore: number; // 1-10 — how well the design covers the idea

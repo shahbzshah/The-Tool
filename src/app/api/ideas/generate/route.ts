@@ -9,7 +9,7 @@ import {
 import type { GeneratedIdea } from "@/lib/constants";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 const IDEAS_PER_REQUEST = 3;
 

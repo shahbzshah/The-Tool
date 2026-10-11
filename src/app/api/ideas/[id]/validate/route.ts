@@ -4,7 +4,7 @@ import { chatJson, AIConfigError } from "@/lib/ai";
 import { parseJsonField, type IdeaValidation } from "@/lib/constants";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 /**
  * POST /api/ideas/[id]/validate

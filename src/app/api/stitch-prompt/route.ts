@@ -3,7 +3,7 @@ import { prisma } from "@/lib/db";
 import { chatJson, AIConfigError } from "@/lib/ai";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 function parseFeatures(json: string): string[] {

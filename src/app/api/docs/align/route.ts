@@ -4,7 +4,7 @@ import { generateDocForIdea, STACK_SENSITIVE_KINDS } from "@/lib/docgen";
 import { AIConfigError } from "@/lib/ai";
 
 export const runtime = "nodejs";
-export const maxDuration = 800;
+export const maxDuration = 60;
 
 /**
  * POST /api/docs/align

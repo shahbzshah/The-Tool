@@ -5,7 +5,7 @@ import { getCachedTrends, formatTrendsForPrompt } from "@/lib/trends";
 import type { GeneratedIdea } from "@/lib/constants";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 const VARIANTS = 3;
 
