@@ -51,6 +51,6 @@ export async function POST(req: Request) {
   return NextResponse.json({
     projectId: project.id,
     ideaId: idea.id,
-    designUrl: `/stitch/${project.id}?idea=${idea.id}`,
+    refineUrl: `/refine/${project.id}?idea=${idea.id}`,
   });
 }

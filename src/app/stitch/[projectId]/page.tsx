@@ -132,8 +132,12 @@ export default function StitchPromptPage() {
 
   return (
     <main className="mx-auto max-w-4xl px-6 py-12">
-      <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-        ← Back to ideas
+      {/* Strict pipeline: Refine → Design → Docs */}
+      <Link
+        href={ideaId ? `/refine/${projectId}?idea=${ideaId}` : "/"}
+        className="text-sm text-muted-foreground hover:text-foreground"
+      >
+        ← Back to Refine
       </Link>
 
       <header className="mb-8 mt-4 text-center">

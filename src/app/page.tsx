@@ -311,7 +311,7 @@ export default function HunterPage() {
         body: JSON.stringify({ id: selected.id }),
       });
       const data = await res.json();
-      if (data.designUrl) router.push(data.designUrl);
+      if (data.refineUrl) router.push(data.refineUrl);
     } finally {
       setSending(false);
     }
