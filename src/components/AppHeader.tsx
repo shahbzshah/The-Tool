@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 
 const STEPS = [
   { label: "Hunter", href: "/" },
+  { label: "Refine", href: null },
   { label: "Design", href: null },
   { label: "Docs", href: null },
   { label: "Export", href: null },
@@ -13,10 +14,11 @@ const STEPS = [
 ];
 
 function activeStep(pathname: string): number {
-  if (pathname.startsWith("/stitch")) return 1;
-  if (pathname.startsWith("/docs")) return 2;
-  if (pathname.startsWith("/export")) return 3;
-  if (pathname.startsWith("/history")) return 4;
+  if (pathname.startsWith("/refine")) return 1;
+  if (pathname.startsWith("/stitch")) return 2;
+  if (pathname.startsWith("/docs")) return 3;
+  if (pathname.startsWith("/export")) return 4;
+  if (pathname.startsWith("/history")) return 5;
   return 0;
 }
 
