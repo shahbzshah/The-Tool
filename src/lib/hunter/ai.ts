@@ -48,9 +48,7 @@ export interface OpportunityInput {
   url?: string | null;
 }
 
-const OPPORTUNITY_PROMPT = `You are a mobile-app market analyst. Someone found this underrated
-app on the Google Play Store and wants a detailed breakdown before deciding
-whether to build a better competing version.
+const OPPORTUNITY_PROMPT = `You are a senior mobile-app market analyst doing a deep competitive teardown. Someone found this underrated app on the Google Play Store and wants a detailed breakdown before building a better competing version. Be specific and concrete — name real things, avoid generic advice like "conduct market research" or "build a user-friendly interface".
 
 App: {title}
 Rating: {rating} stars
@@ -62,21 +60,36 @@ Play Store: {url}
 
 Reply in exactly this JSON shape (no markdown, no extra text):
 {
-  "summary": "2-3 sentences on what this app does and who uses it",
-  "strengths": ["what this app does well 1", "what it does well 2"],
-  "weaknesses": ["gaps or complaints a competitor could exploit 1", "gap 2"],
-  "opportunity": "2-3 sentences on the market opening this app reveals",
-  "build_plan": ["concrete build step 1", "concrete build step 2", "concrete build step 3"],
-  "monetization": "one sentence on how a competing app could make money"
+  "summary": "3-4 sentences: what the app does, who uses it, and its position in the niche",
+  "strengths": ["4-5 specific things this app does well"],
+  "weaknesses": ["4-5 specific weaknesses, missing features, or likely user frustrations a competitor could exploit"],
+  "user_pain_points": ["3-4 pain points users of this kind of app typically complain about in reviews"],
+  "competition": "2-3 sentences on the competitive landscape: who else serves this niche and where they are weak",
+  "differentiation": ["3-4 concrete ways a new competing app could clearly stand out"],
+  "opportunity": "3-4 sentences on the market opening this app reveals, with specifics",
+  "mvp_scope": {
+    "must_have": ["4-6 features the v1 must ship with"],
+    "later": ["3-4 features to deliberately postpone after launch"]
+  },
+  "build_plan": ["5-7 concrete ordered build steps, specific to this app idea"],
+  "monetization": "2-3 sentences: the primary revenue model plus one secondary",
+  "risks": ["2-3 honest risks of building this"],
+  "go_to_market": "2-3 sentences on how to get the first 1,000 users"
 }`;
 
 export interface OpportunityAnalysis {
   summary: string;
   strengths: string[];
   weaknesses: string[];
+  user_pain_points: string[];
+  competition: string;
+  differentiation: string[];
   opportunity: string;
+  mvp_scope: { must_have: string[]; later: string[] };
   build_plan: string[];
   monetization: string;
+  risks: string[];
+  go_to_market: string;
   provider: string;
   model: string;
 }

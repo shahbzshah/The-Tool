@@ -43,9 +43,18 @@ export async function POST(req: Request) {
       if (a.summary) lines.push(`Summary: ${a.summary}`);
       if (Array.isArray(a.strengths)) lines.push(`Strengths: ${a.strengths.join("; ")}`);
       if (Array.isArray(a.weaknesses)) lines.push(`Weaknesses: ${a.weaknesses.join("; ")}`);
+      if (Array.isArray(a.user_pain_points)) lines.push(`User pain points: ${a.user_pain_points.join("; ")}`);
+      if (a.competition) lines.push(`Competition: ${a.competition}`);
+      if (Array.isArray(a.differentiation)) lines.push(`Differentiation: ${a.differentiation.join("; ")}`);
       if (a.opportunity) lines.push(`Opportunity: ${a.opportunity}`);
+      if (a.mvp_scope) {
+        if (Array.isArray(a.mvp_scope.must_have)) lines.push(`MVP must-haves: ${a.mvp_scope.must_have.join("; ")}`);
+        if (Array.isArray(a.mvp_scope.later)) lines.push(`Postpone until later: ${a.mvp_scope.later.join("; ")}`);
+      }
       if (Array.isArray(a.build_plan)) lines.push(`Build plan: ${a.build_plan.join("; ")}`);
       if (a.monetization) lines.push(`Monetization: ${a.monetization}`);
+      if (Array.isArray(a.risks)) lines.push(`Risks: ${a.risks.join("; ")}`);
+      if (a.go_to_market) lines.push(`Go to market: ${a.go_to_market}`);
       analysisText = lines.join("\n");
     } catch {
       // ignore

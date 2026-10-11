@@ -59,10 +59,55 @@ function ParsedAnalysis({ content }: { content: string }) {
           </ul>
         </div>
       )}
+      {Array.isArray(a.user_pain_points) && (
+        <div>
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-red-600">User pain points</h4>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
+            {a.user_pain_points.map((s: string, i: number) => <li key={i}>{s}</li>)}
+          </ul>
+        </div>
+      )}
+      {a.competition && (
+        <div>
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Competition</h4>
+          <p className="mt-1">{a.competition}</p>
+        </div>
+      )}
+      {Array.isArray(a.differentiation) && (
+        <div>
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">How to stand out</h4>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
+            {a.differentiation.map((s: string, i: number) => <li key={i}>{s}</li>)}
+          </ul>
+        </div>
+      )}
       {a.opportunity && (
         <div>
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Opportunity</h4>
           <p className="mt-1">{a.opportunity}</p>
+        </div>
+      )}
+      {a.mvp_scope && (
+        <div>
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">MVP scope</h4>
+          <div className="mt-1 grid gap-3 md:grid-cols-2">
+            {Array.isArray(a.mvp_scope.must_have) && (
+              <div>
+                <p className="text-xs font-medium text-green-600">Must have in v1</p>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
+                  {a.mvp_scope.must_have.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                </ul>
+              </div>
+            )}
+            {Array.isArray(a.mvp_scope.later) && (
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Deliberately later</p>
+                <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
+                  {a.mvp_scope.later.map((s: string, i: number) => <li key={i}>{s}</li>)}
+                </ul>
+              </div>
+            )}
+          </div>
         </div>
       )}
       {Array.isArray(a.build_plan) && (
@@ -77,6 +122,20 @@ function ParsedAnalysis({ content }: { content: string }) {
         <div>
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Monetization</h4>
           <p className="mt-1">{a.monetization}</p>
+        </div>
+      )}
+      {Array.isArray(a.risks) && (
+        <div>
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-red-600">Risks</h4>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
+            {a.risks.map((s: string, i: number) => <li key={i}>{s}</li>)}
+          </ul>
+        </div>
+      )}
+      {a.go_to_market && (
+        <div>
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Go to market</h4>
+          <p className="mt-1">{a.go_to_market}</p>
         </div>
       )}
     </div>
