@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import { analyzeOpportunity } from "@/lib/hunter/ai";
 
 /**
@@ -10,13 +11,16 @@ import { analyzeOpportunity } from "@/lib/hunter/ai";
  * Body: { id: string } (Opportunity id).
  */
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
   const { id } = await req.json().catch(() => ({}));
   if (!id || typeof id !== "string") {
     return NextResponse.json({ error: "Missing opportunity id." }, { status: 400 });
   }
 
-  const opp = await prisma.opportunity.findUnique({
-    where: { id },
+  const opp = await prisma.opportunity.findFirst({
+    where: { id, scanJob: { userId: auth.user.id } },
     include: { analyses: { orderBy: { createdAt: "desc" }, take: 1 } },
   });
   if (!opp) {

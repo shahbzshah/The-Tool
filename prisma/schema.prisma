@@ -7,6 +7,16 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  scanJobs     ScanJob[]
+}
+
 model Project {
   id           String         @id @default(cuid())
   name         String
@@ -88,6 +98,8 @@ model ScanJob {
   status       String        @default("pending") // pending | running | completed | failed
   resultsCount Int           @default(0)
   error        String?
+  userId       String?
+  user         User?         @relation(fields: [userId], references: [id], onDelete: Cascade)
   startedAt    DateTime?
   finishedAt   DateTime?
   createdAt    DateTime      @default(now())
@@ -95,6 +107,7 @@ model ScanJob {
   opportunities Opportunity[]
 
   @@index([status])
+  @@index([userId])
 }
 
 model Opportunity {

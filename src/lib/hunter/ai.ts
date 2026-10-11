@@ -108,6 +108,7 @@ export async function analyzeOpportunity(
     model: process.env.NVIDIA_MODEL || "meta/llama-3.2-11b-vision-instruct",
   };
 }
+function stripJsonFence(text: string): string {
   return text
     .trim()
     .replace(/^```json\s*/, "")

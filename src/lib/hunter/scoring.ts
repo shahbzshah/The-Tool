@@ -135,3 +135,32 @@ export function rankApps(details: AppDetail[]): ScoredApp[] {
   }
   return scored.sort((a, b) => b.opportunity - a.opportunity);
 }
+
+/**
+ * One-paragraph "Why it scores" narrative for an opportunity — the same
+ * explanation the old Hunter detail page showed under the score.
+ */
+export function whyItScores(s: ScoredApp): string {
+  const parts: string[] = [];
+  parts.push(
+    `${s.title} is rated ${s.rating.toFixed(1)}★ across ${s.reviews.toLocaleString()} reviews`
+  );
+  parts.push(
+    s.installs ? `with only ${s.installs} installs` : "with a small install base"
+  );
+  const b = s.breakdown;
+  const drivers: string[] = [];
+  if (b.quality >= 70) drivers.push("standout quality");
+  if (b.gap >= 70) drivers.push("a wide gap between its rating and its reach");
+  if (b.market >= 70) drivers.push("a healthy market around it");
+  if (b.competition <= 30) drivers.push("thin competition");
+  if (drivers.length) {
+    parts.push(` — the score comes from ${drivers.join(", ")}.`);
+  } else {
+    parts.push(" — a solid all-round opportunity signal.");
+  }
+  parts.push(
+    "High love, low distribution: exactly the kind of app a better-marketed competitor could overtake."
+  );
+  return parts.join("");
+}

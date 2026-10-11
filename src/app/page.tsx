@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { scoreTier, timeAgo } from "@/lib/hunter/ui";
 
 type TrendIdea = {
   id: string;
@@ -23,41 +25,164 @@ type IdeaAnalysis = {
   suggested_keywords: string[];
 };
 
+type ScanJob = {
+  id: string;
+  keyword: string;
+  status: string;
+  resultsCount: number;
+  error: string | null;
+  createdAt: string;
+};
+
+type Opportunity = {
+  id: string;
+  appId: string;
+  title: string;
+  rating: number | null;
+  installs: string | null;
+  reviewsCount: string | null;
+  score: number;
+  category: string | null;
+  url: string | null;
+  isBookmarked: boolean;
+  scanJob?: { keyword: string; createdAt: string } | null;
+};
+
+function ScanStatusPill({ status }: { status: string }) {
+  const styles: Record<string, string> = {
+    completed: "bg-green-500/15 text-green-600 border-green-500/30",
+    failed: "bg-red-500/15 text-red-600 border-red-500/30",
+    running: "bg-amber-500/15 text-amber-600 border-amber-500/30",
+    pending: "bg-muted text-muted-foreground border-border",
+  };
+  return (
+    <span
+      className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
+        styles[status] ?? styles.pending
+      }`}
+    >
+      {status}
+    </span>
+  );
+}
+
+function OpportunityCard({
+  opp,
+  onBookmark,
+}: {
+  opp: Opportunity;
+  onBookmark: (opp: Opportunity) => void;
+}) {
+  const tier = scoreTier(opp.score);
+  return (
+    <div className="rounded-lg border border-border bg-card p-4 transition-colors hover:border-primary/50">
+      <div className="flex items-start justify-between gap-2">
+        <Link
+          href={`/hunter/opportunities/${opp.id}`}
+          className="font-medium leading-snug hover:underline"
+        >
+          {opp.title}
+        </Link>
+        <button
+          onClick={() => onBookmark(opp)}
+          aria-label={opp.isBookmarked ? "Remove bookmark" : "Bookmark"}
+          className={`shrink-0 text-xl leading-none ${
+            opp.isBookmarked ? "text-amber-500" : "text-muted-foreground/40 hover:text-amber-500"
+          }`}
+        >
+          {opp.isBookmarked ? "★" : "☆"}
+        </button>
+      </div>
+      <div className="mt-3 flex items-center gap-2">
+        <span className="font-mono text-2xl font-bold" style={{ color: tier.color }}>
+          {tier.score}
+        </span>
+        <span className="text-xs text-muted-foreground">{tier.label}</span>
+      </div>
+      <div
+        className="mt-1 h-1.5 overflow-hidden rounded-full bg-muted"
+        title={`Opportunity score ${tier.score}/100`}
+      >
+        <div
+          className="h-full rounded-full"
+          style={{ width: `${Math.min(100, Math.max(0, tier.score))}%`, backgroundColor: tier.color }}
+        />
+      </div>
+      <div className="mt-3 flex items-center justify-between text-xs text-muted-foreground">
+        <span>
+          {opp.rating != null ? `★${opp.rating}` : "—"} · {opp.installs ?? "—"} installs
+        </span>
+        {opp.scanJob && <span>“{opp.scanJob.keyword}”</span>}
+      </div>
+    </div>
+  );
+}
+
 export default function HunterPage() {
   const router = useRouter();
+  const [user, setUser] = useState<{ email: string; name?: string | null } | null>(null);
+  const [authChecked, setAuthChecked] = useState(false);
+
+  // Scans
+  const [scans, setScans] = useState<ScanJob[]>([]);
+  const [keyword, setKeyword] = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [scanError, setScanError] = useState("");
+
+  // Opportunities
+  const [opps, setOpps] = useState<Opportunity[]>([]);
+  const [oppMeta, setOppMeta] = useState({ total: 0, page: 1, totalPages: 1 });
+  const [search, setSearch] = useState("");
+  const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
+  const [page, setPage] = useState(1);
+
+  // Ideas
   const [ideas, setIdeas] = useState<TrendIdea[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [ideasLoading, setIdeasLoading] = useState(true);
   const [selected, setSelected] = useState<TrendIdea | null>(null);
   const [analysis, setAnalysis] = useState<IdeaAnalysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [sending, setSending] = useState(false);
-  const [keyword, setKeyword] = useState("");
-  const [scanning, setScanning] = useState(false);
-  const [scanResult, setScanResult] = useState<any>(null);
-  const [selectedOpp, setSelectedOpp] = useState<any>(null);
-  const [sendingOpp, setSendingOpp] = useState(false);
-  const [oppAnalysis, setOppAnalysis] = useState<any>(null);
-  const [analyzingOpp, setAnalyzingOpp] = useState(false);
+  const [scanKeyword, setScanKeyword] = useState("");
 
-  async function analyzeOpportunity() {
-    if (!selectedOpp || analyzingOpp) return;
-    setAnalyzingOpp(true);
-    setOppAnalysis(null);
+  const loadScans = useCallback(async () => {
     try {
-      const res = await fetch("/api/hunter/opportunities/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: selectedOpp.id }),
-      });
+      const res = await fetch("/api/hunter/scans");
+      if (res.status === 401) return;
       const data = await res.json();
-      if (data.analysis) setOppAnalysis(data.analysis);
-    } finally {
-      setAnalyzingOpp(false);
+      setScans(data.scans ?? []);
+    } catch {
+      /* ignore */
     }
-  }
+  }, []);
+
+  const loadOpps = useCallback(
+    async (p = page, s = search, b = bookmarkedOnly) => {
+      try {
+        const q = new URLSearchParams({
+          page: String(p),
+          perPage: "20",
+          ...(s ? { search: s } : {}),
+          ...(b ? { bookmarked: "1" } : {}),
+        });
+        const res = await fetch(`/api/hunter/opportunities?${q}`);
+        if (res.status === 401) return;
+        const data = await res.json();
+        setOpps(data.opportunities ?? []);
+        setOppMeta({
+          total: data.total ?? 0,
+          page: data.page ?? 1,
+          totalPages: data.totalPages ?? 1,
+        });
+      } catch {
+        /* ignore */
+      }
+    },
+    [page, search, bookmarkedOnly]
+  );
 
   const loadIdeas = useCallback(async () => {
-    setLoading(true);
+    setIdeasLoading(true);
     try {
       const res = await fetch("/api/hunter/ideas");
       const data = await res.json();
@@ -65,16 +190,94 @@ export default function HunterPage() {
     } catch {
       setIdeas([]);
     } finally {
-      setLoading(false);
+      setIdeasLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    loadIdeas();
-  }, [loadIdeas]);
+    (async () => {
+      try {
+        const res = await fetch("/api/auth/me");
+        const data = await res.json();
+        if (!data.user) {
+          router.push("/login");
+          return;
+        }
+        setUser(data.user);
+        setAuthChecked(true);
+        loadScans();
+        loadOpps(1, "", false);
+        loadIdeas();
+      } catch {
+        router.push("/login");
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function logout() {
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
+
+  async function runScan(e?: React.FormEvent, kw?: string) {
+    const k = (kw ?? keyword).trim();
+    if (e) e.preventDefault();
+    if (!k || scanning) return;
+    setScanning(true);
+    setScanError("");
+    try {
+      const res = await fetch("/api/hunter/scans", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keyword: k }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setScanError(data.error ?? "Scan failed.");
+        return;
+      }
+      setKeyword("");
+      await loadScans();
+      setPage(1);
+      setSearch("");
+      setBookmarkedOnly(false);
+      await loadOpps(1, "", false);
+    } finally {
+      setScanning(false);
+    }
+  }
+
+  async function toggleBookmark(opp: Opportunity) {
+    try {
+      const res = await fetch(`/api/hunter/opportunities/${opp.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isBookmarked: !opp.isBookmarked }),
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      setOpps((prev) =>
+        prev.map((o) =>
+          o.id === opp.id ? { ...o, isBookmarked: data.opportunity.isBookmarked } : o
+        )
+      );
+    } catch {
+      /* ignore */
+    }
+  }
+
+  function applyFilters(s: string, b: boolean) {
+    setSearch(s);
+    setBookmarkedOnly(b);
+    setPage(1);
+    loadOpps(1, s, b);
+  }
 
   async function analyzeIdea(idea: TrendIdea) {
     setSelected(idea);
+    setScanKeyword("");
     setAnalysis(idea.analysis ? JSON.parse(idea.analysis) : null);
     if (idea.analysis) return;
     setAnalyzing(true);
@@ -87,7 +290,6 @@ export default function HunterPage() {
       const data = await res.json();
       if (data.analysis) {
         setAnalysis(data.analysis);
-        // Update the cached copy in the list
         setIdeas((prev) =>
           prev.map((i) =>
             i.id === idea.id ? { ...i, analysis: JSON.stringify(data.analysis) } : i
@@ -115,60 +317,47 @@ export default function HunterPage() {
     }
   }
 
-  async function sendOpportunityToBuilder() {
-    if (!selectedOpp) return;
-    setSendingOpp(true);
-    try {
-      const res = await fetch("/api/hunter/opportunities/send-to-builder", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: selectedOpp.id }),
-      });
-      const data = await res.json();
-      if (data.designUrl) router.push(data.designUrl);
-    } finally {
-      setSendingOpp(false);
-    }
-  }
-
-  async function runScan(e: React.FormEvent) {
-    e.preventDefault();
-    if (!keyword.trim() || scanning) return;
-    setScanning(true);
-    setScanResult(null);
-    try {
-      const res = await fetch("/api/hunter/scans", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ keyword: keyword.trim() }),
-      });
-      const data = await res.json();
-      setScanResult(data);
-    } finally {
-      setScanning(false);
-    }
+  if (!authChecked) {
+    return (
+      <main className="mx-auto w-full max-w-[1200px] px-4 py-8 md:px-16">
+        <p className="text-muted-foreground">Loading…</p>
+      </main>
+    );
   }
 
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 py-8 md:px-16">
-      <div className="mb-8">
-        <h1 className="font-serif text-3xl font-bold text-foreground">
-          Opportunity Hunter
-        </h1>
-        <p className="mt-2 text-muted-foreground">
-          Trending app ideas, validated against the real Play Store. Pick one,
-          analyze it, then send it to the builder.
-        </p>
+      <div className="mb-8 flex items-start justify-between">
+        <div>
+          <h1 className="font-serif text-3xl font-bold text-foreground">
+            Opportunity Hunter
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            Trending app ideas, validated against the real Play Store. Pick one,
+            analyze it, then send it to the builder.
+          </p>
+        </div>
+        <div className="flex shrink-0 items-center gap-3 text-sm">
+          <span className="hidden text-muted-foreground sm:inline">
+            {user?.name ?? user?.email}
+          </span>
+          <button
+            onClick={logout}
+            className="rounded-md border border-border px-3 py-1.5 hover:border-primary"
+          >
+            Sign out
+          </button>
+        </div>
       </div>
 
-      {/* Play Store scan */}
-      <section className="mb-10 rounded-lg border border-border bg-card p-6">
+      {/* Scan */}
+      <section className="mb-8 rounded-lg border border-border bg-card p-6">
         <h2 className="font-serif text-xl font-semibold">Scan the Play Store</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Enter a keyword to find underrated apps in that niche — high rating,
           low installs, real opportunity.
         </p>
-        <form onSubmit={runScan} className="mt-4 flex gap-2">
+        <form onSubmit={(e) => runScan(e)} className="mt-4 flex gap-2">
           <input
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
@@ -180,146 +369,120 @@ export default function HunterPage() {
             disabled={scanning || !keyword.trim()}
             className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
           >
-            {scanning ? "Scanning…" : "Scan"}
+            {scanning ? "Scanning… (30-60s)" : "Scan"}
           </button>
         </form>
-        {scanResult?.opportunities && (
-          <div className="mt-4 space-y-2">
-            {scanResult.opportunities.slice(0, 10).map((o: any) => (
-              <button
-                key={o.appId}
-                onClick={() => {
-                  setSelectedOpp(o);
-                  setOppAnalysis(null);
-                }}
-                className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors ${
-                  selectedOpp?.appId === o.appId
-                    ? "border-primary bg-accent/30"
-                    : "border-border hover:border-primary/50"
-                }`}
-              >
-                <span className="font-medium">{o.title}</span>
-                <span className="font-mono text-muted-foreground">
-                  {o.score}/100 · ★{o.rating}
-                </span>
-              </button>
-            ))}
-          </div>
+        {scanError && (
+          <p className="mt-3 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm">
+            {scanError}
+          </p>
         )}
 
-        {/* Opportunity detail panel */}
-        {selectedOpp && (
-          <div className="mt-4 rounded-lg border border-primary/30 p-5">
-            <h3 className="font-serif text-lg font-semibold">{selectedOpp.title}</h3>
-            <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
-              <div>
-                <p className="text-xs text-muted-foreground">Opportunity</p>
-                <p className="font-mono text-lg font-semibold">{selectedOpp.score}/100</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Rating</p>
-                <p className="font-mono text-lg">★{selectedOpp.rating}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Installs</p>
-                <p className="font-medium">{selectedOpp.installs ?? "—"}</p>
-              </div>
-              <div>
-                <p className="text-xs text-muted-foreground">Reviews</p>
-                <p className="font-mono">{selectedOpp.reviewsCount ?? "—"}</p>
-              </div>
-            </div>
-            {selectedOpp.breakdown && (
-              <div className="mt-3 text-xs text-muted-foreground">
-                {(() => {
-                  try {
-                    const b = JSON.parse(selectedOpp.breakdown);
-                    return `Quality ${b.quality} · Gap ${b.gap} · Market ${b.market} · Competition ${b.competition}`;
-                  } catch {
-                    return null;
-                  }
-                })()}
-              </div>
-            )}
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                onClick={analyzeOpportunity}
-                disabled={analyzingOpp}
-                className="rounded-md border border-border px-4 py-2 text-sm hover:border-primary disabled:opacity-50"
-              >
-                {analyzingOpp ? "Analyzing…" : "Analyze with AI"}
-              </button>
-              {selectedOpp.url && (
-                <a
-                  href={selectedOpp.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="rounded-md border border-border px-4 py-2 text-sm hover:border-primary"
+        {scans.length > 0 && (
+          <div className="mt-6">
+            <h3 className="mb-2 text-sm font-semibold text-muted-foreground">
+              Recent scans
+            </h3>
+            <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-5">
+              {scans.slice(0, 10).map((s) => (
+                <div
+                  key={s.id}
+                  className="rounded-lg border border-border p-3 text-sm"
                 >
-                  View on Play Store ↗
-                </a>
-              )}
-              <button
-                onClick={sendOpportunityToBuilder}
-                disabled={sendingOpp}
-                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-              >
-                {sendingOpp ? "Sending…" : "Send to Builder →"}
-              </button>
-            </div>
-
-            {/* AI analysis of the opportunity */}
-            {oppAnalysis && (
-              <div className="mt-4 space-y-4 border-t border-border pt-4 text-sm">
-                <div>
-                  <h4 className="font-semibold">Summary</h4>
-                  <p className="mt-1 text-muted-foreground">{oppAnalysis.summary}</p>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="truncate font-medium">{s.keyword}</span>
+                    <ScanStatusPill status={s.status} />
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {s.status === "completed" && `${s.resultsCount} apps · `}
+                    {timeAgo(s.createdAt)}
+                  </p>
+                  {s.status === "failed" && s.error && (
+                    <p className="mt-1 text-xs text-red-500">{s.error}</p>
+                  )}
                 </div>
-                {Array.isArray(oppAnalysis.strengths) && (
-                  <div>
-                    <h4 className="font-semibold">Strengths</h4>
-                    <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
-                      {oppAnalysis.strengths.map((s: string, i: number) => (
-                        <li key={i}>{s}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {Array.isArray(oppAnalysis.weaknesses) && (
-                  <div>
-                    <h4 className="font-semibold">Weaknesses to exploit</h4>
-                    <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
-                      {oppAnalysis.weaknesses.map((s: string, i: number) => (
-                        <li key={i}>{s}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {oppAnalysis.opportunity && (
-                  <div>
-                    <h4 className="font-semibold">The opportunity</h4>
-                    <p className="mt-1 text-muted-foreground">{oppAnalysis.opportunity}</p>
-                  </div>
-                )}
-                {Array.isArray(oppAnalysis.build_plan) && (
-                  <div>
-                    <h4 className="font-semibold">Build plan</h4>
-                    <ol className="mt-1 list-decimal space-y-1 pl-5 text-muted-foreground">
-                      {oppAnalysis.build_plan.map((s: string, i: number) => (
-                        <li key={i}>{s}</li>
-                      ))}
-                    </ol>
-                  </div>
-                )}
-                {oppAnalysis.monetization && (
-                  <div>
-                    <h4 className="font-semibold">Monetization</h4>
-                    <p className="mt-1 text-muted-foreground">{oppAnalysis.monetization}</p>
-                  </div>
-                )}
-              </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Opportunities */}
+      <section className="mb-10">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="font-serif text-xl font-semibold">
+            Opportunities{" "}
+            <span className="text-sm font-normal text-muted-foreground">
+              ({oppMeta.total})
+            </span>
+          </h2>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              value={search}
+              onChange={(e) => applyFilters(e.target.value, bookmarkedOnly)}
+              placeholder="Search apps…"
+              className="rounded-md border border-input bg-background px-3 py-1.5 text-sm"
+            />
+            <button
+              onClick={() => applyFilters(search, !bookmarkedOnly)}
+              className={`rounded-md border px-3 py-1.5 text-sm ${
+                bookmarkedOnly
+                  ? "border-amber-500 bg-amber-500/10 text-amber-600"
+                  : "border-border hover:border-primary"
+              }`}
+            >
+              ★ Bookmarked
+            </button>
+            {(search || bookmarkedOnly) && (
+              <button
+                onClick={() => applyFilters("", false)}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                Reset
+              </button>
             )}
           </div>
+        </div>
+
+        {opps.length === 0 ? (
+          <p className="rounded-lg border border-dashed border-border p-8 text-center text-muted-foreground">
+            No opportunities yet. Run a scan above to find underrated apps.
+          </p>
+        ) : (
+          <>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {opps.map((o) => (
+                <OpportunityCard key={o.id} opp={o} onBookmark={toggleBookmark} />
+              ))}
+            </div>
+            {oppMeta.totalPages > 1 && (
+              <div className="mt-6 flex items-center justify-center gap-3 text-sm">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => {
+                    setPage(page - 1);
+                    loadOpps(page - 1, search, bookmarkedOnly);
+                  }}
+                  className="rounded-md border border-border px-3 py-1.5 disabled:opacity-40"
+                >
+                  ← Prev
+                </button>
+                <span className="text-muted-foreground">
+                  Page {oppMeta.page} of {oppMeta.totalPages}
+                </span>
+                <button
+                  disabled={page >= oppMeta.totalPages}
+                  onClick={() => {
+                    setPage(page + 1);
+                    loadOpps(page + 1, search, bookmarkedOnly);
+                  }}
+                  className="rounded-md border border-border px-3 py-1.5 disabled:opacity-40"
+                >
+                  Next →
+                </button>
+              </div>
+            )}
+          </>
         )}
       </section>
 
@@ -335,12 +498,10 @@ export default function HunterPage() {
           </button>
         </div>
 
-        {loading ? (
+        {ideasLoading ? (
           <p className="text-muted-foreground">Loading trending ideas…</p>
         ) : ideas.length === 0 ? (
-          <p className="text-muted-foreground">
-            No ideas right now. Try refreshing.
-          </p>
+          <p className="text-muted-foreground">No ideas right now. Try refreshing.</p>
         ) : (
           <div className="grid gap-4 md:grid-cols-2">
             {ideas.map((idea) => (
@@ -366,7 +527,7 @@ export default function HunterPage() {
         )}
       </section>
 
-      {/* Analysis panel */}
+      {/* Idea analysis panel */}
       {selected && (
         <section className="mt-8 rounded-lg border border-primary/30 bg-card p-6">
           <h2 className="font-serif text-xl font-semibold">{selected.title}</h2>
@@ -399,17 +560,34 @@ export default function HunterPage() {
               </div>
               {analysis.suggested_keywords?.length > 0 && (
                 <div>
-                  <h4 className="font-semibold">Suggested keywords</h4>
-                  <div className="mt-1 flex flex-wrap gap-2">
+                  <h4 className="font-semibold">Scan the Play Store for competition</h4>
+                  <div className="mb-3 mt-2 flex flex-wrap gap-2">
                     {analysis.suggested_keywords.map((k, i) => (
-                      <span
-                        key={i}
-                        className="rounded-full bg-muted px-3 py-1 text-xs"
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setScanKeyword(k)}
+                        className={`rounded-full border px-3 py-1.5 text-xs transition-colors ${
+                          (scanKeyword || analysis.suggested_keywords[0]) === k
+                            ? "border-primary bg-primary font-medium text-primary-foreground"
+                            : "border-border text-muted-foreground hover:border-primary"
+                        }`}
                       >
                         {k}
-                      </span>
+                      </button>
                     ))}
                   </div>
+                  <button
+                    onClick={() =>
+                      runScan(undefined, scanKeyword || analysis.suggested_keywords[0])
+                    }
+                    disabled={scanning}
+                    className="w-full rounded-md bg-primary px-4 py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
+                  >
+                    {scanning
+                      ? "Scanning…"
+                      : `Scan Play Store for “${scanKeyword || analysis.suggested_keywords[0]}”`}
+                  </button>
                 </div>
               )}
               <button
