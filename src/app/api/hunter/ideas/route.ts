@@ -24,10 +24,32 @@ export async function GET() {
   }
 
   // Check for a fresh cached feed.
-  const cached = await prisma.trendIdea.findMany({
-    orderBy: { hotness: "desc" },
-    take: 30,
-  });
+  let cached;
+  try {
+    cached = await prisma.trendIdea.findMany({
+      orderBy: { hotness: "desc" },
+      take: 30,
+    });
+  } catch (err) {
+    console.error("hunter/ideas DB read failed:", err);
+    return NextResponse.json(
+      {
+        error: "Database read failed.",
+        detail: err instanceof Error ? err.message : String(err),
+        host: (() => {
+          try {
+            return new URL((process.env.DATABASE_URL ?? "").replace(
+              /^postgres/,
+              "http"
+            )).host;
+          } catch {
+            return "unknown";
+          }
+        })(),
+      },
+      { status: 500 }
+    );
+  }
   const newest = cached[0]?.createdAt?.getTime() ?? 0;
   const age = Date.now() - newest;
   const ttl = cached.length === 0 ? 5 * 60 * 1000 : CACHE_TTL_MS;

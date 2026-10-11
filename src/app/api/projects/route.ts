@@ -13,24 +13,45 @@ export async function GET() {
   if (IS_BUILD) {
     return NextResponse.json({ projects: [], building: true });
   }
-  const projects = await prisma.project.findMany({
-    orderBy: { createdAt: "desc" },
-    take: 30,
-    include: {
-      ideas: {
-        orderBy: { createdAt: "asc" },
-        select: {
-          id: true,
-          title: true,
-          pitch: true,
-          scores: true,
-          favorite: true,
-          status: true,
-          createdAt: true,
+  try {
+    const projects = await prisma.project.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      include: {
+        ideas: {
+          orderBy: { createdAt: "asc" },
+          select: {
+            id: true,
+            title: true,
+            pitch: true,
+            scores: true,
+            favorite: true,
+            status: true,
+            createdAt: true,
+          },
         },
+        stitchPrompt: { select: { id: true } },
       },
-      stitchPrompt: { select: { id: true } },
-    },
-  });
-  return NextResponse.json({ projects });
+    });
+    return NextResponse.json({ projects });
+  } catch (err) {
+    console.error("projects DB read failed:", err);
+    return NextResponse.json(
+      {
+        error: "Database read failed.",
+        detail: err instanceof Error ? err.message : String(err),
+        host: (() => {
+          try {
+            return new URL((process.env.DATABASE_URL ?? "").replace(
+              /^postgres/,
+              "http"
+            )).host;
+          } catch {
+            return "unknown";
+          }
+        })(),
+      },
+      { status: 500 }
+    );
+  }
 }
