@@ -31,18 +31,43 @@ Rules for the update block:
 If the user just wants to discuss or asks a question, reply normally with no update block.`;
 
 /**
- * POST /api/refine/chat — chat with the AI about the analyzed opportunity.
- * Body: { projectId, ideaId, messages: [{ role: "user"|"assistant", content }] }
- * The AI can update the idea via fenced ```update JSON blocks; the API
- * applies them and returns the cleaned reply plus the refreshed idea.
+ * GET /api/refine/chat?projectId=&ideaId= — load saved conversation history.
+ */
+export async function GET(req: Request) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
+  const url = new URL(req.url);
+  const projectId = url.searchParams.get("projectId");
+  const ideaId = url.searchParams.get("ideaId");
+  if (!projectId || !ideaId) {
+    return NextResponse.json({ error: "Missing projectId or ideaId." }, { status: 400 });
+  }
+
+  const messages = await prisma.refineMessage.findMany({
+    where: { projectId, ideaId },
+    orderBy: { createdAt: "asc" },
+    select: { role: true, content: true },
+  });
+  return NextResponse.json({ messages });
+}
+
+/**
+ * POST /api/refine/chat — send one chat message about the analyzed opportunity.
+ * Body: { projectId, ideaId, message: string }
+ * History is loaded from the DB, the reply is saved, and the AI can update
+ * the idea via fenced ```update JSON blocks.
  */
 export async function POST(req: Request) {
   const auth = await requireUser(req);
   if ("response" in auth) return auth.response;
 
-  const { projectId, ideaId, messages } = await req.json().catch(() => ({}));
-  if (!projectId || !ideaId || !Array.isArray(messages)) {
-    return NextResponse.json({ error: "Missing projectId, ideaId or messages." }, { status: 400 });
+  const { projectId, ideaId, message } = await req.json().catch(() => ({}));
+  if (!projectId || !ideaId || !message || typeof message !== "string") {
+    return NextResponse.json(
+      { error: "Missing projectId, ideaId or message." },
+      { status: 400 }
+    );
   }
 
   const idea = await prisma.idea.findFirst({
@@ -71,17 +96,24 @@ export async function POST(req: Request) {
       : "",
   ].join("\n");
 
+  const history = await prisma.refineMessage.findMany({
+    where: { projectId, ideaId },
+    orderBy: { createdAt: "asc" },
+    take: 40,
+    select: { role: true, content: true },
+  });
+
   const reply = await chat(
     [
       { role: "system", content: SYSTEM_PROMPT },
       { role: "user", content: `Here is everything about the idea so far:\n${context}` },
-      ...messages
-        .filter((m: any) => m && typeof m.content === "string")
-        .slice(-20)
-        .map((m: any) => ({
+      ...history
+        .filter((m) => typeof m.content === "string")
+        .map((m) => ({
           role: m.role === "assistant" ? "assistant" : "user",
           content: m.content.slice(0, 4000),
         })),
+      { role: "user", content: message.slice(0, 4000) },
     ] as any,
     { temperature: 0.6, maxTokens: 2048 }
   );
@@ -111,6 +143,14 @@ export async function POST(req: Request) {
       // Malformed update block — leave the idea untouched.
     }
   }
+
+  // Persist both sides of the exchange.
+  await prisma.refineMessage.createMany({
+    data: [
+      { projectId, ideaId, role: "user", content: message.slice(0, 4000) },
+      { projectId, ideaId, role: "assistant", content: cleaned.slice(0, 8000) },
+    ],
+  });
 
   let refreshedFeatures: string[] = features;
   if (updatedIdea) {

@@ -51,6 +51,20 @@ export default function RefinePage({ params }: { params: { projectId: string } }
         // ignore
       }
       setIdea({ ...data.idea, features });
+
+      // Restore saved conversation; a refresh no longer loses anything.
+      try {
+        const h = await fetch(
+          `/api/refine/chat?projectId=${projectId}&ideaId=${ideaId}`
+        );
+        const hd = await h.json();
+        if (Array.isArray(hd.messages) && hd.messages.length > 0) {
+          setMessages(hd.messages);
+          return;
+        }
+      } catch {
+        // fall through to greeting
+      }
       setMessages([
         {
           role: "assistant",
@@ -60,7 +74,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
     } catch {
       setError("Could not load the idea.");
     }
-  }, [ideaId, router]);
+  }, [ideaId, projectId, router]);
 
   useEffect(() => {
     loadIdea();
@@ -82,7 +96,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
       const res = await fetch("/api/refine/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, ideaId, messages: next }),
+        body: JSON.stringify({ projectId, ideaId, message: text }),
       });
       const data = await res.json();
       if (!res.ok) {

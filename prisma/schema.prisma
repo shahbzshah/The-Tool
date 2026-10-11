@@ -17,6 +17,17 @@ model User {
   scanJobs     ScanJob[]
 }
 
+model RefineMessage {
+  id        String   @id @default(cuid())
+  projectId String
+  ideaId    String
+  role      String // user | assistant
+  content   String
+  createdAt DateTime @default(now())
+
+  @@index([projectId, ideaId, createdAt])
+}
+
 model Project {
   id           String         @id @default(cuid())
   name         String
