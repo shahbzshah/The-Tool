@@ -84,9 +84,17 @@ export default function DocsPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ideaId, kind: d.kind }),
         });
-        const data = await res.json();
+        const text = await res.text();
+        let data: { doc?: { content?: string }; error?: string };
+        try {
+          data = JSON.parse(text);
+        } catch {
+          throw new Error(
+            `Failed: ${d.label} — the server didn't respond in time. Try again.`
+          );
+        }
         if (!res.ok) throw new Error(data.error || `Failed: ${d.label}`);
-        setDocs((prev) => ({ ...prev, [d.kind]: data.doc.content ?? prev[d.kind] }));
+        setDocs((prev) => ({ ...prev, [d.kind]: data.doc?.content ?? prev[d.kind] }));
       }
       setGenState(null);
     } catch (err) {

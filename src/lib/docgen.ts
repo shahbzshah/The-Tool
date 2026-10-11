@@ -74,14 +74,35 @@ export async function generateDocForIdea(
 - Full prompt: ${sp.promptText}`
     : "## Stitch Design Prompt\nNo Stitch prompt generated yet.";
 
+  // Stitch HTML exports are mostly Tailwind/SVG boilerplate — strip markup and
+  // keep the meaningful text so prompts stay fast and don't time out.
+  const condenseUpload = (u: {
+    filename: string;
+    type: string;
+    content: string | null;
+  }): string => {
+    if (!u.content) {
+      return "(binary screenshot — visual reference only, cannot be read as text)";
+    }
+    let text = u.content;
+    if (u.type === "html") {
+      text = text
+        .replace(/<script[\s\S]*?<\/script>/gi, " ")
+        .replace(/<style[\s\S]*?<\/style>/gi, " ")
+        .replace(/<[^>]+>/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    }
+    const MAX = 4000;
+    if (text.length > MAX) text = text.slice(0, MAX) + "… [truncated]";
+    return text;
+  };
+
   const uploadContext =
     idea.project.uploads.length === 0
       ? "## Uploaded Stitch Exports\nNone uploaded yet — base the design system on the Stitch prompt above."
       : `## Uploaded Stitch Exports\n${idea.project.uploads
-          .map(
-            (u) =>
-              `### ${u.filename} (${u.type})\n${u.content ?? "(binary screenshot — visual reference only, cannot be read as text)"}`
-          )
+          .map((u) => `### ${u.filename} (${u.type})\n${condenseUpload(u)}`)
           .join("\n\n")}`;
 
   const context = `# Project Context

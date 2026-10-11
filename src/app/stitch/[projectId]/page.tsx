@@ -137,9 +137,15 @@ export default function StitchPromptPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId }),
       });
-      const data = await res.json();
+      const text = await res.text();
+      let data: { review?: StitchReview; error?: string };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("Review timed out — try again.");
+      }
       if (!res.ok) throw new Error(data.error || "Review failed.");
-      setReview(data.review);
+      setReview(data.review ?? null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
