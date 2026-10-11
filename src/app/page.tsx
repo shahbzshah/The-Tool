@@ -34,6 +34,8 @@ export default function HunterPage() {
   const [keyword, setKeyword] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState<any>(null);
+  const [selectedOpp, setSelectedOpp] = useState<any>(null);
+  const [sendingOpp, setSendingOpp] = useState(false);
 
   const loadIdeas = useCallback(async () => {
     setLoading(true);
@@ -94,6 +96,22 @@ export default function HunterPage() {
     }
   }
 
+  async function sendOpportunityToBuilder() {
+    if (!selectedOpp) return;
+    setSendingOpp(true);
+    try {
+      const res = await fetch("/api/hunter/opportunities/send-to-builder", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: selectedOpp.id }),
+      });
+      const data = await res.json();
+      if (data.designUrl) router.push(data.designUrl);
+    } finally {
+      setSendingOpp(false);
+    }
+  }
+
   async function runScan(e: React.FormEvent) {
     e.preventDefault();
     if (!keyword.trim() || scanning) return;
@@ -149,16 +167,77 @@ export default function HunterPage() {
         {scanResult?.opportunities && (
           <div className="mt-4 space-y-2">
             {scanResult.opportunities.slice(0, 10).map((o: any) => (
-              <div
+              <button
                 key={o.appId}
-                className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
+                onClick={() => setSelectedOpp(o)}
+                className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors ${
+                  selectedOpp?.appId === o.appId
+                    ? "border-primary bg-accent/30"
+                    : "border-border hover:border-primary/50"
+                }`}
               >
                 <span className="font-medium">{o.title}</span>
                 <span className="font-mono text-muted-foreground">
                   {o.score}/100 · ★{o.rating}
                 </span>
-              </div>
+              </button>
             ))}
+          </div>
+        )}
+
+        {/* Opportunity detail panel */}
+        {selectedOpp && (
+          <div className="mt-4 rounded-lg border border-primary/30 p-5">
+            <h3 className="font-serif text-lg font-semibold">{selectedOpp.title}</h3>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
+              <div>
+                <p className="text-xs text-muted-foreground">Opportunity</p>
+                <p className="font-mono text-lg font-semibold">{selectedOpp.score}/100</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Rating</p>
+                <p className="font-mono text-lg">★{selectedOpp.rating}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Installs</p>
+                <p className="font-medium">{selectedOpp.installs ?? "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground">Reviews</p>
+                <p className="font-mono">{selectedOpp.reviewsCount ?? "—"}</p>
+              </div>
+            </div>
+            {selectedOpp.breakdown && (
+              <div className="mt-3 text-xs text-muted-foreground">
+                {(() => {
+                  try {
+                    const b = JSON.parse(selectedOpp.breakdown);
+                    return `Quality ${b.quality} · Gap ${b.gap} · Market ${b.market} · Competition ${b.competition}`;
+                  } catch {
+                    return null;
+                  }
+                })()}
+              </div>
+            )}
+            <div className="mt-4 flex flex-wrap gap-2">
+              {selectedOpp.url && (
+                <a
+                  href={selectedOpp.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="rounded-md border border-border px-4 py-2 text-sm hover:border-primary"
+                >
+                  View on Play Store ↗
+                </a>
+              )}
+              <button
+                onClick={sendOpportunityToBuilder}
+                disabled={sendingOpp}
+                className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
+              >
+                {sendingOpp ? "Sending…" : "Send to Builder →"}
+              </button>
+            </div>
           </div>
         )}
       </section>
