@@ -64,19 +64,27 @@ export async function POST(req: Request) {
     const system =
       "You are a UI/UX designer who writes expert prompts for Google Stitch (Google's AI UI design tool). You respond ONLY with valid JSON — no markdown fences, no commentary.";
 
+    const featureList =
+      features.length > 0
+        ? features.map((f, i) => `${i + 1}. ${f}`).join("\n")
+        : "n/a";
+
     const user = `Create a copy-paste-ready prompt for Google Stitch based on this approved app idea.
 
-App idea: ${approvedIdea.title}
+App: ${approvedIdea.title}
 Pitch: ${approvedIdea.pitch}
-Key features: ${features.join("; ") || "n/a"}
 Target audience: ${approvedIdea.targetAudience}
-User preferences: ${project.preferences || "none"}
+
+COMPLETE FEATURE LIST — every feature below MUST be reflected in the screens and components you design. Do not drop any:
+${featureList}
+
+Design direction: ${project.preferences || "none specified — choose a clean, modern direction that fits the app type and audience"}
 
 Requirements:
-- "screens": 5-7 concrete screen names for this app (e.g. "Dashboard", "Settings").
+- "screens": 5-7 concrete screen names for this app (e.g. "Dashboard", "Settings"). Cover ALL features above across these screens.
 - "colorScheme": specific palette direction (name actual colors/mood, e.g. "dark mode with emerald green accents").
 - "style": visual style direction (e.g. "minimal, clean, card-based layout with generous whitespace").
-- "components": 5-8 key UI components (e.g. "bottom nav bar", "line charts", "FAB button").
+- "components": 5-8 key UI components (e.g. "bottom nav bar", "line charts", "FAB button") needed to implement the features.
 - "platform": mobile or web recommendation that best fits the idea.
 - "promptText": the full Stitch prompt as ONE detailed paragraph (120-250 words) that weaves together the app type, all screens, the color scheme, style, components, and platform. It must be ready to paste directly into Stitch and produce a consistent, beautiful multi-screen design.
 
