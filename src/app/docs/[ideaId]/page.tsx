@@ -30,6 +30,7 @@ export default function DocsPage() {
     label: string;
   } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const loadAll = useCallback(async () => {
@@ -131,6 +132,32 @@ export default function DocsPage() {
     }
   }
 
+  async function regenerateOne() {
+    if (!idea || regenerating) return;
+    setRegenerating(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/docs/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ideaId, kind: activeKind }),
+      });
+      const text = await res.text();
+      let data: { doc?: { content?: string }; error?: string };
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error("The server didn't respond in time. Try again.");
+      }
+      if (!res.ok) throw new Error(data.error || "Regeneration failed.");
+      setDocs((prev) => ({ ...prev, [activeKind]: data.doc?.content ?? prev[activeKind] }));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Regeneration failed.");
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
   const generatedCount = DOC_KINDS.filter((d) => docs[d.kind]).length;
   const activeContent = docs[activeKind];
   const activeMeta = DOC_KINDS.find((d) => d.kind === activeKind);
@@ -210,16 +237,25 @@ export default function DocsPage() {
                   {activeMeta?.title}
                 </span>
               </div>
-              <button
-                onClick={copyDoc}
-                className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                  copied
-                    ? "bg-secondary text-secondary-foreground"
-                    : "bg-muted text-foreground hover:bg-secondary"
-                }`}
-              >
-                {copied ? "Copied! ✅" : "Copy 📋"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={regenerateOne}
+                  disabled={regenerating}
+                  className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground/80 transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+                >
+                  {regenerating ? "Regenerating…" : "Regenerate 🔄"}
+                </button>
+                <button
+                  onClick={copyDoc}
+                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    copied
+                      ? "bg-secondary text-secondary-foreground"
+                      : "bg-muted text-foreground hover:bg-secondary"
+                  }`}
+                >
+                  {copied ? "Copied! ✅" : "Copy 📋"}
+                </button>
+              </div>
             </div>
             <pre className="max-h-[32rem] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-relaxed text-foreground/80">
               {activeContent}
