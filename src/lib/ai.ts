@@ -1,11 +1,10 @@
 /**
- * Provider-agnostic AI adapter.
- * Currently wired to poolside (OpenAI-compatible chat completions API).
- * To switch providers later, only this file needs to change.
+ * AI adapter — NVIDIA Build only (OpenAI-compatible chat completions API).
  */
 
-const BASE_URL = process.env.POOLSIDE_BASE_URL || "https://inference.poolside.ai/v1";
-const MODEL = process.env.POOLSIDE_MODEL || "poolside/laguna-s-2.1";
+const BASE_URL = "https://integrate.api.nvidia.com/v1";
+const MODEL =
+  process.env.NVIDIA_MODEL || "meta/llama-3.2-11b-vision-instruct";
 
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -18,10 +17,10 @@ export async function chat(
   messages: ChatMessage[],
   opts: { temperature?: number; maxTokens?: number } = {}
 ): Promise<string> {
-  const apiKey = process.env.POOLSIDE_API_KEY;
-  if (!apiKey || apiKey === "paste-your-key-here") {
+  const apiKey = process.env.NVIDIA_API_KEY;
+  if (!apiKey) {
     throw new AIConfigError(
-      "POOLSIDE_API_KEY is not set. Add your key to .env.local."
+      "NVIDIA_API_KEY is not set. Add your key to .env.local."
     );
   }
 
@@ -44,14 +43,14 @@ export async function chat(
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(
-      `poolside API error ${res.status}: ${body.slice(0, 500) || res.statusText}`
+      `nvidia API error ${res.status}: ${body.slice(0, 500) || res.statusText}`
     );
   }
 
   const data = await res.json();
   const content = data?.choices?.[0]?.message?.content;
   if (typeof content !== "string" || !content.trim()) {
-    throw new Error("poolside API returned an empty response.");
+    throw new Error("nvidia API returned an empty response.");
   }
   return content;
 }
