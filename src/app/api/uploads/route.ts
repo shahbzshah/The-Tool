@@ -110,6 +110,13 @@ export async function POST(req: Request) {
     const form = await req.formData();
     const file = form.get("file");
     const projectId = String(form.get("projectId") ?? "").trim();
+    // relativePath preserves the Stitch export folder structure
+    // (e.g. "SETTINGS_SYNC/screen.png") when uploading via folder picker.
+    const rawRelativePath = String(form.get("relativePath") ?? "").trim();
+    const relativePath = rawRelativePath
+      .split("/")
+      .filter((p) => p && p !== "." && p !== "..")
+      .join("/");
 
     if (!projectId) {
       return NextResponse.json({ error: "projectId is required." }, { status: 400 });
@@ -157,12 +164,15 @@ export async function POST(req: Request) {
       content = text.slice(0, MAX_CONTENT_CHARS);
     }
 
+    // Prefer the folder-relative path so screens stay grouped.
+    const filename = relativePath || file.name;
+
     const upload = await prisma.upload.create({
       data: {
         projectId,
         type,
-        filename: file.name,
-        path: `uploads/${projectId}/${file.name}`,
+        filename,
+        path: `uploads/${projectId}/${filename}`,
         content,
       },
       select: { id: true, type: true, filename: true, createdAt: true },
