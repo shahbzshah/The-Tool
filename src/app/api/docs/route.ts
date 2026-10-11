@@ -4,7 +4,12 @@ import { prisma } from "@/lib/db";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const IS_BUILD = process.env.NEXT_PHASE === "phase-production-build";
+
 export async function GET(req: Request) {
+  if (IS_BUILD) {
+    return NextResponse.json({ docs: [], building: true });
+  }
   const ideaId = new URL(req.url).searchParams.get("ideaId");
   if (!ideaId) {
     return NextResponse.json(

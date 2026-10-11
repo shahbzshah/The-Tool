@@ -6,6 +6,8 @@ export const runtime = "nodejs";
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
+const IS_BUILD = process.env.NEXT_PHASE === "phase-production-build";
+
 function parseFeatures(json: string): string[] {
   try {
     const arr = JSON.parse(json);
@@ -16,6 +18,9 @@ function parseFeatures(json: string): string[] {
 }
 
 export async function GET(req: Request) {
+  if (IS_BUILD) {
+    return NextResponse.json({ prompt: null, building: true });
+  }
   const projectId = new URL(req.url).searchParams.get("projectId");
   if (!projectId) {
     return NextResponse.json(

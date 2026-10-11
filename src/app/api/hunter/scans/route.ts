@@ -6,6 +6,10 @@ import { rankApps } from "@/lib/hunter/scoring";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+// During `next build`, Next.js may statically evaluate this route; Neon is
+// suspended then, so skip DB access while building and return an empty list.
+const IS_BUILD = process.env.NEXT_PHASE === "phase-production-build";
+
 /**
  * POST /api/hunter/scans — run a Play Store opportunity scan.
  * Body: { keyword: string, maxApps?: number }
@@ -75,6 +79,9 @@ export async function POST(req: Request) {
 
 /** GET /api/hunter/scans — recent scan jobs. */
 export async function GET() {
+  if (IS_BUILD) {
+    return NextResponse.json({ scans: [], building: true });
+  }
   const scans = await prisma.scanJob.findMany({
     orderBy: { createdAt: "desc" },
     take: 20,

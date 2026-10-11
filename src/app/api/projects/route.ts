@@ -4,10 +4,15 @@ import { prisma } from "@/lib/db";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const IS_BUILD = process.env.NEXT_PHASE === "phase-production-build";
+
 /**
  * GET /api/projects — history feed: recent projects with their ideas.
  */
 export async function GET() {
+  if (IS_BUILD) {
+    return NextResponse.json({ projects: [], building: true });
+  }
   const projects = await prisma.project.findMany({
     orderBy: { createdAt: "desc" },
     take: 30,

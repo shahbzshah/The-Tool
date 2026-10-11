@@ -8,10 +8,21 @@ export const dynamic = "force-dynamic";
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 /**
+ * During `next build`, Next.js may statically evaluate this route. Neon is
+ * suspended then, so touching the DB would fail the build. Skip DB access
+ * while building and return an empty feed — the real data is served at runtime.
+ */
+const IS_BUILD = process.env.NEXT_PHASE === "phase-production-build";
+
+/**
  * GET /api/hunter/ideas — trending app ideas (Hacker News).
  * Cached in the database for 6 hours; empty results cached 5 min.
  */
 export async function GET() {
+  if (IS_BUILD) {
+    return NextResponse.json({ ideas: [], cached: false, building: true });
+  }
+
   // Check for a fresh cached feed.
   const cached = await prisma.trendIdea.findMany({
     orderBy: { hotness: "desc" },
