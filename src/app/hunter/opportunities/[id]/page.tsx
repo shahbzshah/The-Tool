@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { scoreTier } from "@/lib/hunter/ui";
@@ -93,8 +93,36 @@ export default function OpportunityDetailPage({
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
   const [error, setError] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState("");
   const [copied, setCopied] = useState(false);
   const [sending, setSending] = useState(false);
+  const autoAnalyzed = useRef(false);
+
+  const runAnalysis = useCallback(
+    async (id: string) => {
+      setAnalyzing(true);
+      setAnalyzeError("");
+      try {
+        const res = await fetch("/api/hunter/opportunities/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id }),
+        });
+        if (!res.ok) {
+          setAnalyzeError("Analysis failed — tap to retry.");
+          return;
+        }
+        const r = await fetch(`/api/hunter/opportunities/${id}`);
+        if (r.ok) {
+          const d = await r.json();
+          setAnalyses(d.opportunity.analyses ?? []);
+        }
+      } finally {
+        setAnalyzing(false);
+      }
+    },
+    []
+  );
 
   const load = useCallback(async () => {
     try {
@@ -109,11 +137,17 @@ export default function OpportunityDetailPage({
       }
       const data = await res.json();
       setOpp(data.opportunity);
-      setAnalyses(data.opportunity.analyses ?? []);
+      const list: Analysis[] = data.opportunity.analyses ?? [];
+      setAnalyses(list);
+      // AI analysis runs automatically on first visit — no button needed.
+      if (list.length === 0 && !autoAnalyzed.current) {
+        autoAnalyzed.current = true;
+        runAnalysis(data.opportunity.id);
+      }
     } catch {
       setError("Could not load the opportunity.");
     }
-  }, [params.id, router]);
+  }, [params.id, router, runAnalysis]);
 
   useEffect(() => {
     load();
@@ -138,26 +172,16 @@ export default function OpportunityDetailPage({
     if (res.ok) router.push("/");
   }
 
-  async function analyze() {
-    if (!opp || analyzing) return;
-    setAnalyzing(true);
-    try {
-      const res = await fetch("/api/hunter/opportunities/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: opp.id }),
-      });
-      if (res.ok) await load();
-    } finally {
-      setAnalyzing(false);
-    }
-  }
-
   async function deleteAnalysis(id: string) {
+    if (!opp) return;
     const res = await fetch(`/api/hunter/opportunities/analyses/${id}`, {
       method: "DELETE",
     });
-    if (res.ok) setAnalyses((prev) => prev.filter((a) => a.id !== id));
+    if (res.ok) {
+      setAnalyses([]);
+      // Analysis is automatic — a fresh one starts right away.
+      runAnalysis(opp.id);
+    }
   }
 
   async function sendToBuilder() {
@@ -276,13 +300,6 @@ export default function OpportunityDetailPage({
           >
             Delete
           </button>
-          <button
-            onClick={sendToBuilder}
-            disabled={sending}
-            className="rounded-md bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground disabled:opacity-50"
-          >
-            {sending ? "Sending…" : "Send to Builder →"}
-          </button>
         </div>
       </section>
 
@@ -294,25 +311,21 @@ export default function OpportunityDetailPage({
         </section>
       )}
 
-      {/* AI analysis */}
+      {/* AI analysis — runs automatically, no button */}
       <section className="mt-4 rounded-lg border border-border bg-card p-6">
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="font-serif text-lg font-semibold">AI Analysis</h2>
-          <button
-            onClick={analyze}
-            disabled={analyzing}
-            className="rounded-md border border-border px-4 py-1.5 text-sm hover:border-primary disabled:opacity-50"
-          >
-            {analyzing ? "Analyzing…" : analyses.length ? "Re-analyze" : "Analyze with AI"}
-          </button>
-        </div>
-        {analyses.length === 0 && !analyzing && (
-          <p className="text-sm text-muted-foreground">
-            No analysis yet. Run the AI deep-dive to get the breakdown: summary,
-            strengths, weaknesses, the opportunity angle, a build plan and monetization.
-          </p>
+        <h2 className="font-serif text-lg font-semibold">AI Analysis</h2>
+        {analyzing && analyses.length === 0 && (
+          <p className="mt-4 text-sm text-muted-foreground">Analyzing…</p>
         )}
-        <div className="space-y-6">
+        {analyzeError && analyses.length === 0 && !analyzing && (
+          <button
+            onClick={() => opp && runAnalysis(opp.id)}
+            className="mt-4 text-sm text-muted-foreground underline hover:text-foreground"
+          >
+            {analyzeError}
+          </button>
+        )}
+        <div className="mt-4 space-y-6">
           {analyses.map((a) => (
             <div key={a.id} className="rounded-md border border-border p-4">
               <div className="mb-3 flex items-center justify-between text-xs text-muted-foreground">
@@ -331,6 +344,17 @@ export default function OpportunityDetailPage({
           ))}
         </div>
       </section>
+
+      {/* Send the analyzed opportunity to the builder */}
+      <div className="mt-6 flex justify-end">
+        <button
+          onClick={sendToBuilder}
+          disabled={sending || analyzing || analyses.length === 0}
+          className="rounded-md bg-primary px-8 py-3 font-medium text-primary-foreground disabled:opacity-50"
+        >
+          {sending ? "Sending…" : "Send to Builder →"}
+        </button>
+      </div>
     </main>
   );
 }

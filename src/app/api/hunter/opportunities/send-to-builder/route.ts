@@ -19,6 +19,7 @@ export async function POST(req: Request) {
 
   const opp = await prisma.opportunity.findFirst({
     where: { id, scanJob: { userId: auth.user.id } },
+    include: { analyses: { orderBy: { createdAt: "desc" }, take: 1 } },
   });
   if (!opp) {
     return NextResponse.json({ error: "Opportunity not found." }, { status: 404 });
@@ -29,6 +30,26 @@ export async function POST(req: Request) {
     breakdown = opp.breakdown ? JSON.parse(opp.breakdown) : {};
   } catch {
     // ignore
+  }
+
+  // The analyzed doc travels with the project so the builder has the full
+  // breakdown: summary, strengths, weaknesses, opportunity, build plan.
+  let analysisText = "";
+  const latest = opp.analyses[0];
+  if (latest) {
+    try {
+      const a = JSON.parse(latest.content);
+      const lines: string[] = [];
+      if (a.summary) lines.push(`Summary: ${a.summary}`);
+      if (Array.isArray(a.strengths)) lines.push(`Strengths: ${a.strengths.join("; ")}`);
+      if (Array.isArray(a.weaknesses)) lines.push(`Weaknesses: ${a.weaknesses.join("; ")}`);
+      if (a.opportunity) lines.push(`Opportunity: ${a.opportunity}`);
+      if (Array.isArray(a.build_plan)) lines.push(`Build plan: ${a.build_plan.join("; ")}`);
+      if (a.monetization) lines.push(`Monetization: ${a.monetization}`);
+      analysisText = lines.join("\n");
+    } catch {
+      // ignore
+    }
   }
 
   const project = await prisma.project.create({
@@ -42,6 +63,7 @@ export async function POST(req: Request) {
         breakdown.quality !== undefined
           ? `Score breakdown — quality ${breakdown.quality}, gap ${breakdown.gap}, market ${breakdown.market}, competition ${breakdown.competition}`
           : "",
+        analysisText ? `\nAI analysis:\n${analysisText}` : "",
       ]
         .filter(Boolean)
         .join("\n"),
