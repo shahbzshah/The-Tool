@@ -146,7 +146,7 @@ export function whyItScores(s: ScoredApp): string {
     `${s.title} is rated ${s.rating.toFixed(1)}★ across ${s.reviews.toLocaleString()} reviews`
   );
   parts.push(
-    s.installs ? `with only ${s.installs} installs` : "with a small install base"
+    s.installs ? ` with only ${s.installs} installs` : " with a small install base"
   );
   const b = s.breakdown;
   const drivers: string[] = [];
