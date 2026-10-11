@@ -4,7 +4,6 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import UploadPanel, { type UploadItem } from "@/components/UploadPanel";
-import StackLockPanel from "@/components/StackLockPanel";
 import { DOC_KINDS } from "@/lib/constants";
 
 type Idea = {
@@ -22,7 +21,6 @@ export default function DocsPage() {
   const [idea, setIdea] = useState<Idea | null>(null);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [docs, setDocs] = useState<Record<string, string>>({});
-  const [stackLock, setStackLock] = useState<string | null>(null);
   const [activeKind, setActiveKind] = useState<string>(DOC_KINDS[0].kind);
   const [loading, setLoading] = useState(true);
   const [genState, setGenState] = useState<{
@@ -43,16 +41,11 @@ export default function DocsPage() {
       const ideaData = await ideaRes.json();
       if (ideaRes.ok) {
         setIdea(ideaData.idea);
-        const [upRes, projRes] = await Promise.all([
-          fetch(`/api/uploads?projectId=${ideaData.idea.projectId}`),
-          fetch(`/api/projects/${ideaData.idea.projectId}`),
-        ]);
+        const upRes = await fetch(
+          `/api/uploads?projectId=${ideaData.idea.projectId}`
+        );
         const upData = await upRes.json();
         setUploads(upData.uploads ?? []);
-        if (projRes.ok) {
-          const projData = await projRes.json();
-          setStackLock(projData.project?.stackLock ?? null);
-        }
       }
       const docsData = await docsRes.json();
       if (docsRes.ok) {
@@ -155,66 +148,6 @@ export default function DocsPage() {
         </p>
       </header>
 
-      <div className="mb-6 rounded-xl border border-border bg-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              3. Generate All Documentation
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {generatedCount}/{DOC_KINDS.length} documents generated
-            </p>
-          </div>
-          <div className="flex items-center gap-3">
-            {generatedCount === DOC_KINDS.length && (
-              <Link
-                href={`/export/${idea.id}`}
-                className="rounded-lg bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground transition-colors hover:bg-secondary/90"
-              >
-                Export for AI tool 🤖
-              </Link>
-            )}
-            <button
-              onClick={generateAll}
-              disabled={genState?.running || generatedCount === DOC_KINDS.length}
-              className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
-            >
-            {generatedCount === DOC_KINDS.length
-              ? "All docs generated ✅"
-              : genState?.running
-                ? `Generating ${genState.label} (${genState.current + 1}/${genState.total})…`
-                : `Generate all docs ⚡ (${DOC_KINDS.length - generatedCount} remaining)`}
-          </button>
-          </div>
-        </div>
-        {genState?.running && (
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${(genState.current / genState.total) * 100}%` }}
-            />
-          </div>
-        )}
-        {error && (
-          <p className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </p>
-        )}
-      </div>
-
-      <div className="mb-6">
-        <StackLockPanel
-          projectId={idea.projectId}
-          ideaId={ideaId}
-          stackLock={stackLock}
-          onStackLockChange={setStackLock}
-          docs={docs}
-          onDocsUpdated={(updated) =>
-            setDocs((prev) => ({ ...prev, ...updated }))
-          }
-        />
-      </div>
-
       <div className="mb-6">
         <UploadPanel
           projectId={idea.projectId}
@@ -270,10 +203,57 @@ export default function DocsPage() {
           </div>
         ) : (
           <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground/70">
-            {activeMeta?.label} not generated yet — hit “Generate all docs ⚡” above.
+            {activeMeta?.label} not generated yet — hit “Generate all docs ⚡” below.
           </p>
         )}
       </section>
+
+      <div className="mt-8 rounded-xl border border-border bg-card p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+              Generate All Documentation
+            </h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {generatedCount}/{DOC_KINDS.length} documents generated
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            {generatedCount === DOC_KINDS.length && (
+              <Link
+                href={`/export/${idea.id}`}
+                className="rounded-lg bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground transition-colors hover:bg-secondary/90"
+              >
+                Export for AI tool 🤖
+              </Link>
+            )}
+            <button
+              onClick={generateAll}
+              disabled={genState?.running || generatedCount === DOC_KINDS.length}
+              className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+            >
+            {generatedCount === DOC_KINDS.length
+              ? "All docs generated ✅"
+              : genState?.running
+                ? `Generating ${genState.label} (${genState.current + 1}/${genState.total})…`
+                : `Generate all docs ⚡ (${DOC_KINDS.length - generatedCount} remaining)`}
+          </button>
+          </div>
+        </div>
+        {genState?.running && (
+          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-all"
+              style={{ width: `${(genState.current / genState.total) * 100}%` }}
+            />
+          </div>
+        )}
+        {error && (
+          <p className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        )}
+      </div>
 
       {/* Strict pipeline: ← Design | Docs → Export */}
       <div className="mt-10 flex items-center justify-between border-t border-border pt-6">
