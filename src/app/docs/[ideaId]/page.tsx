@@ -79,22 +79,38 @@ export default function DocsPage() {
           total: missing.length,
           label: d.label,
         });
-        const res = await fetch("/api/docs/generate", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ideaId, kind: d.kind }),
-        });
-        const text = await res.text();
-        let data: { doc?: { content?: string }; error?: string };
-        try {
-          data = JSON.parse(text);
-        } catch {
-          throw new Error(
-            `Failed: ${d.label} — the server didn't respond in time. Try again.`
-          );
+        // Retry once on timeout — AI calls sometimes just need a second attempt.
+        let lastErr: Error | null = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            const res = await fetch("/api/docs/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ideaId, kind: d.kind }),
+            });
+            const text = await res.text();
+            let data: { doc?: { content?: string }; error?: string };
+            try {
+              data = JSON.parse(text);
+            } catch {
+              throw new Error(
+                `Failed: ${d.label} — the server didn't respond in time.`
+              );
+            }
+            if (!res.ok) throw new Error(data.error || `Failed: ${d.label}`);
+            setDocs((prev) => ({ ...prev, [d.kind]: data.doc?.content ?? prev[d.kind] }));
+            lastErr = null;
+            break;
+          } catch (err) {
+            lastErr = err instanceof Error ? err : new Error("Generation failed.");
+            if (attempt === 0) {
+              setGenState((prev) =>
+                prev ? { ...prev, label: `${d.label} (retrying…)` } : prev
+              );
+            }
+          }
         }
-        if (!res.ok) throw new Error(data.error || `Failed: ${d.label}`);
-        setDocs((prev) => ({ ...prev, [d.kind]: data.doc?.content ?? prev[d.kind] }));
+        if (lastErr) throw lastErr;
       }
       setGenState(null);
     } catch (err) {
