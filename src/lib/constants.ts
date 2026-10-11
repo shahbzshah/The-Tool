@@ -81,7 +81,27 @@ export const DOC_KINDS = [
     label: "RULES.md",
     title: "Coding Rules & Conventions",
     instructions:
-      "Include: naming conventions (files, variables, components, DB), code style rules, file organization rules, git commit conventions, testing expectations, and things to never do. Make rules concrete and enforceable.",
+      "Include: naming conventions (files, variables, components, DB), code style rules, file organization rules, git commit conventions, testing expectations, and things to never do. Make rules concrete and enforceable. Then include a MANDATORY Security Checklist section with a concrete, enforceable rule for EACH of these 20 items — no item may be skipped or summarized away: " +
+      "1. Hide API keys — all secrets in environment variables only, never in source code, client bundles, or logs; separate public vs secret keys. " +
+      "2. Purge Git secrets — no secrets ever committed; .gitignore/.env.example patterns; rotate any exposed credential immediately; scrub history if leaked. " +
+      "3. Use public DB key — client apps use only the public/anon key; service_role/admin keys stay server-side only. " +
+      "4. Enable row-level security — RLS enabled on every table with explicit policies; deny-by-default. " +
+      "5. Encrypt sensitive data — encryption at rest for PII/secrets; TLS in transit; never store sensitive data in plaintext. " +
+      "6. Enforce server-side auth — verify authentication and authorization on every server endpoint; never trust client claims. " +
+      "7. Lock record access — users can only read/write their own records (ownership checks on every query). " +
+      "8. Block field tampering — whitelist updatable fields per endpoint; reject mass-assignment of protected fields (role, ownerId, etc.). " +
+      "9. Secure session cookies — httpOnly, Secure, SameSite=Lax/Strict; short expiry; rotate on privilege change. " +
+      "10. Hash passwords — bcrypt/argon2 with proper work factor; never plaintext, never reversible encryption. " +
+      "11. Rate limit login — throttle auth endpoints (e.g. 5 attempts per 15 min per IP); exponential backoff; alert on spikes. " +
+      "12. Add bot protection — CAPTCHA/Turnstile on login, register, and public forms. " +
+      "13. Parameterize queries — ORM or parameterized statements only; zero string-interpolated SQL. " +
+      "14. Validate all input — server-side schema validation (e.g. zod) on every endpoint; reject unknown fields. " +
+      "15. Escape user content — escape/sanitize all user content at render; CSP as backstop against XSS. " +
+      "16. Restrict file uploads — allowlist file types, size caps, scan content, store outside web root, never execute uploads. " +
+      "17. Trim API responses — return only fields the client needs; strip password hashes, tokens, internal IDs. " +
+      "18. Add security headers — Content-Security-Policy, Strict-Transport-Security, X-Frame-Options, X-Content-Type-Options, Referrer-Policy. " +
+      "19. Force HTTPS — redirect all HTTP to HTTPS; HSTS with preload; no mixed content. " +
+      "20. Scan dependencies — lockfiles committed; automated vulnerability scanning (e.g. npm audit/Dependabot); patch critical CVEs promptly.",
   },
   {
     kind: "MASTER_PROMPT",
