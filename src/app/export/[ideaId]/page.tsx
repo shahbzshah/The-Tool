@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { EXPORT_TOOLS, type ExportToolId } from "@/lib/exporters";
+import { DOC_KINDS } from "@/lib/constants";
 
 export default function ExportPage() {
   const params = useParams<{ ideaId: string }>();
@@ -171,7 +172,7 @@ export default function ExportPage() {
         <h1 className="mb-1 text-2xl font-bold">🤖 Export for AI Coding Tools</h1>
         <p className="text-muted-foreground">
           Pack for <span className="text-foreground/90">{idea.title}</span> —{" "}
-          {docCount}/11 docs included
+          {docCount}/{DOC_KINDS.length} docs included
         </p>
       </header>
 

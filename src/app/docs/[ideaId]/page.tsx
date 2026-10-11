@@ -162,7 +162,7 @@ export default function DocsPage() {
               3. Generate All Documentation
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              {generatedCount}/11 documents generated
+              {generatedCount}/{DOC_KINDS.length} documents generated
             </p>
           </div>
           <div className="flex items-center gap-3">

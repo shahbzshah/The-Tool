@@ -89,7 +89,7 @@ export async function generateDocForIdea(
 ## Approved App Idea
 - Title: ${idea.title}
 - Pitch: ${idea.pitch}
-- Key features: ${features.join("; ") || "n/a"}
+- Key features (CANONICAL — the complete, locked feature list): ${features.join("; ") || "n/a"}
 - Target audience: ${idea.targetAudience}
 - Monetization: ${idea.monetization ?? "not defined"}
 - Category: ${idea.project.category}
@@ -100,7 +100,7 @@ ${stitchContext}
 
 ${uploadContext}`;
 
-  const system = `You are a senior technical product manager, software architect, and technical writer. You produce complete, professional, immediately-usable markdown documents for software teams. Use proper markdown: headings, tables, lists, and code blocks where appropriate. Be specific to THIS project — never generic filler. If a canonical tech stack is provided, it is MANDATORY and must be followed exactly with no alternatives. Respond ONLY with the markdown document content, starting with a level-1 heading.`;
+  const system = `You are a senior technical product manager, software architect, and technical writer. You produce complete, professional, immediately-usable markdown documents for software teams. Use proper markdown: headings, tables, lists, and code blocks where appropriate. Be specific to THIS project — never generic filler. If a canonical tech stack is provided, it is MANDATORY and must be followed exactly with no alternatives. CRITICAL RULE: the Key features list under "Approved App Idea" is the canonical, complete, locked feature list from the start of the project. The Stitch exports define the UI ONLY — they never add, remove, or rename features. If a canonical feature has no corresponding screen or component in the Stitch exports, flag it explicitly as a gap. Never silently drop a feature, and never invent features that are not in the list. Respond ONLY with the markdown document content, starting with a level-1 heading.`;
 
   const user = `${context}
 

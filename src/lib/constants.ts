@@ -63,6 +63,13 @@ export const DOC_KINDS = [
       "Base this on the Stitch design context provided (DESIGN.md tokens, HTML structure). Include: color palette (with hex tokens), typography scale, spacing system, border radii, shadows, and a component inventory with usage rules for each component.",
   },
   {
+    kind: "UI",
+    label: "UI.md",
+    title: "UI Screens",
+    instructions:
+      "Build this from the Uploaded Stitch Exports — the actual designed screens, NOT the prompt alone. For every screen: name, purpose, key components and layout, and the user flows it supports. Then add a Feature Coverage section mapping each canonical feature from the Approved App Idea to the screen(s) implementing it. Any feature with no corresponding screen MUST be listed under 'Missing from design' — never drop it, never invent features. If no exports were uploaded, base the screen list on the Stitch prompt's screens and mark the document as draft pending Stitch export.",
+  },
+  {
     kind: "FOLDER_STRUCTURE",
     label: "FOLDER_STRUCTURE.md",
     title: "Recommended Folder Structure",
