@@ -67,7 +67,7 @@ export const DOC_KINDS = [
     label: "UI.md",
     title: "UI Screens",
     instructions:
-      "Build this from the Uploaded Stitch Exports — the actual designed screens, NOT the prompt alone. For every screen: name, purpose, key components and layout, and the user flows it supports. Then add a Feature Coverage section mapping each canonical feature from the Approved App Idea to the screen(s) implementing it. Any feature with no corresponding screen MUST be listed under 'Missing from design' — never drop it, never invent features. If no exports were uploaded, base the screen list on the Stitch prompt's screens and mark the document as draft pending Stitch export.",
+      "Build this from the Uploaded Stitch Exports — the actual designed screens, NOT the prompt alone. STRICT RULES: (1) List ONLY screens present in the exports — one entry per export folder. UI components (nav bars, buttons, cards, headers) are components within a screen, NEVER screens themselves. (2) Describe each screen from its actual outline: name the real headings, buttons, inputs, and sections the export contains — no generic filler like 'card-based layout with generous whitespace'. (3) Then add a Feature Coverage section mapping each canonical feature from the Approved App Idea to the screen(s) implementing it. (4) The 'Missing from design' section may ONLY list features from the canonical Key features list that have no screen — NEVER invent features. If no exports were uploaded, base the screen list on the Stitch prompt's screens and mark the document as draft pending Stitch export.",
   },
   {
     kind: "FOLDER_STRUCTURE",

@@ -74,8 +74,46 @@ export async function generateDocForIdea(
 - Full prompt: ${sp.promptText}`
     : "## Stitch Design Prompt\nNo Stitch prompt generated yet.";
 
-  // Stitch HTML exports are mostly Tailwind/SVG boilerplate — strip markup and
-  // keep the meaningful text so prompts stay fast and don't time out.
+  // Stitch HTML exports are mostly Tailwind/SVG boilerplate — extract a
+  // structural outline (headings, buttons, inputs, nav) so the AI sees what
+  // each screen actually contains instead of generic filler.
+  const stripInline = (s: string): string =>
+    s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+
+  const htmlToOutline = (html: string): string => {
+    let t = html
+      .replace(/<script[\s\S]*?<\/script>/gi, "")
+      .replace(/<style[\s\S]*?<\/style>/gi, "")
+      .replace(/<svg[\s\S]*?<\/svg>/gi, "");
+    t = t.replace(/<h([1-6])[^>]*>([\s\S]*?)<\/h\1>/gi, (_, l, c) =>
+      `\n${"#".repeat(Number(l))} ${stripInline(c)}\n`);
+    t = t.replace(/<button[^>]*>([\s\S]*?)<\/button>/gi, (_, c) =>
+      `\n[button: ${stripInline(c)}]\n`);
+    t = t.replace(/<input[^>]*placeholder="([^"]*)"[^>]*>/gi, (_, p) =>
+      `\n[input: ${p}]\n`);
+    t = t.replace(/<input[^>]*>/gi, "\n[input]\n");
+    t = t.replace(/<textarea[^>]*placeholder="([^"]*)"[^>]*>/gi, (_, p) =>
+      `\n[textarea: ${p}]\n`);
+    t = t.replace(/<select[^>]*>([\s\S]*?)<\/select>/gi, (_, c) =>
+      `\n[select: ${stripInline(c).slice(0, 120)}]\n`);
+    t = t.replace(/<img[^>]*alt="([^"]*)"[^>]*>/gi, (_, a) =>
+      `\n[image: ${a}]\n`);
+    t = t.replace(/<a[^>]*>([\s\S]*?)<\/a>/gi, (_, c) =>
+      ` [link: ${stripInline(c)}] `);
+    t = t.replace(/<(nav|header|footer|main)[^>]*>/gi, (_, tag) =>
+      `\n[${tag}]\n`);
+    t = t.replace(/<[^>]+>/g, " ");
+    const lines = t
+      .split("\n")
+      .map((l) => l.replace(/\s+/g, " ").trim())
+      .filter((l) => l.length > 0);
+    // Drop lonely fragments that carry no meaning.
+    const kept = lines.filter(
+      (l) => l.length > 2 || l.startsWith("#") || l.startsWith("[")
+    );
+    return kept.join("\n");
+  };
+
   const condenseUpload = (u: {
     filename: string;
     type: string;
@@ -86,12 +124,9 @@ export async function generateDocForIdea(
     }
     let text = u.content;
     if (u.type === "html") {
-      text = text
-        .replace(/<script[\s\S]*?<\/script>/gi, " ")
-        .replace(/<style[\s\S]*?<\/style>/gi, " ")
-        .replace(/<[^>]+>/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
+      text = htmlToOutline(text);
+    } else {
+      text = text.replace(/\s+/g, " ").trim();
     }
     const MAX = 4000;
     if (text.length > MAX) text = text.slice(0, MAX) + "… [truncated]";
