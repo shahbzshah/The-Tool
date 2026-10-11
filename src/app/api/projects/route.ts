@@ -37,21 +37,8 @@ export async function GET() {
   } catch (err) {
     console.error("projects DB read failed:", err);
     return NextResponse.json(
-      {
-        error: "Database read failed.",
-        detail: err instanceof Error ? err.message : String(err),
-        host: (() => {
-          try {
-            return new URL((process.env.DATABASE_URL ?? "").replace(
-              /^postgres/,
-              "http"
-            )).host;
-          } catch {
-            return "unknown";
-          }
-        })(),
-      },
-      { status: 500 }
+      { error: "Temporarily unavailable — please retry in a moment." },
+      { status: 503 }
     );
   }
 }
