@@ -5,7 +5,16 @@ import {
   parseJsonField,
   type IdeaScores,
 } from "@/lib/constants";
-import type { IdeaView } from "@/app/page";
+
+type IdeaView = {
+  id: string;
+  title: string;
+  pitch: string;
+  features: string;
+  targetAudience: string;
+  monetization: string | null;
+  scores: string | null;
+};
 
 function parseFeatures(json: string): string[] {
   try {

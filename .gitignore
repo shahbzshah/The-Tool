@@ -16,3 +16,7 @@ backend/prisma/dev.db-journal
 npm-debug.log*
 *.log
 
+# Local-only Prisma engine workaround (Vercel downloads engines itself)
+.prisma-engines/
+run-dev.cmd
+
