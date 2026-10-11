@@ -35,7 +35,7 @@ ${stackLock.trim()}
 export async function generateDocForIdea(
   ideaId: string,
   kind: string
-): Promise<{ id: string; kind: string; content: string }> {
+): Promise<{ id: string; kind: string; content: string; durationMs: number }> {
   const docKind = DOC_KINDS.find((d) => d.kind === kind);
   if (!docKind) {
     throw new Error(`Unknown document kind: ${kind}`);
@@ -170,13 +170,15 @@ Write the ${docKind.title} (${docKind.label}) for this project.
 
 ${docKind.instructions}`;
 
+  const startedAt = Date.now();
   const content = await chat(
     [
       { role: "system", content: system },
       { role: "user", content: user },
     ],
-    { temperature: 0.7, maxTokens: 4000 }
+    { temperature: 0.7, maxTokens: 3500 }
   );
+  const durationMs = Date.now() - startedAt;
 
   const doc = await prisma.document.upsert({
     where: { ideaId_kind: { ideaId, kind } },
@@ -184,5 +186,5 @@ ${docKind.instructions}`;
     update: { content },
   });
 
-  return { id: doc.id, kind: doc.kind, content: doc.content };
+  return { id: doc.id, kind: doc.kind, content: doc.content, durationMs };
 }
