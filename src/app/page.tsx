@@ -36,6 +36,25 @@ export default function HunterPage() {
   const [scanResult, setScanResult] = useState<any>(null);
   const [selectedOpp, setSelectedOpp] = useState<any>(null);
   const [sendingOpp, setSendingOpp] = useState(false);
+  const [oppAnalysis, setOppAnalysis] = useState<any>(null);
+  const [analyzingOpp, setAnalyzingOpp] = useState(false);
+
+  async function analyzeOpportunity() {
+    if (!selectedOpp || analyzingOpp) return;
+    setAnalyzingOpp(true);
+    setOppAnalysis(null);
+    try {
+      const res = await fetch("/api/hunter/opportunities/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: selectedOpp.id }),
+      });
+      const data = await res.json();
+      if (data.analysis) setOppAnalysis(data.analysis);
+    } finally {
+      setAnalyzingOpp(false);
+    }
+  }
 
   const loadIdeas = useCallback(async () => {
     setLoading(true);
@@ -169,7 +188,10 @@ export default function HunterPage() {
             {scanResult.opportunities.slice(0, 10).map((o: any) => (
               <button
                 key={o.appId}
-                onClick={() => setSelectedOpp(o)}
+                onClick={() => {
+                  setSelectedOpp(o);
+                  setOppAnalysis(null);
+                }}
                 className={`flex w-full items-center justify-between rounded-md border px-3 py-2 text-left text-sm transition-colors ${
                   selectedOpp?.appId === o.appId
                     ? "border-primary bg-accent/30"
@@ -220,6 +242,13 @@ export default function HunterPage() {
               </div>
             )}
             <div className="mt-4 flex flex-wrap gap-2">
+              <button
+                onClick={analyzeOpportunity}
+                disabled={analyzingOpp}
+                className="rounded-md border border-border px-4 py-2 text-sm hover:border-primary disabled:opacity-50"
+              >
+                {analyzingOpp ? "Analyzing…" : "Analyze with AI"}
+              </button>
               {selectedOpp.url && (
                 <a
                   href={selectedOpp.url}
@@ -238,6 +267,58 @@ export default function HunterPage() {
                 {sendingOpp ? "Sending…" : "Send to Builder →"}
               </button>
             </div>
+
+            {/* AI analysis of the opportunity */}
+            {oppAnalysis && (
+              <div className="mt-4 space-y-4 border-t border-border pt-4 text-sm">
+                <div>
+                  <h4 className="font-semibold">Summary</h4>
+                  <p className="mt-1 text-muted-foreground">{oppAnalysis.summary}</p>
+                </div>
+                {Array.isArray(oppAnalysis.strengths) && (
+                  <div>
+                    <h4 className="font-semibold">Strengths</h4>
+                    <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
+                      {oppAnalysis.strengths.map((s: string, i: number) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {Array.isArray(oppAnalysis.weaknesses) && (
+                  <div>
+                    <h4 className="font-semibold">Weaknesses to exploit</h4>
+                    <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
+                      {oppAnalysis.weaknesses.map((s: string, i: number) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {oppAnalysis.opportunity && (
+                  <div>
+                    <h4 className="font-semibold">The opportunity</h4>
+                    <p className="mt-1 text-muted-foreground">{oppAnalysis.opportunity}</p>
+                  </div>
+                )}
+                {Array.isArray(oppAnalysis.build_plan) && (
+                  <div>
+                    <h4 className="font-semibold">Build plan</h4>
+                    <ol className="mt-1 list-decimal space-y-1 pl-5 text-muted-foreground">
+                      {oppAnalysis.build_plan.map((s: string, i: number) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+                {oppAnalysis.monetization && (
+                  <div>
+                    <h4 className="font-semibold">Monetization</h4>
+                    <p className="mt-1 text-muted-foreground">{oppAnalysis.monetization}</p>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </section>

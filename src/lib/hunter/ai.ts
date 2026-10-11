@@ -37,7 +37,77 @@ export interface IdeaAnalysis {
   model: string;
 }
 
-function stripJsonFence(text: string): string {
+export interface OpportunityInput {
+  title: string;
+  rating?: number | null;
+  installs?: string | null;
+  reviewsCount?: number | null;
+  score?: number | null;
+  category?: string | null;
+  breakdown?: string | null;
+  url?: string | null;
+}
+
+const OPPORTUNITY_PROMPT = `You are a mobile-app market analyst. Someone found this underrated
+app on the Google Play Store and wants a detailed breakdown before deciding
+whether to build a better competing version.
+
+App: {title}
+Rating: {rating} stars
+Installs: {installs}
+Reviews: {reviews}
+Opportunity score: {score}/100 (high rating, low installs = hidden gem)
+Category: {category}
+Play Store: {url}
+
+Reply in exactly this JSON shape (no markdown, no extra text):
+{
+  "summary": "2-3 sentences on what this app does and who uses it",
+  "strengths": ["what this app does well 1", "what it does well 2"],
+  "weaknesses": ["gaps or complaints a competitor could exploit 1", "gap 2"],
+  "opportunity": "2-3 sentences on the market opening this app reveals",
+  "build_plan": ["concrete build step 1", "concrete build step 2", "concrete build step 3"],
+  "monetization": "one sentence on how a competing app could make money"
+}`;
+
+export interface OpportunityAnalysis {
+  summary: string;
+  strengths: string[];
+  weaknesses: string[];
+  opportunity: string;
+  build_plan: string[];
+  monetization: string;
+  provider: string;
+  model: string;
+}
+
+/**
+ * Deep-dive AI analysis of a scanned Play Store opportunity — the same
+ * breakdown the old Hunter detail page showed: what the app does well,
+ * where it's weak, and how to beat it.
+ */
+export async function analyzeOpportunity(
+  opp: OpportunityInput
+): Promise<OpportunityAnalysis> {
+  const prompt = OPPORTUNITY_PROMPT.replace("{title}", opp.title)
+    .replace("{rating}", String(opp.rating ?? "unknown"))
+    .replace("{installs}", opp.installs ?? "unknown")
+    .replace("{reviews}", String(opp.reviewsCount ?? "unknown"))
+    .replace("{score}", String(opp.score ?? "unknown"))
+    .replace("{category}", opp.category ?? "unknown")
+    .replace("{url}", opp.url ?? "unknown");
+
+  const text = await chat(
+    [{ role: "user", content: prompt }],
+    { temperature: 0.4, maxTokens: 2048 }
+  );
+  const parsed = JSON.parse(stripJsonFence(text));
+  return {
+    ...parsed,
+    provider: "nvidia",
+    model: process.env.NVIDIA_MODEL || "meta/llama-3.2-11b-vision-instruct",
+  };
+}
   return text
     .trim()
     .replace(/^```json\s*/, "")
