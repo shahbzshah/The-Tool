@@ -174,3 +174,9 @@ model TrendIdea {
 
   @@index([source])
 }
+
+model AppSetting {
+  key       String   @id // e.g. NVIDIA_API_KEY, NVIDIA_MODEL, CRON_SECRET
+  value     String   // AES-256-GCM encrypted, base64
+  updatedAt DateTime @updatedAt
+}

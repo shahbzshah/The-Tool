@@ -89,6 +89,13 @@ export default function AppHeader() {
         </nav>
 
         <div className="flex items-center gap-2">
+          <Link
+            href="/settings"
+            aria-label="Settings"
+            className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <span className="material-symbols text-[20px]">settings</span>
+          </Link>
           <button
             onClick={toggleTheme}
             aria-label="Toggle dark mode"

@@ -29,7 +29,8 @@ const WATCHLIST_KEYWORDS = [
 
 export async function POST(req: Request) {
   const auth = req.headers.get("authorization");
-  const secret = process.env.CRON_SECRET;
+  const { getSetting } = await import("@/lib/settings");
+  const secret = await getSetting("CRON_SECRET");
   if (!secret || auth !== `Bearer ${secret}`) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }

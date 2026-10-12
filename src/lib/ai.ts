@@ -3,8 +3,25 @@
  */
 
 const BASE_URL = "https://integrate.api.nvidia.com/v1";
-export const MODEL =
-  process.env.NVIDIA_MODEL || "meta/llama-3.2-11b-vision-instruct";
+const DEFAULT_MODEL = "meta/llama-3.2-11b-vision-instruct";
+
+/** API key: env var first, then encrypted DB setting (see lib/settings). */
+async function apiKey(): Promise<string> {
+  const { getSetting } = await import("@/lib/settings");
+  const key = await getSetting("NVIDIA_API_KEY");
+  if (!key) {
+    throw new AIConfigError(
+      "NVIDIA_API_KEY is not set. Add it in Settings or as an env var."
+    );
+  }
+  return key;
+}
+
+/** Model: env var first, then DB setting, then default. */
+export async function getModel(): Promise<string> {
+  const { getSetting } = await import("@/lib/settings");
+  return (await getSetting("NVIDIA_MODEL")) || DEFAULT_MODEL;
+}
 
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -17,21 +34,17 @@ export async function chat(
   messages: ChatMessage[],
   opts: { temperature?: number; maxTokens?: number } = {}
 ): Promise<string> {
-  const apiKey = process.env.NVIDIA_API_KEY;
-  if (!apiKey) {
-    throw new AIConfigError(
-      "NVIDIA_API_KEY is not set. Add your key to .env.local."
-    );
-  }
+  const key = await apiKey();
+  const mdl = await getModel();
 
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: mdl,
       messages,
       temperature: opts.temperature ?? 1.0,
       max_tokens: opts.maxTokens ?? 2000,
@@ -62,21 +75,17 @@ export async function* chatStream(
   messages: ChatMessage[],
   opts: { temperature?: number; maxTokens?: number } = {}
 ): AsyncGenerator<string> {
-  const apiKey = process.env.NVIDIA_API_KEY;
-  if (!apiKey) {
-    throw new AIConfigError(
-      "NVIDIA_API_KEY is not set. Add your key to .env.local."
-    );
-  }
+  const key = await apiKey();
+  const mdl = await getModel();
 
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${key}`,
     },
     body: JSON.stringify({
-      model: MODEL,
+      model: mdl,
       messages,
       temperature: opts.temperature ?? 1.0,
       max_tokens: opts.maxTokens ?? 2000,

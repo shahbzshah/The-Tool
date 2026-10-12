@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { chat, MODEL } from "@/lib/ai";
+import { chat, getModel } from "@/lib/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -193,7 +193,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     reply: cleaned,
     briefSaved,
-    model: MODEL,
+    model: await getModel(),
     idea: updatedIdea
       ? {
           id: updatedIdea.id,
