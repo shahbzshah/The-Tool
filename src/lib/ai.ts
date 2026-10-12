@@ -3,7 +3,7 @@
  */
 
 const BASE_URL = "https://integrate.api.nvidia.com/v1";
-const MODEL =
+export const MODEL =
   process.env.NVIDIA_MODEL || "meta/llama-3.2-11b-vision-instruct";
 
 export type ChatMessage = {

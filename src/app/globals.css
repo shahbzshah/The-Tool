@@ -2,49 +2,89 @@
 
 @custom-variant dark (&:is(.dark *));
 
+/* Material Symbols Outlined — self-hosted (Google Fonts CDN is blocked by some browsers) */
+@font-face {
+  font-family: "Material Symbols Outlined";
+  font-style: normal;
+  font-weight: 100 700;
+  font-display: block;
+  src: url("/fonts/material-symbols-outlined.woff2") format("woff2");
+}
+
+.material-symbols {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 20;
+  user-select: none;
+}
+
+/* Crafted Editorial design system (from Stitch) */
 :root {
-  --background: #fbf9f6;
-  --foreground: #1b1c1a;
-  --card: #fbf9f6;
-  --card-foreground: #1b1c1a;
-  --popover: #fbf9f6;
-  --popover-foreground: #1b1c1a;
-  --primary: #7d241d;
+  --background: #fdf9f2;
+  --foreground: #1c1c18;
+  --card: #fdf9f2;
+  --card-foreground: #1c1c18;
+  --card-elevated: #fffdf8;
+  --popover: #fdf9f2;
+  --popover-foreground: #1c1c18;
+  --primary: #b3402a;
+  --primary-hover: #9a3524;
   --primary-foreground: #ffffff;
-  --secondary: #c98a2b;
-  --secondary-foreground: #ffffff;
-  --muted: #f5f3f0;
-  --muted-foreground: #56423f;
-  --accent: #ffddb5;
-  --accent-foreground: #714800;
+  --secondary: #f5ebd3;
+  --secondary-foreground: #23201b;
+  --muted: #f1ede6;
+  --muted-foreground: #6e6257;
+  --accent: #f5ebd3;
+  --accent-foreground: #23201b;
   --destructive: #ba1a1a;
   --destructive-foreground: #ffffff;
-  --border: #eae4dd;
-  --input: #ddc0bc;
-  --ring: #7d241d;
-  --radius: 0.5rem;
+  --border: #ede3d2;
+  --input: #e4d6be;
+  --ring: #b3402a;
+  --score-high: #2e7d4f;
+  --score-medium: #c07a1a;
+  --score-low: #b3402a;
+  --radius: 0.375rem;
+  --shadow-card: 0 2px 8px -2px rgba(35, 32, 27, 0.05), 0 1px 3px 0 rgba(35, 32, 27, 0.03);
+  --shadow-drawer: -4px 0 24px -4px rgba(35, 32, 27, 0.08), -2px 0 8px -2px rgba(35, 32, 27, 0.04);
 }
 
 .dark {
-  --background: #2d2421;
-  --foreground: #f2f0ed;
-  --card: #3d322e;
-  --card-foreground: #f2f0ed;
-  --popover: #3d322e;
-  --popover-foreground: #f2f0ed;
-  --primary: #c25b50;
+  --background: #1e1a16;
+  --foreground: #f2ede4;
+  --card: #2a2320;
+  --card-foreground: #f2ede4;
+  --card-elevated: #322a24;
+  --popover: #2a2320;
+  --popover-foreground: #f2ede4;
+  --primary: #c4532f;
+  --primary-hover: #d06540;
   --primary-foreground: #ffffff;
-  --secondary: #fcb654;
-  --secondary-foreground: #6b4600;
-  --muted: #4a3e39;
-  --muted-foreground: #a69994;
-  --accent: #5c4636;
-  --accent-foreground: #ffddb5;
+  --secondary: #3a322a;
+  --secondary-foreground: #f2ede4;
+  --muted: #2a2320;
+  --muted-foreground: #a89c8e;
+  --accent: #3a322a;
+  --accent-foreground: #f2ede4;
   --destructive: #e57368;
   --destructive-foreground: #ffffff;
-  --border: #4a3e39;
-  --input: #4a3e39;
-  --ring: #c25b50;
+  --border: #3d342c;
+  --input: #3d342c;
+  --ring: #c4532f;
+  --score-high: #4caf7d;
+  --score-medium: #d69a3a;
+  --score-low: #c4532f;
+  --shadow-card: 0 2px 8px -2px rgba(0, 0, 0, 0.3);
+  --shadow-drawer: -4px 0 24px -4px rgba(0, 0, 0, 0.4);
 }
 
 @theme inline {
@@ -52,9 +92,11 @@
   --color-foreground: var(--foreground);
   --color-card: var(--card);
   --color-card-foreground: var(--card-foreground);
+  --color-card-elevated: var(--card-elevated);
   --color-popover: var(--popover);
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
   --color-primary-foreground: var(--primary-foreground);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
@@ -67,46 +109,60 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-score-high: var(--score-high);
+  --color-score-medium: var(--score-medium);
+  --color-score-low: var(--score-low);
 
   --font-sans: var(--font-sans);
-  --font-mono: var(--font-mono);
   --font-serif: var(--font-serif);
+  --font-mono: var(--font-mono);
 
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-sm: 0.125rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  ::selection {
+    background: var(--primary);
+    color: #fff;
   }
 }
 
-/* Warm skeleton loader (from Stitch design) */
-.skeleton-loader {
-  background: linear-gradient(90deg, #fbf9f6 25%, #f5f3f0 50%, #fbf9f6 75%);
-  background-size: 200% 100%;
-  animation: loading 1.5s infinite;
-}
-.dark .skeleton-loader {
-  background: linear-gradient(90deg, #3d322e 25%, #4a3e39 50%, #3d322e 75%);
-  background-size: 200% 100%;
-}
-@keyframes loading {
-  0% {
-    background-position: 200% 0;
+/* Editorial helpers */
+@layer components {
+  .label-caps {
+    @apply font-sans text-[0.6875rem] font-bold uppercase tracking-[0.08em];
   }
-  100% {
-    background-position: -200% 0;
+  .card-paper {
+    @apply bg-card border border-border rounded-md;
+    box-shadow: var(--shadow-card);
   }
-}
-
-/* Micro warm card shadow (from Stitch design) */
-.card-shadow {
-  box-shadow: 0 2px 4px rgba(45, 36, 33, 0.05);
+  .card-elevated {
+    @apply bg-card-elevated border border-border rounded-md;
+    box-shadow: var(--shadow-card);
+  }
+  .drawer-shadow {
+    box-shadow: var(--shadow-drawer);
+  }
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md bg-primary px-5 py-3 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary-hover disabled:opacity-50;
+  }
+  .btn-secondary {
+    @apply inline-flex items-center justify-center gap-2 rounded-md bg-secondary px-4 py-2.5 text-sm font-medium text-secondary-foreground border border-input transition-colors hover:bg-muted disabled:opacity-50;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center justify-center gap-2 rounded-md border border-border bg-transparent px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50;
+  }
+  .input-paper {
+    @apply w-full rounded-md border border-input bg-card-elevated px-3.5 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none;
+    height: 44px;
+  }
 }

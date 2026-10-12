@@ -1,26 +1,26 @@
 import type { Metadata } from "next";
-import { Poppins, Libre_Caslon_Text, IBM_Plex_Mono } from "next/font/google";
+import { Newsreader, Plus_Jakarta_Sans, Space_Mono } from "next/font/google";
 import AppHeader from "@/components/AppHeader";
 import "./globals.css";
 
 const noFlashScript = `(function(){try{if(localStorage.getItem('theme')==='dark'){document.documentElement.classList.add('dark')}}catch(e){}})()`;
 
-const poppins = Poppins({
+const display = Newsreader({
+  weight: ["400", "500", "600"],
+  subsets: ["latin"],
+  variable: "--font-serif",
+  display: "swap",
+});
+
+const sans = Plus_Jakarta_Sans({
   weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
   variable: "--font-sans",
   display: "swap",
 });
 
-const caslon = Libre_Caslon_Text({
+const mono = Space_Mono({
   weight: ["400", "700"],
-  subsets: ["latin"],
-  variable: "--font-serif",
-  display: "swap",
-});
-
-const ibmPlexMono = IBM_Plex_Mono({
-  weight: ["400", "500"],
   subsets: ["latin"],
   variable: "--font-mono",
   display: "swap",
@@ -38,7 +38,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${poppins.variable} ${caslon.variable} ${ibmPlexMono.variable}`}
+      className={`${sans.variable} ${display.variable} ${mono.variable}`}
       suppressHydrationWarning
     >
       <head>

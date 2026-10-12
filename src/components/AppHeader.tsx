@@ -43,34 +43,44 @@ export default function AppHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-border bg-background shadow-sm transition-colors">
-      <div className="mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between px-4 md:px-16">
-        <Link href="/" className="font-serif text-xl font-bold text-primary">
+    <header className="sticky top-0 z-50 border-b border-border bg-background">
+      <div className="mx-auto flex h-16 w-full max-w-[1200px] items-center justify-between px-4 md:px-8">
+        <Link href="/" className="font-serif text-[1.35rem] font-medium text-foreground">
           Ideas App
         </Link>
 
-        <nav className="relative hidden items-center space-x-8 md:flex">
-          <div className="absolute left-0 right-0 top-1/2 -z-10 h-px -translate-y-1/2 bg-border" />
+        <nav className="relative hidden items-center lg:flex" aria-label="Pipeline">
+          <div className="absolute left-6 right-6 top-1/2 -z-10 h-px -translate-y-1/2 bg-border" />
           {STEPS.map((step, i) => {
             const isActive = i === current;
+            const isDone = i < current;
+            const href = step.href ?? "/";
             return (
               <Link
                 key={step.label}
-                href={step.href ?? "/"}
-                className={`flex items-center gap-2 bg-background px-2 pb-1 transition-all duration-100 active:scale-95 ${
+                href={href}
+                className={`flex items-center gap-2 bg-background px-3 py-1 text-sm transition-colors ${
                   isActive
-                    ? "border-b-2 border-primary font-bold text-primary"
-                    : "border-b-2 border-transparent text-muted-foreground hover:text-primary"
+                    ? "font-semibold text-primary"
+                    : isDone
+                      ? "text-foreground hover:text-primary"
+                      : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 <span
-                  className={`flex h-6 w-6 items-center justify-center rounded-full font-mono text-xs ${
+                  className={`flex h-7 w-7 items-center justify-center rounded-full text-xs font-semibold ${
                     isActive
                       ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-muted-foreground"
+                      : isDone
+                        ? "bg-score-high text-white"
+                        : "border border-border bg-background text-muted-foreground"
                   }`}
                 >
-                  {i + 1}
+                  {isDone ? (
+                    <span className="material-symbols text-[16px]">check</span>
+                  ) : (
+                    <span className="font-mono">{i + 1}</span>
+                  )}
                 </span>
                 {step.label}
               </Link>
@@ -78,13 +88,17 @@ export default function AppHeader() {
           })}
         </nav>
 
-        <button
-          onClick={toggleTheme}
-          aria-label="Toggle dark mode"
-          className="p-2 text-primary transition-opacity hover:opacity-80 active:scale-95"
-        >
-          {dark ? "☀️" : "🌙"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={toggleTheme}
+            aria-label="Toggle dark mode"
+            className="flex h-9 w-9 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          >
+            <span className="material-symbols text-[20px]">
+              {dark ? "light_mode" : "dark_mode"}
+            </span>
+          </button>
+        </div>
       </div>
     </header>
   );

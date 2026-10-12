@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { chat } from "@/lib/ai";
+import { chat, MODEL } from "@/lib/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -61,7 +61,7 @@ export async function GET(req: Request) {
   const messages = await prisma.refineMessage.findMany({
     where: { projectId, ideaId },
     orderBy: { createdAt: "asc" },
-    select: { role: true, content: true },
+    select: { role: true, content: true, createdAt: true },
   });
   return NextResponse.json({ messages });
 }
@@ -193,6 +193,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     reply: cleaned,
     briefSaved,
+    model: MODEL,
     idea: updatedIdea
       ? {
           id: updatedIdea.id,

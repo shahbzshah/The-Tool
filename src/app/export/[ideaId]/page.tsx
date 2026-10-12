@@ -6,6 +6,17 @@ import { useParams } from "next/navigation";
 import { EXPORT_TOOLS, type ExportToolId } from "@/lib/exporters";
 import { DOC_KINDS } from "@/lib/constants";
 
+const TOOL_ICONS: Record<ExportToolId, string> = {
+  vscode: "code",
+  cursor: "text_cursor",
+  claude: "auto_awesome",
+  copilot: "assistant",
+  windsurf: "sailing",
+  bolt: "bolt",
+  lovable: "favorite",
+  v0: "terminal",
+};
+
 export default function ExportPage() {
   const params = useParams<{ ideaId: string }>();
   const ideaId = params.ideaId;
@@ -143,7 +154,7 @@ export default function ExportPage() {
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-4xl px-6 py-16 text-center text-muted-foreground">
+      <main className="mx-auto max-w-[1200px] px-4 py-16 text-center text-muted-foreground md:px-8">
         Loading…
       </main>
     );
@@ -151,121 +162,189 @@ export default function ExportPage() {
 
   if (!idea) {
     return (
-      <main className="mx-auto max-w-4xl px-6 py-16 text-center">
+      <main className="mx-auto max-w-[1200px] px-4 py-16 text-center md:px-8">
         <p className="mb-4 text-muted-foreground">Idea not found.</p>
-        <Link href="/" className="text-primary hover:underline">
-          ← Back home
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+        >
+          <span className="material-symbols text-[18px]">arrow_back</span>
+          Back home
         </Link>
       </main>
     );
   }
 
   return (
-    <main className="mx-auto max-w-4xl px-6 py-12">
-      <div className="mb-6 text-sm">
-        <Link href={`/docs/${idea.id}`} className="text-muted-foreground hover:text-foreground">
-          ← Back to docs
-        </Link>
-      </div>
-
-      <header className="mb-8">
-        <h1 className="mb-1 text-2xl font-bold">🤖 Export for AI Coding Tools</h1>
-        <p className="text-muted-foreground">
-          Pack for <span className="text-foreground/90">{idea.title}</span> —{" "}
-          {docCount}/{DOC_KINDS.length} docs included
-        </p>
-      </header>
-
-      {docCount === 0 && (
-        <div className="mb-6 rounded-xl border border-secondary bg-secondary/40 p-4 text-sm text-secondary-foreground">
-          ⚠️ No documents generated yet.{" "}
-          <Link href={`/docs/${idea.id}`} className="underline">
-            Generate the docs first
-          </Link>{" "}
-          — the export pack is built from them.
-        </div>
-      )}
-
-      <section className="mb-6">
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          1. Pick your AI coding tool
-        </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {EXPORT_TOOLS.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => {
-                setSelected(t.id);
-                setDone(false);
-                setError(null);
-              }}
-              className={`rounded-xl border p-4 text-left transition-colors ${
-                selected === t.id
-                  ? "border-accent bg-primary/10"
-                  : "border-border bg-card hover:border-ring"
-              }`}
-            >
-              <div className="text-lg">{t.emoji}</div>
-              <div className="mt-1 text-sm font-semibold text-foreground">
-                {t.name}
-              </div>
-              <div className="mt-1 text-xs text-muted-foreground">{t.tagline}</div>
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section className="rounded-xl border border-border bg-card p-5">
-        <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          2. Download the pack
-        </h2>
-        <p className="mb-4 text-sm text-muted-foreground">
-          <span className="text-foreground/90">{tool.name}</span>: {tool.usage}
-        </p>
-        <div className="flex flex-wrap items-center gap-3">
-          <button
-            onClick={download}
-            disabled={downloading || docCount === 0}
-            className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+    <main className="mx-auto max-w-[1200px] px-4 py-12 md:px-8">
+      <div className="mx-auto max-w-3xl">
+        <div className="mb-6 text-sm">
+          <Link
+            href={`/docs/${idea.id}`}
+            className="inline-flex items-center gap-1.5 text-muted-foreground hover:text-foreground"
           >
-            {downloading ? "Building zip…" : `Download ${tool.name} pack 📦`}
-          </button>
-          <button
-            onClick={saveToFolder}
-            disabled={downloading || docCount === 0}
-            className="rounded-lg border border-border px-5 py-2.5 text-sm font-semibold text-foreground transition-colors hover:border-ring disabled:opacity-50"
-          >
-            {downloading ? "Writing files…" : "Save to folder 📁"}
-          </button>
-          {done && (
-            <span className="text-sm text-primary">
-              {writtenCount > 0
-                ? `Done! ✅ ${writtenCount} files written to your folder.`
-                : "Downloaded! ✅ Unzip into your project root."}
-            </span>
-          )}
+            <span className="material-symbols text-[18px]">arrow_back</span>
+            Back to Docs
+          </Link>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground/70">
-          “Save to folder” works in Chrome/Edge — pick a folder and the files are
-          written there directly, no unzipping needed.
-        </p>
-        {error && (
-          <p className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
+
+        <header className="mb-8 text-center">
+          <p className="label-caps mb-3 text-primary">Export</p>
+          <h1 className="mb-3 font-serif text-4xl tracking-tight text-foreground">
+            Your build pack is ready
+          </h1>
+          <p className="text-muted-foreground">
+            Pack for <span className="text-foreground">{idea.title}</span> —{" "}
+            <span className="font-mono text-sm">
+              {docCount}/{DOC_KINDS.length} docs
+            </span>{" "}
+            included
           </p>
-        )}
-      </section>
+        </header>
 
-      {/* Strict pipeline: Export → Docs only (no jump to Design) */}
-      <div className="mt-10 border-t border-border pt-6">
-        <Link
-          href={`/docs/${ideaId}`}
-          className="text-sm text-muted-foreground hover:text-foreground"
-        >
-          ← Back to Docs
-        </Link>
+        {docCount === 0 && (
+          <div className="card-paper mb-6 flex items-start gap-3 p-4">
+            <span className="material-symbols text-[20px] text-score-medium">
+              warning
+            </span>
+            <p className="text-sm text-muted-foreground">
+              No documents generated yet.{" "}
+              <Link
+                href={`/docs/${idea.id}`}
+                className="font-medium text-primary hover:underline"
+              >
+                Generate the docs first
+              </Link>{" "}
+              — the export pack is built from them.
+            </p>
+          </div>
+        )}
+
+        <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="card-paper p-4 text-center">
+            <span className="material-symbols mb-2 inline-block text-[24px] text-primary">
+              description
+            </span>
+            <p className="label-caps text-muted-foreground">Documents</p>
+            <p className="mt-1 font-mono text-lg text-foreground">
+              {docCount}/{DOC_KINDS.length}
+            </p>
+          </div>
+          <div className="card-paper p-4 text-center">
+            <span className="material-symbols mb-2 inline-block text-[24px] text-primary">
+              smart_toy
+            </span>
+            <p className="label-caps text-muted-foreground">Target tool</p>
+            <p className="mt-1 text-lg font-medium text-foreground">
+              {tool.name}
+            </p>
+          </div>
+          <div className="card-paper p-4 text-center">
+            <span className="material-symbols mb-2 inline-block text-[24px] text-primary">
+              folder_zip
+            </span>
+            <p className="label-caps text-muted-foreground">Format</p>
+            <p className="mt-1 font-mono text-lg text-foreground">.zip</p>
+          </div>
+        </div>
+
+        <section className="mb-6">
+          <h2 className="label-caps mb-3 text-muted-foreground">
+            1. Pick your AI coding tool
+          </h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {EXPORT_TOOLS.map((t) => {
+              const active = selected === t.id;
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => {
+                    setSelected(t.id);
+                    setDone(false);
+                    setError(null);
+                  }}
+                  className={`card-paper p-4 text-left transition-colors ${
+                    active
+                      ? "border-primary bg-primary/10"
+                      : "hover:border-input"
+                  }`}
+                >
+                  <span
+                    className={`material-symbols mb-2 inline-block text-[24px] ${
+                      active ? "text-primary" : "text-muted-foreground"
+                    }`}
+                  >
+                    {TOOL_ICONS[t.id]}
+                  </span>
+                  <div className="text-sm font-semibold text-foreground">
+                    {t.name}
+                  </div>
+                  <div className="mt-1 text-xs text-muted-foreground">
+                    {t.tagline}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        <section className="card-elevated p-6">
+          <h2 className="label-caps mb-1 text-muted-foreground">
+            2. Download the pack
+          </h2>
+          <p className="mb-5 text-sm text-muted-foreground">
+            <span className="text-foreground">{tool.name}</span>: {tool.usage}
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={download}
+              disabled={downloading || docCount === 0}
+              className="btn-primary"
+            >
+              <span className="material-symbols text-[20px]">download</span>
+              {downloading ? "Building zip…" : `Download ${tool.name} pack`}
+            </button>
+            <button
+              onClick={saveToFolder}
+              disabled={downloading || docCount === 0}
+              className="btn-secondary"
+            >
+              <span className="material-symbols text-[20px]">folder</span>
+              {downloading ? "Writing files…" : "Save to folder"}
+            </button>
+            {done && (
+              <span className="inline-flex items-center gap-1.5 text-sm text-score-high">
+                <span className="material-symbols text-[20px]">
+                  check_circle
+                </span>
+                {writtenCount > 0
+                  ? `${writtenCount} files written to your folder.`
+                  : "Downloaded! Unzip into your project root."}
+              </span>
+            )}
+          </div>
+          <p className="mt-4 text-xs text-muted-foreground">
+            “Save to folder” works in Chrome/Edge — pick a folder and the files
+            are written there directly, no unzipping needed.
+          </p>
+          {error && (
+            <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
+          )}
+        </section>
+
+        {/* Strict pipeline: Export → Docs only (no jump to Design) */}
+        <div className="mt-10 border-t border-border pt-6">
+          <Link
+            href={`/docs/${ideaId}`}
+            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <span className="material-symbols text-[18px]">arrow_back</span>
+            Back to Docs
+          </Link>
+        </div>
       </div>
     </main>
   );
 }
-

@@ -4,7 +4,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
-type ChatMessage = { role: "user" | "assistant"; content: string };
+type ChatMessage = {
+  role: "user" | "assistant";
+  content: string;
+  createdAt?: string | null;
+};
 
 type IdeaSnapshot = {
   id: string;
@@ -14,6 +18,18 @@ type IdeaSnapshot = {
   targetAudience: string;
   monetization: string | null;
 };
+
+function fmtTime(iso?: string | null): string {
+  if (!iso) return "";
+  try {
+    return new Date(iso).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    return "";
+  }
+}
 
 export default function RefinePage({ params }: { params: { projectId: string } }) {
   const router = useRouter();
@@ -31,6 +47,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   const [analysisText, setAnalysisText] = useState<string | null>(null);
   const [showFullIdea, setShowFullIdea] = useState(false);
   const [drafting, setDrafting] = useState(false);
+  const [modelName, setModelName] = useState("");
   const bottomRef = useRef<HTMLDivElement>(null);
 
   const loadIdea = useCallback(async () => {
@@ -111,7 +128,8 @@ export default function RefinePage({ params }: { params: { projectId: string } }
     if (!text || sending || !ideaId) return;
     setInput("");
     setSending(true);
-    const next = [...messages, { role: "user" as const, content: text }];
+    const now = new Date().toISOString();
+    const next = [...messages, { role: "user" as const, content: text, createdAt: now }];
     setMessages(next);
     try {
       const res = await fetch("/api/refine/chat", {
@@ -123,17 +141,18 @@ export default function RefinePage({ params }: { params: { projectId: string } }
       if (!res.ok) {
         setMessages([
           ...next,
-          { role: "assistant", content: data.error ?? "Something went wrong. Try again." },
+          { role: "assistant", content: data.error ?? "Something went wrong. Try again.", createdAt: new Date().toISOString() },
         ]);
         return;
       }
-      setMessages([...next, { role: "assistant", content: data.reply }]);
+      if (data.model) setModelName(String(data.model).split("/").pop() ?? "");
+      setMessages([...next, { role: "assistant", content: data.reply, createdAt: new Date().toISOString() }]);
       if (data.idea) setIdea(data.idea);
       if (data.briefSaved) setBriefUpdatedAt(new Date().toISOString());
     } catch {
       setMessages([
         ...next,
-        { role: "assistant", content: "Something went wrong. Try again." },
+        { role: "assistant", content: "Something went wrong. Try again.", createdAt: new Date().toISOString() },
       ]);
     } finally {
       setSending(false);
@@ -159,7 +178,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
       setIdea(data.idea);
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.summary },
+        { role: "assistant", content: data.summary, createdAt: new Date().toISOString() },
       ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Draft failed.");
@@ -180,162 +199,279 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1200px] px-4 py-8 md:px-16">
-      <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-        ← Hunter
-      </Link>
-      <div className="mb-6 mt-2">
-        <h1 className="font-serif text-3xl font-bold">Refine</h1>
-        <p className="mt-2 text-muted-foreground">
-          Discuss the analysis with the AI — add features, cut scope, sharpen the
-          audience. Agreed changes update the idea automatically.
-        </p>
-      </div>
+    <main className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-6 py-6">
+      {/* Page header */}
+      <section className="flex flex-col justify-between gap-4 border-b border-border pb-4 md:flex-row md:items-center">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
+              Project Spec #{projectId.slice(0, 8).toUpperCase()}
+            </span>
+            <span className="h-1 w-1 rounded-full bg-border" />
+            {briefUpdatedAt ? (
+              <span className="font-mono text-[11px] text-score-medium">
+                Modified {new Date(briefUpdatedAt).toLocaleString()}
+              </span>
+            ) : (
+              <span className="font-mono text-[11px] text-muted-foreground">
+                Brief not saved yet
+              </span>
+            )}
+          </div>
+          <h1 className="font-serif text-3xl font-medium tracking-tight md:text-4xl">
+            Refine Brief: {idea?.title ?? "Loading…"}
+          </h1>
+        </div>
+        <div className="card-elevated flex items-center gap-2 self-start px-3 py-1.5 md:self-auto">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-score-medium" />
+          <span className="text-sm text-muted-foreground">
+            Stage 2 of 5 · Refining Feature Scope &amp; Positioning
+          </span>
+        </div>
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-        {/* Chat */}
-        <section className="flex min-h-[60vh] flex-col rounded-lg border border-border bg-card">
-          <div className="flex-1 space-y-4 overflow-y-auto p-6">
-            {messages.map((m, i) => (
-              <div
-                key={i}
-                className={`max-w-[85%] rounded-lg px-4 py-2.5 text-sm leading-relaxed ${
-                  m.role === "user"
-                    ? "ml-auto bg-primary text-primary-foreground"
-                    : "bg-muted"
-                }`}
-              >
-                <p className="whitespace-pre-wrap">{m.content}</p>
+      {/* Two-pane workspace */}
+      <div className="grid grid-cols-1 items-start gap-6 pb-10 min-[900px]:grid-cols-12">
+        {/* LEFT — chat */}
+        <section className="card-paper flex h-[60vh] flex-col overflow-hidden min-[900px]:col-span-7 min-[900px]:h-[760px]">
+          {/* Chat topbar */}
+          <div className="flex items-center justify-between border-b border-border bg-card-elevated px-5 py-3.5">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="material-symbols text-[19px] text-primary">neurology</span>
+              <span className="text-sm font-semibold">Synthesis Co-Pilot</span>
+              {modelName && (
+                <span className="max-w-[220px] truncate rounded bg-secondary px-2 py-0.5 font-mono text-[11px] text-muted-foreground" title={modelName}>
+                  {modelName}
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* Message stream */}
+          <div className="flex-1 space-y-5 overflow-y-auto bg-background/70 p-5">
+            {analysisText && (
+              <div className="my-1 flex items-center justify-center">
+                <span className="rounded border border-border/60 bg-secondary/60 px-3 py-1 font-mono text-[11px] text-muted-foreground">
+                  Grounded in the market analysis
+                </span>
               </div>
-            ))}
+            )}
+            {messages.map((m, i) =>
+              m.role === "user" ? (
+                <div key={i} className="ml-auto flex max-w-[92%] items-start justify-end gap-3">
+                  <div className="space-y-2 rounded-lg border border-primary/25 bg-primary/[0.07] p-4 shadow-sm">
+                    <div className="flex items-center justify-end gap-4">
+                      {fmtTime(m.createdAt) && (
+                        <span className="font-mono text-[11px] text-muted-foreground">{fmtTime(m.createdAt)}</span>
+                      )}
+                      <span className="text-[12px] font-semibold text-primary">You</span>
+                    </div>
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.content}</p>
+                  </div>
+                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-primary/25 bg-secondary text-primary">
+                    <span className="material-symbols text-[15px]">person</span>
+                  </div>
+                </div>
+              ) : (
+                <div key={i} className="flex max-w-[92%] items-start gap-3">
+                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-card-elevated text-primary shadow-sm">
+                    <span className="material-symbols text-[15px]">auto_awesome</span>
+                  </div>
+                  <div className="card-elevated space-y-2 p-4">
+                    <div className="flex items-center justify-between gap-4">
+                      <span className="text-[12px] font-semibold">Editorial Analyst</span>
+                      {fmtTime(m.createdAt) && (
+                        <span className="font-mono text-[11px] text-muted-foreground">{fmtTime(m.createdAt)}</span>
+                      )}
+                    </div>
+                    <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.content}</p>
+                  </div>
+                </div>
+              )
+            )}
             {sending && (
-              <div className="max-w-[85%] rounded-lg bg-muted px-4 py-2.5 text-sm text-muted-foreground">
-                Thinking…
+              <div className="flex max-w-[92%] items-start gap-3">
+                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-card-elevated text-primary shadow-sm">
+                  <span className="material-symbols text-[15px]">auto_awesome</span>
+                </div>
+                <div className="card-elevated px-4 py-2.5 text-sm text-muted-foreground">
+                  Thinking…
+                </div>
               </div>
             )}
             <div ref={bottomRef} />
           </div>
-          <form onSubmit={send} className="flex gap-2 border-t border-border p-4">
-            <input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="e.g. add offline mode, cut the social feed…"
-              className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-            />
-            <button
-              type="submit"
-              disabled={sending || !input.trim()}
-              className="rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-            >
-              Send
-            </button>
-          </form>
+
+          {/* Pinned input */}
+          <div className="border-t border-border bg-card-elevated p-4">
+            <form onSubmit={send} className="flex items-end gap-2">
+              <textarea
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    send();
+                  }
+                }}
+                rows={1}
+                placeholder="Ask AI to refine features, pricing, or target audience…"
+                className="input-paper max-h-[160px] min-h-[44px] resize-none !h-auto py-2.5"
+              />
+              <button
+                type="submit"
+                disabled={sending || !input.trim()}
+                className="btn-primary h-[44px] shrink-0 !px-4 !py-2.5"
+              >
+                <span>Send</span>
+                <span className="material-symbols text-[17px]">send</span>
+              </button>
+            </form>
+            <div className="mt-2 flex items-center justify-between px-1 font-mono text-[11px] text-muted-foreground">
+              <span>Shift + Enter for multiline</span>
+              <span className="flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-score-high" /> Model responsive
+              </span>
+            </div>
+          </div>
         </section>
 
-        {/* Idea snapshot — click to re-read the full idea */}
-        <aside
-          onClick={() => setShowFullIdea(true)}
-          className="h-fit cursor-pointer rounded-lg border border-border bg-card p-5 transition-colors hover:border-primary/50 lg:sticky lg:top-4"
-          title="Click to read the full idea"
-        >
-          <div className="flex items-center justify-between">
-            <h2 className="font-serif text-lg font-semibold">The idea so far</h2>
-            <span className="text-xs text-muted-foreground">Read full →</span>
+        {/* RIGHT — living idea specification */}
+        <aside className="card-elevated space-y-6 p-6 min-[900px]:col-span-5 min-[900px]:sticky min-[900px]:top-24">
+          <div className="flex items-start justify-between border-b border-border pb-4">
+            <div className="space-y-1">
+              <span className="label-caps block text-primary">CANONICAL ARTIFACT</span>
+              <h2 className="font-serif text-xl font-semibold">Living Idea Specification</h2>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="rounded border border-border bg-background px-2 py-1 font-mono text-[11px] text-muted-foreground">
+                v0.4 Auto-Synced
+              </span>
+              <button
+                onClick={() => setShowFullIdea(true)}
+                title="Read the full idea"
+                className="flex h-7 w-7 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+              >
+                <span className="material-symbols text-[16px]">open_in_full</span>
+              </button>
+            </div>
           </div>
+
+          {/* Product identity */}
+          <div className="space-y-1.5 rounded-md border border-border bg-background p-4">
+            <span className="label-caps block text-[10px] text-muted-foreground">PRODUCT IDENTITY</span>
+            <h3 className="font-serif text-lg font-medium">{idea?.title ?? "Loading…"}</h3>
+            <p className="text-sm leading-relaxed text-muted-foreground">{idea?.pitch}</p>
+          </div>
+
+          {/* Draft from analysis */}
           {idea && idea.features.length === 0 && analysisText && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                draftFromAnalysis();
-              }}
-              disabled={drafting}
-              className="mt-3 w-full rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50"
-            >
-              {drafting ? "Drafting…" : "✨ Draft idea from analysis"}
-            </button>
-          )}
-          {idea && idea.features.length === 0 && analysisText && (
-            <p className="mt-1 text-xs text-muted-foreground">
-              The AI reads the Hunter market analysis and drafts features, pitch, audience, and monetization for you.
-            </p>
-          )}
-          {!idea ? (
-            <p className="mt-2 text-sm text-muted-foreground">Loading…</p>
-          ) : (
-            <div className="mt-3 space-y-3 text-sm">
-              <div>
-                <p className="font-medium">{idea.title}</p>
-                <p className="mt-1 text-muted-foreground">{idea.pitch}</p>
-              </div>
-              {idea.features.length > 0 && (
-                <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Features ({idea.features.length})
-                  </h3>
-                  <ul className="mt-1 list-disc space-y-1 pl-5 text-muted-foreground">
-                    {idea.features.map((f, i) => (
-                      <li key={i}>{f}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Audience
-                </h3>
-                <p className="mt-1 text-muted-foreground">{idea.targetAudience}</p>
-              </div>
-              {idea.monetization && (
-                <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Monetization
-                  </h3>
-                  <p className="mt-1 text-muted-foreground">{idea.monetization}</p>
-                </div>
-              )}
+            <div>
+              <button
+                onClick={draftFromAnalysis}
+                disabled={drafting}
+                className="btn-secondary w-full"
+              >
+                <span className="material-symbols text-[18px]">auto_awesome</span>
+                <span>{drafting ? "Drafting…" : "Draft idea from analysis"}</span>
+              </button>
+              <p className="mt-1 text-xs text-muted-foreground">
+                The AI reads the Hunter market analysis and drafts features, pitch, audience, and monetization for you.
+              </p>
             </div>
           )}
 
-          {/* Refined brief file */}
-          <div className="mt-4 border-t border-border pt-4">
+          {/* Core feature scope */}
+          <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Refined brief
-              </h3>
-              {briefUpdatedAt && (
-                <span className="text-xs text-green-600">
-                  Saved {new Date(briefUpdatedAt).toLocaleString()}
+              <span className="label-caps text-muted-foreground">CORE FEATURE SCOPE</span>
+              {idea && (
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  {idea.features.length} locked
                 </span>
               )}
             </div>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                saveBrief();
-              }}
-              disabled={sending}
-              className="mt-2 w-full rounded-md border border-border px-3 py-2 text-sm hover:border-primary disabled:opacity-50"
-            >
-              {sending ? "Saving…" : briefUpdatedAt ? "Update saved brief" : "Save refined brief"}
-            </button>
-            <p className="mt-1 text-xs text-muted-foreground">
-              The AI writes the full brief from your discussion — or just say "save the brief" in chat.
-            </p>
+            {!idea ? (
+              <p className="text-sm text-muted-foreground">Loading…</p>
+            ) : idea.features.length > 0 ? (
+              <ul className="space-y-2.5">
+                {idea.features.map((f, i) => (
+                  <li key={i} className="flex items-start gap-2.5 rounded-md p-2 transition-colors hover:bg-background">
+                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-primary text-primary-foreground shadow-sm">
+                      <span className="material-symbols text-[13px]">check</span>
+                    </span>
+                    <span className="flex-1 text-sm">{f}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                No features yet — discuss them in chat, or draft them from the analysis above.
+              </p>
+            )}
           </div>
+
+          {/* Audience + monetization bento */}
+          {idea && (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div className="space-y-1 rounded-md border border-border bg-background p-3.5">
+                <span className="label-caps block text-[10px] text-muted-foreground">TARGET AUDIENCE</span>
+                <p className="text-[13px] leading-snug">{idea.targetAudience}</p>
+              </div>
+              <div className="space-y-1 rounded-md border border-border bg-background p-3.5">
+                <span className="label-caps block text-[10px] text-muted-foreground">MONETIZATION</span>
+                <p className="text-[13px] font-medium leading-snug">
+                  {idea.monetization ?? "Undecided"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* Refined synthesis note */}
+          <div className="space-y-2 border-t border-border pt-4">
+            <div className="flex items-center justify-between">
+              <span className="label-caps text-muted-foreground">REFINED SYNTHESIS NOTE</span>
+              <button
+                onClick={saveBrief}
+                disabled={sending}
+                className="font-mono text-[11px] text-primary hover:underline disabled:opacity-50"
+              >
+                {briefUpdatedAt ? "Update saved brief" : "Save refined brief"}
+              </button>
+            </div>
+            {briefContent ? (
+              <div className="max-h-24 overflow-y-auto whitespace-pre-wrap rounded-md border border-border bg-background p-3 font-mono text-[11.5px] leading-relaxed text-muted-foreground">
+                {briefContent}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                The AI writes the full brief from your discussion — or just say “save the brief” in chat.
+              </p>
+            )}
+            {briefUpdatedAt && (
+              <p className="font-mono text-[11px] text-score-high">
+                Saved {new Date(briefUpdatedAt).toLocaleString()}
+              </p>
+            )}
+          </div>
+
+          {/* Proceed CTA */}
+          {ideaId && (
+            <div className="pt-2">
+              <Link
+                href={`/stitch/${projectId}?idea=${ideaId}`}
+                className="btn-primary w-full !py-3.5"
+              >
+                <span className="font-medium">Proceed to Stage 3: Design</span>
+                <span className="material-symbols text-[18px]">arrow_forward</span>
+              </Link>
+              <p className="mt-2 text-center font-mono text-[11px] text-muted-foreground">
+                Continues to the Design stage with this brief
+              </p>
+            </div>
+          )}
         </aside>
       </div>
-
-      {/* Strict pipeline: Refine → Design */}
-      {ideaId && (
-        <div className="mt-8 flex justify-end border-t border-border pt-6">
-          <Link
-            href={`/stitch/${projectId}?idea=${ideaId}`}
-            className="rounded-md bg-primary px-8 py-3 font-medium text-primary-foreground"
-          >
-            Continue to Design →
-          </Link>
-        </div>
-      )}
 
       {/* Full idea reader modal */}
       {showFullIdea && idea && (
@@ -344,30 +480,29 @@ export default function RefinePage({ params }: { params: { projectId: string } }
           onClick={() => setShowFullIdea(false)}
         >
           <div
-            className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-border bg-card p-6 md:p-8"
+            className="card-elevated max-h-[85vh] w-full max-w-2xl overflow-y-auto p-6 md:p-8"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-4 flex items-start justify-between">
-              <h2 className="font-serif text-2xl font-bold">{idea.title}</h2>
+              <h2 className="font-serif text-2xl font-semibold">{idea.title}</h2>
               <button
                 onClick={() => setShowFullIdea(false)}
-                className="rounded-md border border-border px-3 py-1 text-sm hover:border-primary"
+                className="btn-ghost !px-3 !py-1"
               >
-                Close ✕
+                <span className="material-symbols text-[16px]">close</span>
+                <span>Close</span>
               </button>
             </div>
 
             <div className="space-y-6 text-sm">
               <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Pitch
-                </h3>
+                <h3 className="label-caps text-muted-foreground">Pitch</h3>
                 <p className="mt-1 leading-relaxed">{idea.pitch}</p>
               </div>
 
               {idea.features.length > 0 && (
                 <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <h3 className="label-caps text-muted-foreground">
                     Features ({idea.features.length})
                   </h3>
                   <ul className="mt-1 list-disc space-y-1 pl-5">
@@ -379,27 +514,21 @@ export default function RefinePage({ params }: { params: { projectId: string } }
               )}
 
               <div>
-                <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  Target audience
-                </h3>
+                <h3 className="label-caps text-muted-foreground">Target audience</h3>
                 <p className="mt-1">{idea.targetAudience}</p>
               </div>
 
               {idea.monetization && (
                 <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Monetization
-                  </h3>
+                  <h3 className="label-caps text-muted-foreground">Monetization</h3>
                   <p className="mt-1">{idea.monetization}</p>
                 </div>
               )}
 
               {briefContent && (
                 <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Refined brief
-                  </h3>
-                  <div className="mt-1 whitespace-pre-wrap rounded-md bg-muted p-4 text-sm leading-relaxed">
+                  <h3 className="label-caps text-muted-foreground">Refined brief</h3>
+                  <div className="mt-1 whitespace-pre-wrap rounded-md border border-border bg-background p-4 text-sm leading-relaxed">
                     {briefContent}
                   </div>
                 </div>
@@ -407,10 +536,8 @@ export default function RefinePage({ params }: { params: { projectId: string } }
 
               {analysisText && (
                 <div>
-                  <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Original market analysis
-                  </h3>
-                  <div className="mt-1 whitespace-pre-wrap rounded-md bg-muted p-4 text-sm leading-relaxed">
+                  <h3 className="label-caps text-muted-foreground">Original market analysis</h3>
+                  <div className="mt-1 whitespace-pre-wrap rounded-md border border-border bg-background p-4 text-sm leading-relaxed">
                     {analysisText}
                   </div>
                 </div>

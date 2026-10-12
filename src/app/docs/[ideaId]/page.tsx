@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import UploadPanel, { type UploadItem } from "@/components/UploadPanel";
 import { DOC_KINDS } from "@/lib/constants";
+import { timeAgo } from "@/lib/hunter/ui";
 
 type Idea = {
   id: string;
@@ -21,7 +22,9 @@ export default function DocsPage() {
   const [idea, setIdea] = useState<Idea | null>(null);
   const [uploads, setUploads] = useState<UploadItem[]>([]);
   const [docs, setDocs] = useState<Record<string, string>>({});
+  const [docsMeta, setDocsMeta] = useState<Record<string, string>>({});
   const [activeKind, setActiveKind] = useState<string>(DOC_KINDS[0].kind);
+  const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(true);
   const [genState, setGenState] = useState<{
     running: boolean;
@@ -51,8 +54,13 @@ export default function DocsPage() {
       const docsData = await docsRes.json();
       if (docsRes.ok) {
         const map: Record<string, string> = {};
-        for (const d of docsData.docs ?? []) map[d.kind] = d.content;
+        const meta: Record<string, string> = {};
+        for (const d of docsData.docs ?? []) {
+          map[d.kind] = d.content;
+          if (d.updatedAt) meta[d.kind] = d.updatedAt;
+        }
         setDocs(map);
+        setDocsMeta(meta);
       }
     } catch {
       // ignore
@@ -132,6 +140,20 @@ export default function DocsPage() {
     }
   }
 
+  function downloadDoc() {
+    const content = docs[activeKind];
+    if (!content) return;
+    const blob = new Blob([content], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = activeMeta?.label ?? `${activeKind}.md`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   async function regenerateOne() {
     if (!idea || regenerating) return;
     setRegenerating(true);
@@ -197,18 +219,45 @@ export default function DocsPage() {
   const generatedCount = DOC_KINDS.filter((d) => docs[d.kind]).length;
   const activeContent = docs[activeKind];
   const activeMeta = DOC_KINDS.find((d) => d.kind === activeKind);
+  const activeUpdatedAt = docsMeta[activeKind];
+  const allDone = generatedCount === DOC_KINDS.length;
+
+  const q = filter.trim().toLowerCase();
+  const visibleKinds = q
+    ? DOC_KINDS.filter((d) =>
+        `${d.title} ${d.label} ${d.kind}`.toLowerCase().includes(q)
+      )
+    : DOC_KINDS;
+
+  const docStatus = (kind: string): "ready" | "generating" | "queued" => {
+    if (regenerating && activeKind === kind) return "generating";
+    if (genState?.running && genState.label) {
+      const label = DOC_KINDS.find((d) => d.kind === kind)?.label ?? "§";
+      if (genState.label.startsWith(label)) return "generating";
+    }
+    return docs[kind] ? "ready" : "queued";
+  };
+
+  const progressPct = genState?.running
+    ? Math.round(((genState.current + 1) / genState.total) * 100)
+    : Math.round((generatedCount / DOC_KINDS.length) * 100);
+
+  const targetLabel =
+    idea?.project.category === "from-play-store-scan"
+      ? "Android + iOS native"
+      : "Web application";
 
   if (loading) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-16 text-center text-muted-foreground">
-        Loading…
+      <main className="mx-auto max-w-[1200px] px-6 py-16 text-center">
+        <p className="font-serif text-xl text-muted-foreground">Loading documents…</p>
       </main>
     );
   }
 
   if (!idea) {
     return (
-      <main className="mx-auto max-w-5xl px-6 py-16 text-center">
+      <main className="mx-auto max-w-[1200px] px-6 py-16 text-center">
         <p className="mb-4 text-muted-foreground">Idea not found.</p>
         <Link href="/" className="text-primary hover:underline">
           ← Back home
@@ -218,24 +267,42 @@ export default function DocsPage() {
   }
 
   return (
-    <main className="mx-auto max-w-5xl px-6 py-12">
-      <div className="mb-6 flex items-center justify-between text-sm">
-        <Link href={`/stitch/${idea.projectId}`} className="text-muted-foreground hover:text-foreground">
-          ← Back to Stitch prompt
-        </Link>
-        <span className="rounded-full bg-muted px-3 py-1 text-xs text-muted-foreground">
-          {idea.project.category}
+    <main className="mx-auto w-full max-w-[1200px] px-6 py-6">
+      {/* Page header */}
+      <section className="flex flex-col gap-3 border-b border-border pb-5 md:flex-row md:items-end md:justify-between">
+        <div>
+          <div className="mb-1.5 flex items-center gap-2">
+            <span className="font-mono text-xs font-bold uppercase tracking-wider text-primary">
+              Stage 04 // Hand-off Engine
+            </span>
+            <span className="text-border">•</span>
+            <span className="flex items-center gap-1.5 font-mono text-xs text-score-high">
+              <span className="h-1.5 w-1.5 rounded-full bg-score-high" />
+              Pipeline Operational
+            </span>
+          </div>
+          <h1 className="font-serif text-4xl font-medium tracking-tight text-foreground">
+            Technical Documentation Generator
+          </h1>
+          <p className="mt-1 text-[0.9375rem] text-muted-foreground">
+            {DOC_KINDS.length} production-grade specs for engineering handoff.
+          </p>
+        </div>
+        <span className="inline-flex items-center gap-2 self-start rounded border border-border bg-secondary/40 px-3 py-1.5 font-mono text-xs text-muted-foreground md:self-auto">
+          <span className="material-symbols text-[16px]">folder_zip</span>
+          Target: {targetLabel}
         </span>
-      </div>
+      </section>
 
-      <header className="mb-8">
-        <h1 className="mb-1 text-2xl font-bold">📄 Documentation Generator</h1>
-        <p className="text-muted-foreground">
-          For approved idea: <span className="text-foreground/90">{idea.title}</span>
-        </p>
-      </header>
+      {error && (
+        <div className="mt-4 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <span className="material-symbols mt-0.5 text-[18px]">error</span>
+          <span>{error}</span>
+        </div>
+      )}
 
-      <div className="mb-6">
+      {/* Stitch exports used by doc generation */}
+      <div className="mt-6">
         <UploadPanel
           projectId={idea.projectId}
           uploads={uploads}
@@ -243,132 +310,240 @@ export default function DocsPage() {
         />
       </div>
 
-      <section>
-        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          4. Review Documents
-        </h2>
-        <div className="mb-4">
-          <select
-            value={activeKind}
-            onChange={(e) => setActiveKind(e.target.value)}
-            className="w-full max-w-md rounded-lg border border-input bg-background px-3 py-2 text-sm"
-          >
-            {DOC_KINDS.map((d) => (
-              <option key={d.kind} value={d.kind}>
-                {docs[d.kind] ? "✓ " : ""}
-                {d.label} — {d.title}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {activeContent || regenerating ? (
-          <div className="rounded-xl border border-border bg-card">
-            <div className="flex items-center justify-between border-b border-border px-4 py-3">
-              <div>
-                <span className="text-sm font-semibold text-foreground/90">
-                  {activeMeta?.label}
+      {/* Two-pane workspace */}
+      <div className="mt-6 flex flex-col items-start gap-6 min-[900px]:flex-row">
+        {/* LEFT: document index */}
+        <aside className="card-elevated flex w-full shrink-0 flex-col self-stretch overflow-hidden min-[900px]:sticky min-[900px]:top-6 min-[900px]:w-[320px]">
+          <div className="space-y-3 border-b border-border p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex min-w-0 items-center gap-2">
+                <span className="material-symbols text-[18px] text-muted-foreground">
+                  menu_book
                 </span>
-                <span className="ml-2 text-xs text-muted-foreground">
-                  {activeMeta?.title}
-                </span>
+                <h2 className="truncate text-sm font-semibold text-foreground">
+                  Project Documents
+                </h2>
               </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={regenerateOne}
-                  disabled={regenerating}
-                  className="rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground/80 transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
-                >
-                  {regenerating ? "Regenerating…" : "Regenerate 🔄"}
-                </button>
-                <button
-                  onClick={copyDoc}
-                  className={`rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
-                    copied
-                      ? "bg-secondary text-secondary-foreground"
-                      : "bg-muted text-foreground hover:bg-secondary"
-                  }`}
-                >
-                  {copied ? "Copied! ✅" : "Copy 📋"}
-                </button>
-              </div>
+              <span className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-bold text-primary">
+                {DOC_KINDS.length}
+              </span>
             </div>
-            <pre className="max-h-[32rem] overflow-auto whitespace-pre-wrap p-4 font-mono text-xs leading-relaxed text-foreground/80">
-              {activeContent}
-            </pre>
-          </div>
-        ) : (
-          <p className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-muted-foreground/70">
-            {activeMeta?.label} not generated yet — hit “Generate all docs ⚡” below.
-          </p>
-        )}
-      </section>
-
-      <div className="mt-8 rounded-xl border border-border bg-card p-5">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-              Generate All Documentation
-            </h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {generatedCount}/{DOC_KINDS.length} documents generated
+            <p className="truncate text-xs text-muted-foreground" title={idea.title}>
+              {idea.title}
             </p>
+            <div className="relative">
+              <span className="material-symbols absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-muted-foreground">
+                search
+              </span>
+              <input
+                value={filter}
+                onChange={(e) => setFilter(e.target.value)}
+                placeholder="Filter specifications..."
+                className="input-paper h-9! py-0! pl-9 text-[0.8125rem]"
+              />
+            </div>
           </div>
-          <div className="flex items-center gap-3">
-            {generatedCount === DOC_KINDS.length && (
-              <Link
-                href={`/export/${idea.id}`}
-                className="rounded-lg bg-secondary px-4 py-2.5 text-sm font-semibold text-secondary-foreground transition-colors hover:bg-secondary/90"
-              >
-                Export for AI tool 🤖
-              </Link>
+
+          <div className="max-h-[520px] flex-1 divide-y divide-border/60 overflow-y-auto">
+            {visibleKinds.map((d) => {
+              const status = docStatus(d.kind);
+              const isActive = d.kind === activeKind;
+              return (
+                <button
+                  key={d.kind}
+                  type="button"
+                  onClick={() => setActiveKind(d.kind)}
+                  className={`flex w-full cursor-pointer items-center justify-between gap-2 p-3 text-left transition-colors ${
+                    isActive
+                      ? "border-l-4 border-primary bg-secondary/30"
+                      : "border-l-4 border-transparent hover:bg-muted/50"
+                  } ${status === "queued" ? "opacity-70 hover:opacity-100" : ""}`}
+                >
+                  <span className="flex min-w-0 items-center gap-2.5">
+                    <span
+                      className={`h-2 w-2 shrink-0 rounded-full ${
+                        status === "ready"
+                          ? "bg-score-high"
+                          : status === "generating"
+                            ? "animate-pulse bg-score-medium"
+                            : "bg-muted-foreground/40"
+                      }`}
+                    />
+                    <span
+                      className={`truncate text-[0.875rem] ${
+                        isActive
+                          ? "font-semibold text-foreground"
+                          : "text-muted-foreground"
+                      }`}
+                    >
+                      {d.title}
+                    </span>
+                  </span>
+                  {status === "generating" ? (
+                    <span className="material-symbols shrink-0 animate-spin text-[15px] text-score-medium">
+                      sync
+                    </span>
+                  ) : isActive ? (
+                    <span className="material-symbols shrink-0 text-[16px] text-primary">
+                      chevron_right
+                    </span>
+                  ) : (
+                    <span className="shrink-0 font-mono text-[11px] text-muted-foreground/60">
+                      {status === "queued" ? "queued" : d.label}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+            {visibleKinds.length === 0 && (
+              <p className="p-6 text-center text-sm text-muted-foreground">
+                No documents match “{filter}”.
+              </p>
             )}
+          </div>
+
+          <div className="space-y-3 border-t border-border bg-card/90 p-4">
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between font-mono text-[11px]">
+                <span className="text-muted-foreground">
+                  {genState?.running
+                    ? `Generating ${genState.current + 1} of ${genState.total} docs`
+                    : `${generatedCount} of ${DOC_KINDS.length} docs ready`}
+                </span>
+                <span className="font-bold text-primary">{progressPct}%</span>
+              </div>
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-border">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-300"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+              {genState?.running && genState.label && (
+                <p className="truncate text-xs text-muted-foreground">
+                  {genState.label}
+                </p>
+              )}
+            </div>
             <button
               onClick={generateAll}
-              disabled={genState?.running || generatedCount === DOC_KINDS.length}
-              className="rounded-lg bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+              disabled={genState?.running || allDone}
+              className="btn-primary w-full py-2.5!"
             >
-            {generatedCount === DOC_KINDS.length
-              ? "All docs generated ✅"
-              : genState?.running
-                ? `Generating ${genState.label} (${genState.current + 1}/${genState.total})…`
-                : `Generate all docs ⚡ (${DOC_KINDS.length - generatedCount} remaining)`}
-          </button>
+              <span className="material-symbols text-[18px]">
+                {allDone ? "check_circle" : "sync"}
+              </span>
+              <span>
+                {allDone
+                  ? "All Documents Ready"
+                  : genState?.running
+                    ? "Generating…"
+                    : `Generate All Documents${
+                        generatedCount > 0
+                          ? ` (${DOC_KINDS.length - generatedCount} left)`
+                          : ""
+                      }`}
+              </span>
+            </button>
           </div>
-        </div>
-        {genState?.running && (
-          <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
-            <div
-              className="h-full rounded-full bg-primary transition-all"
-              style={{ width: `${(genState.current / genState.total) * 100}%` }}
-            />
-          </div>
-        )}
-        {error && (
-          <p className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            {error}
-          </p>
-        )}
+        </aside>
+
+        {/* RIGHT: document reader */}
+        <section className="card-elevated w-full flex-1 overflow-hidden p-6 min-[900px]:p-8">
+          {activeContent || regenerating ? (
+            <>
+              <div className="mb-6 flex flex-col gap-4 border-b border-border pb-5 md:flex-row md:items-center md:justify-between">
+                <div className="min-w-0">
+                  <div className="mb-1 flex flex-wrap items-center gap-2">
+                    <span className="rounded bg-score-high/10 px-2 py-0.5 font-mono text-[11px] font-semibold text-score-high">
+                      SPEC COMPLIANT
+                    </span>
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      DOC_ID: {activeKind}
+                    </span>
+                    {regenerating && (
+                      <span className="flex items-center gap-1.5 font-mono text-[11px] text-score-medium">
+                        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-score-medium" />
+                        Writing…
+                      </span>
+                    )}
+                  </div>
+                  <h2 className="font-serif text-[1.75rem] font-medium leading-tight tracking-tight text-foreground">
+                    {activeMeta?.title}
+                  </h2>
+                  <p className="mt-1 font-mono text-xs text-muted-foreground">
+                    {activeUpdatedAt
+                      ? `Last updated ${timeAgo(activeUpdatedAt)}`
+                      : regenerating
+                        ? "Generating now…"
+                        : "Not saved yet"}
+                    {activeContent &&
+                      ` · ${activeContent.split(/\s+/).filter(Boolean).length} words`}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    onClick={regenerateOne}
+                    disabled={regenerating}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                  >
+                    <span className="material-symbols text-[16px]">refresh</span>
+                    <span>{regenerating ? "Regenerating…" : "Regenerate"}</span>
+                  </button>
+                  <button
+                    onClick={copyDoc}
+                    disabled={!activeContent}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-50"
+                  >
+                    <span className="material-symbols text-[16px]">
+                      {copied ? "check" : "content_copy"}
+                    </span>
+                    <span>{copied ? "Copied" : "Copy Markdown"}</span>
+                  </button>
+                  <button
+                    onClick={downloadDoc}
+                    disabled={!activeContent}
+                    className="inline-flex items-center gap-1.5 rounded-md border border-input bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-muted disabled:opacity-50"
+                  >
+                    <span className="material-symbols text-[16px]">download</span>
+                    <span>Download .md</span>
+                  </button>
+                </div>
+              </div>
+              <pre className="max-h-[36rem] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background/60 p-5 font-mono text-[0.8125rem] leading-relaxed text-foreground/85">
+                {activeContent}
+              </pre>
+            </>
+          ) : (
+            <div className="rounded-md border border-dashed border-border p-10 text-center">
+              <span className="material-symbols text-[28px] text-muted-foreground/60">
+                description
+              </span>
+              <p className="mt-2 font-serif text-lg text-foreground">
+                {activeMeta?.label} not generated yet
+              </p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Select it in the index and hit “Generate All Documents”, or
+                generate it on its own with Regenerate.
+              </p>
+            </div>
+          )}
+        </section>
       </div>
 
-      {/* Strict pipeline: ← Design | Docs → Export */}
-      <div className="mt-10 flex items-center justify-between border-t border-border pt-6">
-        {idea && (
-          <Link
-            href={`/stitch/${idea.projectId}?idea=${ideaId}`}
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            ← Back to Design
-          </Link>
-        )}
+      {/* Footer navigation */}
+      <footer className="mt-6 flex items-center justify-between border-t border-border pt-4">
         <Link
-          href={`/export/${ideaId}`}
-          className="rounded-md bg-primary px-6 py-2.5 font-medium text-primary-foreground"
+          href={`/stitch/${idea.projectId}?idea=${ideaId}`}
+          className="btn-ghost px-4! py-2.5!"
         >
-          Continue to Export →
+          <span className="material-symbols text-[18px]">arrow_back</span>
+          <span>Back to Design</span>
         </Link>
-      </div>
+        <Link href={`/export/${ideaId}`} className="btn-primary px-6! py-2.5!">
+          <span>Continue to Export</span>
+          <span className="material-symbols text-[18px]">arrow_forward</span>
+        </Link>
+      </footer>
     </main>
   );
 }
-
