@@ -45,36 +45,43 @@ type Opportunity = {
   category: string | null;
   url: string | null;
   isBookmarked: boolean;
+  summary: string | null;
   scanJob?: { keyword: string; createdAt: string } | null;
 };
 
 /** Real score tiers mapped onto the editorial design tokens. */
 function tierStyle(score: number): {
   text: string;
-  bar: string;
   pill: string;
   label: string;
 } {
   if (score >= 71)
     return {
       text: "text-score-high",
-      bar: "bg-score-high",
       pill: "border-score-high/30 bg-score-high/10 text-score-high",
       label: "High Opportunity",
     };
   if (score >= 41)
     return {
       text: "text-score-medium",
-      bar: "bg-score-medium",
       pill: "border-score-medium/30 bg-score-medium/10 text-score-medium",
       label: "Medium Score",
     };
   return {
     text: "text-score-low",
-    bar: "bg-score-low",
     pill: "border-score-low/30 bg-score-low/10 text-score-low",
     label: "Low Score",
   };
+}
+
+function StatCell({ label, value, sub }: { label: string; value: string; sub: string }) {
+  return (
+    <div className="card-paper p-5">
+      <p className="label-caps text-muted-foreground">{label}</p>
+      <p className="mt-2 font-serif text-4xl leading-none">{value}</p>
+      <p className="mt-2 font-mono text-xs text-muted-foreground">{sub}</p>
+    </div>
+  );
 }
 
 function ScanChip({ scan }: { scan: ScanJob }) {
@@ -103,73 +110,82 @@ function ScanChip({ scan }: { scan: ScanJob }) {
   );
 }
 
-function OpportunityCard({
+function BookmarkStar({
+  active,
+  onToggle,
+  label,
+}: {
+  active: boolean;
+  onToggle: () => void;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onToggle}
+      aria-label={label}
+      className={`shrink-0 rounded-md p-1 transition-colors ${
+        active
+          ? "text-score-medium"
+          : "text-muted-foreground/40 hover:text-score-medium"
+      }`}
+    >
+      <span
+        className="material-symbols text-[20px]"
+        style={
+          active
+            ? { fontVariationSettings: '"FILL" 1, "wght" 400, "GRAD" 0, "opsz" 20' }
+            : undefined
+        }
+      >
+        star
+      </span>
+    </button>
+  );
+}
+
+/** Tight ranked-list row (replaces the old card wall). */
+function OpportunityRow({
   opp,
+  rank,
   onBookmark,
 }: {
   opp: Opportunity;
+  rank: number;
   onBookmark: (opp: Opportunity) => void;
 }) {
   const tier = tierStyle(opp.score);
   return (
-    <div className="card-paper p-6 transition-colors hover:bg-card-elevated">
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="label-caps text-muted-foreground/70">app-id: {opp.appId}</p>
-          <Link
-            href={`/hunter/opportunities/${opp.id}`}
-            className="mt-1 line-clamp-2 block font-medium leading-snug hover:underline"
-          >
-            {opp.title}
-          </Link>
-        </div>
-        <button
-          onClick={() => onBookmark(opp)}
-          aria-label={opp.isBookmarked ? "Remove bookmark" : "Bookmark"}
-          className={`shrink-0 rounded-md p-1 transition-colors ${
-            opp.isBookmarked
-              ? "text-score-medium"
-              : "text-muted-foreground/40 hover:text-score-medium"
-          }`}
+    <div className="flex items-center gap-4 border-b border-border py-4 last:border-b-0">
+      <span className="w-8 shrink-0 font-mono text-sm text-muted-foreground">
+        {String(rank).padStart(2, "0")}
+      </span>
+      <div className="min-w-0 flex-1">
+        <Link
+          href={`/hunter/opportunities/${opp.id}`}
+          className="block truncate font-medium hover:underline"
         >
-          <span
-            className="material-symbols text-[20px]"
-            style={
-              opp.isBookmarked
-                ? { fontVariationSettings: '"FILL" 1, "wght" 400, "GRAD" 0, "opsz" 20' }
-                : undefined
-            }
-          >
+          {opp.title}
+        </Link>
+        <p className="mt-0.5 truncate font-mono text-xs text-muted-foreground">
+          <span className="material-symbols mr-1 inline-block align-[-2px] text-[13px]">
             star
           </span>
-        </button>
+          {opp.rating != null ? opp.rating : "—"} · {opp.installs ?? "—"} installs
+          {opp.scanJob ? ` · #${opp.scanJob.keyword.replace(/\s+/g, "-")}` : ""}
+        </p>
       </div>
-
-      <div className="mt-4 flex items-center gap-3">
-        <span className={`font-serif text-5xl leading-none ${tier.text}`}>
-          {Math.round(opp.score)}
-        </span>
-        <span className={`label-caps rounded-full border px-2 py-0.5 ${tier.pill}`}>
+      <BookmarkStar
+        active={opp.isBookmarked}
+        onToggle={() => onBookmark(opp)}
+        label={opp.isBookmarked ? "Remove bookmark" : "Bookmark"}
+      />
+      <div className="flex shrink-0 items-center gap-3">
+        <span className={`label-caps hidden rounded-full border px-2 py-0.5 sm:inline ${tier.pill}`}>
           {tier.label}
         </span>
-      </div>
-      <div className="mt-2 h-1 bg-muted" title={`Opportunity score ${Math.round(opp.score)}/100`}>
-        <div
-          className={`h-full ${tier.bar}`}
-          style={{ width: `${Math.min(100, Math.max(0, Math.round(opp.score)))}%` }}
-        />
-      </div>
-
-      <div className="mt-4 flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1 font-mono text-xs text-muted-foreground">
-          <span className="material-symbols text-[14px]">star</span>
-          {opp.rating != null ? opp.rating : "—"} · {opp.installs ?? "—"} installs
+        <span className={`w-14 text-right font-serif text-3xl leading-none ${tier.text}`}>
+          {Math.round(opp.score)}
         </span>
-        {opp.scanJob && (
-          <span className="shrink-0 rounded-full border border-border px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
-            #{opp.scanJob.keyword.replace(/\s+/g, "-")}
-          </span>
-        )}
       </div>
     </div>
   );
@@ -198,6 +214,7 @@ export default function HunterPage() {
   // Opportunities
   const [opps, setOpps] = useState<Opportunity[]>([]);
   const [oppMeta, setOppMeta] = useState({ total: 0, page: 1, totalPages: 1 });
+  const [bookmarkedCount, setBookmarkedCount] = useState(0);
   const [search, setSearch] = useState("");
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
@@ -277,6 +294,16 @@ export default function HunterPage() {
         loadScans();
         loadOpps(1, "", false);
         loadIdeas();
+        // Bookmark count for the stat strip (total only — one cheap row).
+        try {
+          const bRes = await fetch("/api/hunter/opportunities?bookmarked=1&perPage=1");
+          if (bRes.ok) {
+            const bData = await bRes.json();
+            setBookmarkedCount(bData.total ?? 0);
+          }
+        } catch {
+          /* ignore */
+        }
       } catch {
         router.push("/login");
       }
@@ -404,6 +431,12 @@ export default function HunterPage() {
   const sortedOpps = [...opps].sort((a, b) =>
     sortDir === "desc" ? b.score - a.score : a.score - b.score
   );
+  // Editor's pick: the true #1, only on the unfiltered first page (high→low).
+  const showPick =
+    page === 1 && !search && !bookmarkedOnly && sortDir === "desc" && sortedOpps.length > 0;
+  const pick = showPick ? sortedOpps[0] : null;
+  const listOpps = showPick ? sortedOpps.slice(1) : sortedOpps;
+  const pickTier = pick ? tierStyle(pick.score) : null;
   const visibleIdeas = showAllIdeas ? ideas : ideas.slice(0, 6);
 
   if (!authChecked) {
@@ -416,7 +449,7 @@ export default function HunterPage() {
 
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 py-8 md:px-8">
-      {/* Page header */}
+      {/* 1. Page header */}
       <div className="mb-8 flex items-start justify-between gap-4">
         <div>
           <h1 className="font-serif text-4xl font-medium tracking-tight md:text-5xl">
@@ -437,7 +470,15 @@ export default function HunterPage() {
         </div>
       </div>
 
-      {/* Scan hero */}
+      {/* 2. Stat strip */}
+      <section className="mb-10 grid grid-cols-2 gap-4 lg:grid-cols-4" aria-label="Overview">
+        <StatCell label="Opportunities" value={String(oppMeta.total)} sub="indexed" />
+        <StatCell label="Bookmarked" value={String(bookmarkedCount)} sub="saved" />
+        <StatCell label="Scans" value={String(scans.length)} sub="recent" />
+        <StatCell label="Watchlist" value="12" sub="keywords · daily 06:51 EAT" />
+      </section>
+
+      {/* 3. Scan hero */}
       <section className="card-elevated mb-10 p-6 md:p-8">
         <h2 className="flex items-center gap-2 font-serif text-2xl font-medium">
           <span className="material-symbols text-primary text-[24px]">radar</span>
@@ -486,204 +527,269 @@ export default function HunterPage() {
         )}
       </section>
 
-      {/* Opportunities */}
-      <section className="mb-12">
-        <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="font-serif text-2xl font-medium">
-            Opportunities{" "}
-            <span className="font-mono text-base text-muted-foreground">({oppMeta.total})</span>
-          </h2>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative w-56">
-              <span className="material-symbols pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-muted-foreground">
-                filter_list
-              </span>
-              <input
-                value={search}
-                onChange={(e) => applyFilters(e.target.value, bookmarkedOnly)}
-                placeholder="Filter current view…"
-                className="input-paper h-10 pl-10 text-sm"
-                style={{ height: 40 }}
-              />
-            </div>
-            <button
-              onClick={() => applyFilters(search, !bookmarkedOnly)}
-              className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
-                bookmarkedOnly
-                  ? "border-score-medium/50 bg-score-medium/10 text-score-medium"
-                  : "border-border text-muted-foreground hover:border-primary hover:text-foreground"
-              }`}
-            >
+      {/* 4. Editor's pick */}
+      {pick && pickTier && (
+        <section className="card-elevated mb-10 p-6 md:p-8" aria-label="Top opportunity">
+          <div className="grid gap-6 md:grid-cols-[180px_1fr]">
+            <div>
+              <p className="label-caps text-muted-foreground">№ 01 · Top opportunity</p>
+              <p className={`mt-3 font-serif text-7xl leading-none ${pickTier.text}`}>
+                {Math.round(pick.score)}
+              </p>
               <span
-                className="material-symbols text-[18px]"
-                style={
-                  bookmarkedOnly
-                    ? { fontVariationSettings: '"FILL" 1, "wght" 400, "GRAD" 0, "opsz" 20' }
-                    : undefined
-                }
+                className={`label-caps mt-3 inline-block rounded-full border px-2.5 py-1 ${pickTier.pill}`}
               >
-                star
-              </span>
-              Bookmarked
-            </button>
-            <div className="relative w-44">
-              <select
-                value={sortDir}
-                onChange={(e) => setSortDir(e.target.value as "desc" | "asc")}
-                aria-label="Sort opportunities"
-                className="input-paper h-10 appearance-none pr-9 text-sm"
-                style={{ height: 40 }}
-              >
-                <option value="desc">Score: High to Low</option>
-                <option value="asc">Score: Low to High</option>
-              </select>
-              <span className="material-symbols pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[18px] text-muted-foreground">
-                unfold_more
+                {pickTier.label}
               </span>
             </div>
-            {(search || bookmarkedOnly) && (
-              <button
-                onClick={() => applyFilters("", false)}
-                className="text-sm text-muted-foreground hover:text-foreground"
-              >
-                Reset
-              </button>
-            )}
-          </div>
-        </div>
-
-        {opps.length === 0 ? (
-          <div className="card-paper p-12 text-center">
-            <p className="font-serif text-xl">No opportunities yet</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Run a scan above to find underrated apps.
-            </p>
-          </div>
-        ) : (
-          <>
-            <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
-              {sortedOpps.map((o) => (
-                <OpportunityCard key={o.id} opp={o} onBookmark={toggleBookmark} />
-              ))}
-            </div>
-            {oppMeta.totalPages > 1 && (
-              <div className="mt-8 flex items-center justify-center gap-3 text-sm">
-                <button
-                  disabled={page <= 1}
-                  onClick={() => {
-                    setPage(page - 1);
-                    loadOpps(page - 1, search, bookmarkedOnly);
-                  }}
-                  className="btn-ghost px-3 py-1.5 disabled:opacity-40"
+            <div className="min-w-0">
+              <div className="flex items-start justify-between gap-3">
+                <Link
+                  href={`/hunter/opportunities/${pick.id}`}
+                  className="font-serif text-2xl font-medium leading-snug hover:underline md:text-3xl"
                 >
-                  <span className="material-symbols text-[18px]">arrow_back</span>
-                  Prev
-                </button>
-                <span className="font-mono text-xs text-muted-foreground">
-                  Page {oppMeta.page} of {oppMeta.totalPages}
-                </span>
-                <button
-                  disabled={page >= oppMeta.totalPages}
-                  onClick={() => {
-                    setPage(page + 1);
-                    loadOpps(page + 1, search, bookmarkedOnly);
-                  }}
-                  className="btn-ghost px-3 py-1.5 disabled:opacity-40"
-                >
-                  Next
-                  <span className="material-symbols text-[18px]">arrow_forward</span>
-                </button>
+                  {pick.title}
+                </Link>
+                <BookmarkStar
+                  active={pick.isBookmarked}
+                  onToggle={() => toggleBookmark(pick)}
+                  label={pick.isBookmarked ? "Remove bookmark" : "Bookmark"}
+                />
               </div>
-            )}
-          </>
-        )}
-      </section>
+              {pick.summary && (
+                <p className="mt-3 line-clamp-3 max-w-2xl text-[15px] leading-relaxed text-muted-foreground">
+                  {pick.summary}
+                </p>
+              )}
+              <p className="mt-4 font-mono text-xs text-muted-foreground">
+                <span className="material-symbols mr-1 inline-block align-[-2px] text-[13px]">
+                  star
+                </span>
+                {pick.rating != null ? pick.rating : "—"} · {pick.installs ?? "—"} installs
+                {pick.scanJob ? ` · #${pick.scanJob.keyword.replace(/\s+/g, "-")}` : ""}
+              </p>
+              <Link
+                href={`/hunter/opportunities/${pick.id}`}
+                className="btn-primary mt-5 inline-flex"
+              >
+                Analyze
+                <span className="material-symbols text-[18px]">arrow_forward</span>
+              </Link>
+            </div>
+          </div>
+        </section>
+      )}
 
-      {/* Idea Radar */}
-      <section className="mb-8">
-        <div className="mb-5 flex items-center justify-between">
-          <button
-            onClick={() => setRadarOpen(!radarOpen)}
-            className="flex items-center gap-2"
-            aria-expanded={radarOpen}
-          >
-            <span
-              className={`material-symbols text-[20px] text-muted-foreground transition-transform ${
-                radarOpen ? "" : "-rotate-90"
-              }`}
-            >
-              keyboard_arrow_down
-            </span>
-            <h2 className="font-serif text-2xl font-medium">Idea Radar</h2>
-          </button>
-          <button
-            onClick={loadIdeas}
-            className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <span className="material-symbols text-[18px]">sync</span>
-            Refresh
-          </button>
-        </div>
+      {/* 5. Body grid: ranked list + radar rail */}
+      <div className="grid gap-8 lg:grid-cols-3">
+        {/* Ranked opportunities */}
+        <section className="lg:col-span-2">
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+            <h2 className="font-serif text-2xl font-medium">
+              Opportunities{" "}
+              <span className="font-mono text-base text-muted-foreground">({oppMeta.total})</span>
+            </h2>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-56">
+                <span className="material-symbols pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-muted-foreground">
+                  filter_list
+                </span>
+                <input
+                  value={search}
+                  onChange={(e) => applyFilters(e.target.value, bookmarkedOnly)}
+                  placeholder="Filter current view…"
+                  className="input-paper pl-10 text-sm"
+                  style={{ height: 40 }}
+                />
+              </div>
+              <button
+                onClick={() => applyFilters(search, !bookmarkedOnly)}
+                className={`inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm font-medium transition-colors ${
+                  bookmarkedOnly
+                    ? "border-score-medium/50 bg-score-medium/10 text-score-medium"
+                    : "border-border text-muted-foreground hover:border-primary hover:text-foreground"
+                }`}
+              >
+                <span
+                  className="material-symbols text-[18px]"
+                  style={
+                    bookmarkedOnly
+                      ? { fontVariationSettings: '"FILL" 1, "wght" 400, "GRAD" 0, "opsz" 20' }
+                      : undefined
+                  }
+                >
+                  star
+                </span>
+                Bookmarked
+              </button>
+              <div className="relative w-44">
+                <select
+                  value={sortDir}
+                  onChange={(e) => setSortDir(e.target.value as "desc" | "asc")}
+                  aria-label="Sort opportunities"
+                  className="input-paper appearance-none pr-9 text-sm"
+                  style={{ height: 40 }}
+                >
+                  <option value="desc">Score: High to Low</option>
+                  <option value="asc">Score: Low to High</option>
+                </select>
+                <span className="material-symbols pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[18px] text-muted-foreground">
+                  unfold_more
+                </span>
+              </div>
+              {(search || bookmarkedOnly) && (
+                <button
+                  onClick={() => applyFilters("", false)}
+                  className="text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+          </div>
 
-        {radarOpen &&
-          (ideasLoading ? (
-            <p className="text-sm text-muted-foreground">Loading trending ideas…</p>
-          ) : ideas.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No ideas right now. Try refreshing.
-            </p>
+          {listOpps.length === 0 ? (
+            <div className="card-paper p-12 text-center">
+              <p className="font-serif text-xl">No opportunities yet</p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Run a scan above to find underrated apps.
+              </p>
+            </div>
           ) : (
             <>
-              <div className="grid gap-4 md:grid-cols-2">
-                {visibleIdeas.map((idea) => (
-                  <button
-                    key={idea.id}
-                    onClick={() => analyzeIdea(idea)}
-                    className={`card-paper group p-5 text-left transition-colors ${
-                      selected?.id === idea.id
-                        ? "border-primary"
-                        : "hover:border-primary/50"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="label-caps text-muted-foreground/70">{idea.source}</p>
-                        <h3 className="mt-1 line-clamp-2 font-medium leading-snug group-hover:underline">
-                          {idea.title}
-                        </h3>
-                      </div>
-                      <span className="shrink-0 rounded-full bg-secondary px-2.5 py-1 font-mono text-xs text-secondary-foreground">
-                        {idea.hotness} pts
-                      </span>
-                    </div>
-                  </button>
+              <div className="card-paper px-5">
+                {listOpps.map((o, i) => (
+                  <OpportunityRow
+                    key={o.id}
+                    opp={o}
+                    rank={showPick ? i + 2 : i + 1}
+                    onBookmark={toggleBookmark}
+                  />
                 ))}
               </div>
-              {ideas.length > 6 && (
-                <div className="mt-4 text-center">
+              {oppMeta.totalPages > 1 && (
+                <div className="mt-8 flex items-center justify-center gap-3 text-sm">
                   <button
-                    onClick={() => setShowAllIdeas(!showAllIdeas)}
-                    className="btn-ghost px-4 py-2 text-sm"
+                    disabled={page <= 1}
+                    onClick={() => {
+                      setPage(page - 1);
+                      loadOpps(page - 1, search, bookmarkedOnly);
+                    }}
+                    className="btn-ghost px-3 py-1.5 disabled:opacity-40"
                   >
-                    {showAllIdeas ? (
-                      <>
-                        Show less
-                        <span className="material-symbols text-[18px]">keyboard_arrow_up</span>
-                      </>
-                    ) : (
-                      <>
-                        Show all {ideas.length} ideas
-                        <span className="material-symbols text-[18px]">keyboard_arrow_down</span>
-                      </>
-                    )}
+                    <span className="material-symbols text-[18px]">arrow_back</span>
+                    Prev
+                  </button>
+                  <span className="font-mono text-xs text-muted-foreground">
+                    Page {oppMeta.page} of {oppMeta.totalPages}
+                  </span>
+                  <button
+                    disabled={page >= oppMeta.totalPages}
+                    onClick={() => {
+                      setPage(page + 1);
+                      loadOpps(page + 1, search, bookmarkedOnly);
+                    }}
+                    className="btn-ghost px-3 py-1.5 disabled:opacity-40"
+                  >
+                    Next
+                    <span className="material-symbols text-[18px]">arrow_forward</span>
                   </button>
                 </div>
               )}
             </>
-          ))}
-      </section>
+          )}
+        </section>
 
-      {/* Idea analysis slide-over */}
+        {/* Idea Radar rail */}
+        <aside>
+          <div className="card-paper p-5 lg:sticky lg:top-24">
+            <div className="mb-2 flex items-center justify-between">
+              <button
+                onClick={() => setRadarOpen(!radarOpen)}
+                className="flex items-center gap-1.5"
+                aria-expanded={radarOpen}
+              >
+                <span
+                  className={`material-symbols text-[20px] text-muted-foreground transition-transform ${
+                    radarOpen ? "" : "-rotate-90"
+                  }`}
+                >
+                  keyboard_arrow_down
+                </span>
+                <h2 className="font-serif text-xl font-medium">Idea Radar</h2>
+              </button>
+              <button
+                onClick={loadIdeas}
+                aria-label="Refresh ideas"
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <span className="material-symbols text-[18px]">sync</span>
+              </button>
+            </div>
+
+            {radarOpen &&
+              (ideasLoading ? (
+                <p className="py-4 text-sm text-muted-foreground">Loading trending ideas…</p>
+              ) : ideas.length === 0 ? (
+                <p className="py-4 text-sm text-muted-foreground">
+                  No ideas right now. Try refreshing.
+                </p>
+              ) : (
+                <>
+                  <div>
+                    {visibleIdeas.map((idea) => (
+                      <button
+                        key={idea.id}
+                        onClick={() => analyzeIdea(idea)}
+                        className={`group block w-full border-b border-border py-3.5 text-left last:border-b-0 ${
+                          selected?.id === idea.id ? "opacity-100" : ""
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="label-caps text-muted-foreground/70">{idea.source}</p>
+                            <h3
+                              className={`mt-1 line-clamp-2 text-sm font-medium leading-snug group-hover:underline ${
+                                selected?.id === idea.id ? "text-primary" : ""
+                              }`}
+                            >
+                              {idea.title}
+                            </h3>
+                          </div>
+                          <span className="shrink-0 rounded-full bg-secondary px-2 py-0.5 font-mono text-[11px] text-secondary-foreground">
+                            {idea.hotness}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                  {ideas.length > 6 && (
+                    <div className="mt-3 text-center">
+                      <button
+                        onClick={() => setShowAllIdeas(!showAllIdeas)}
+                        className="btn-ghost px-3 py-1.5 text-sm"
+                      >
+                        {showAllIdeas ? (
+                          <>
+                            Show less
+                            <span className="material-symbols text-[18px]">keyboard_arrow_up</span>
+                          </>
+                        ) : (
+                          <>
+                            All {ideas.length} ideas
+                            <span className="material-symbols text-[18px]">keyboard_arrow_down</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+                </>
+              ))}
+          </div>
+        </aside>
+      </div>
+
+      {/* 6. Idea analysis slide-over */}
       {selected && (
         <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
           <div
