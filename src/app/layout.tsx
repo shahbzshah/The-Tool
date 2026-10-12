@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Newsreader, Plus_Jakarta_Sans, Space_Mono } from "next/font/google";
-import AppHeader from "@/components/AppHeader";
+import HeaderSwitch from "@/components/HeaderSwitch";
 import "./globals.css";
 
 const noFlashScript = `(function(){try{if(localStorage.getItem('theme')==='dark'){document.documentElement.classList.add('dark')}}catch(e){}})()`;
@@ -45,7 +45,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
       </head>
       <body>
-        <AppHeader />
+        <HeaderSwitch />
         {children}
       </body>
     </html>

@@ -138,6 +138,9 @@
 
 /* Editorial helpers */
 @layer components {
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
   .label-caps {
     @apply font-sans text-[0.6875rem] font-bold uppercase tracking-[0.08em];
   }

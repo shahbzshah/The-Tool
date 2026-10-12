@@ -21,7 +21,7 @@ function activeStep(pathname: string): number {
   return 0;
 }
 
-export default function AppHeader() {
+export default function AppHeader({ className = "" }: { className?: string }) {
   const pathname = usePathname();
   const router = useRouter();
   const [dark, setDark] = useState(false);
@@ -61,7 +61,7 @@ export default function AppHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-40 border-b border-border bg-card-elevated">
+    <header className={`sticky top-0 z-40 border-b border-border bg-card-elevated ${className}`}>
       <div className="mx-auto flex w-full max-w-[1580px] items-center justify-between gap-4 px-4 py-2.5 md:px-6">
         <div className="flex min-w-0 items-center gap-8">
           {/* Wordmark */}
