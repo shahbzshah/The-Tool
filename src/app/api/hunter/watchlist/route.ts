@@ -12,8 +12,7 @@ export const maxDuration = 300;
  * Protected by CRON_SECRET (Bearer token). Runs one scan per seed keyword
  * for every user, skipping keywords already scanned in the last 20 hours.
  */
-const WATCHLIST_KEYWORDS = [
-  "habit tracker",
+const WATCHLIST_KEYWORDS = [  "habit tracker",
   "to-do list",
   "pomodoro timer",
   "budget tracker",
@@ -27,11 +26,36 @@ const WATCHLIST_KEYWORDS = [
   "expense tracker",
 ];
 
+/**
+ * Verify an Ed25519 request signature from the scheduled watchlist job.
+ * The job sends X-Cron-Timestamp (unix seconds) and X-Cron-Signature
+ * (base64 signature over the timestamp string). The public key lives in
+ * Settings → Cron Public Key, so no shared secret ever needs transmitting.
+ */
+async function verifyCronSignature(req: Request): Promise<boolean> {
+  try {
+    const { getSetting } = await import("@/lib/settings");
+    const { createPublicKey, verify } = await import("crypto");
+    const pem = await getSetting("CRON_PUBLIC_KEY");
+    if (!pem) return false;
+    const ts = req.headers.get("x-cron-timestamp");
+    const sigB64 = req.headers.get("x-cron-signature");
+    if (!ts || !sigB64) return false;
+    const now = Math.floor(Date.now() / 1000);
+    if (Math.abs(now - Number(ts)) > 300) return false; // 5 min freshness
+    const pub = createPublicKey(pem.trim());
+    return verify(null, Buffer.from(ts, "utf8"), pub, Buffer.from(sigB64, "base64"));
+  } catch {
+    return false;
+  }
+}
+
 export async function POST(req: Request) {
   const auth = req.headers.get("authorization");
   const { getSetting } = await import("@/lib/settings");
   const secret = await getSetting("CRON_SECRET");
-  if (!secret || auth !== `Bearer ${secret}`) {
+  const bearerOk = !!secret && auth === `Bearer ${secret}`;
+  if (!bearerOk && !(await verifyCronSignature(req))) {
     return NextResponse.json({ error: "Unauthorized." }, { status: 401 });
   }
 

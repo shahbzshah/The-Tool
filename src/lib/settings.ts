@@ -52,9 +52,16 @@ export const SETTING_DEFS = [
   {
     key: "CRON_SECRET",
     label: "Cron Secret",
-    hint: "Bearer token the daily watchlist job uses to trigger scans.",
+    hint: "Bearer token the daily watchlist job uses to trigger scans. (Legacy — the job now signs requests instead.)",
     secret: true,
     env: "CRON_SECRET",
+  },
+  {
+    key: "CRON_PUBLIC_KEY",
+    label: "Cron Public Key",
+    hint: "Ed25519 public key (PEM). The daily watchlist job signs its requests with the matching private key — paste the public key here and the job authenticates without any shared secret.",
+    secret: false,
+    env: "CRON_PUBLIC_KEY",
   },
 ] as const;
 
