@@ -5,7 +5,7 @@ import { rankApps, whyItScores } from "@/lib/hunter/scoring";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * POST /api/hunter/watchlist — run the daily automatic watchlist scans.
@@ -39,12 +39,29 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, scanned: 0, note: "no users yet" });
   }
 
+  // Optional body { keywords: [...] } to scan only a batch — the daily cron
+  // calls the endpoint in batches so no single invocation exceeds the
+  // function time limit.
+  let keywords = WATCHLIST_KEYWORDS;
+  try {
+    const body = await req.json().catch(() => ({}));
+    if (Array.isArray(body?.keywords) && body.keywords.length > 0) {
+      const wanted = new Set(body.keywords.map((k: unknown) => String(k)));
+      keywords = WATCHLIST_KEYWORDS.filter((k) => wanted.has(k));
+      if (!keywords.length) {
+        return NextResponse.json({ error: "No matching keywords." }, { status: 400 });
+      }
+    }
+  } catch {
+    // no body — scan all
+  }
+
   const since = new Date(Date.now() - 20 * 3600 * 1000);
   let scanned = 0;
   const errors: string[] = [];
 
   for (const user of users) {
-    for (const keyword of WATCHLIST_KEYWORDS) {
+    for (const keyword of keywords) {
       try {
         const recent = await prisma.scanJob.findFirst({
           where: { userId: user.id, keyword, createdAt: { gte: since } },
