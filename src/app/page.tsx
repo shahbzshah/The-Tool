@@ -81,19 +81,35 @@ function StatCard({
   value,
   badge,
   sub,
+  variant = "mobile",
 }: {
   label: string;
   value: React.ReactNode;
   badge?: React.ReactNode;
   sub: string;
+  variant?: "mobile" | "desktop";
 }) {
   return (
-    <div className="card-paper flex flex-col justify-between p-3">
+    <div
+      className={`card-paper flex flex-col justify-between ${
+        variant === "desktop" ? "p-3.5" : "p-3"
+      }`}
+    >
       <span className="font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
         {label}
       </span>
-      <div className="mt-1 flex items-baseline justify-between gap-2">
-        <span className="font-serif text-[32px] font-light leading-tight text-foreground">
+      <div
+        className={`flex items-baseline justify-between gap-2 ${
+          variant === "desktop" ? "mt-2" : "mt-1"
+        }`}
+      >
+        <span
+          className={`font-serif text-foreground ${
+            variant === "desktop"
+              ? "text-2xl font-bold"
+              : "text-[32px] font-light leading-tight"
+          }`}
+        >
           {value}
         </span>
         {badge}
@@ -106,7 +122,15 @@ function StatCard({
 }
 
 /** Recent-scan chip — click to re-run. Red variant for failed scans. */
-function ScanChip({ scan, onRerun }: { scan: ScanJob; onRerun: (kw: string) => void }) {
+function ScanChip({
+  scan,
+  onRerun,
+  variant = "mobile",
+}: {
+  scan: ScanJob;
+  onRerun: (kw: string) => void;
+  variant?: "mobile" | "desktop";
+}) {
   const failed = scan.status === "failed";
   const dot =
     scan.status === "completed"
@@ -118,7 +142,9 @@ function ScanChip({ scan, onRerun }: { scan: ScanJob; onRerun: (kw: string) => v
     <button
       onClick={() => onRerun(scan.keyword)}
       title={failed && scan.error ? scan.error : `Re-run scan for "${scan.keyword}"`}
-      className={`inline-flex min-h-[44px] items-center gap-2 rounded-md border px-3 py-2 text-left text-xs transition-colors ${
+      className={`inline-flex min-h-[44px] items-center gap-2 rounded-md border text-left text-xs transition-colors ${
+        variant === "desktop" ? "px-2.5 py-1.5" : "px-3 py-2"
+      } ${
         failed
           ? "border-score-low/40 bg-score-low/10 hover:border-score-low"
           : "border-border bg-card hover:border-primary"
@@ -151,11 +177,14 @@ function BookmarkStar({
   active,
   onToggle,
   label,
+  variant = "mobile",
 }: {
   active: boolean;
   onToggle: () => void;
   label: string;
+  variant?: "mobile" | "desktop";
 }) {
+  const mobile = variant === "mobile";
   return (
     <button
       onClick={(e) => {
@@ -164,14 +193,20 @@ function BookmarkStar({
       }}
       aria-label={label}
       title={label}
-      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md transition-colors active:scale-90 ${
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md transition-colors ${
+        mobile ? "active:scale-90" : "border"
+      } ${
         active
-          ? "text-score-medium"
-          : "text-muted-foreground/60 hover:text-score-medium"
+          ? mobile
+            ? "text-score-medium"
+            : "border-score-medium/40 bg-score-medium/10 text-score-medium"
+          : mobile
+            ? "text-muted-foreground/60 hover:text-score-medium"
+            : "border-transparent text-muted-foreground/50 hover:border-border hover:text-score-medium"
       }`}
     >
       <span
-        className="material-symbols text-[20px]"
+        className={`material-symbols ${mobile ? "text-[20px]" : "text-[18px]"}`}
         style={
           active
             ? { fontVariationSettings: '"FILL" 1, "wght" 400, "GRAD" 0, "opsz" 20' }
@@ -184,27 +219,91 @@ function BookmarkStar({
   );
 }
 
-/** Ranked opportunity card (Stitch mobile article style). Tap → detail page. */
+/** Ranked opportunity — "card" (mobile article) or "row" (desktop ranked-list row). */
 function OpportunityCard({
   opp,
   rank,
   onBookmark,
   onOpen,
+  layout = "card",
 }: {
   opp: Opportunity;
   rank: number;
   onBookmark: (opp: Opportunity) => void;
-  onOpen: (opp: Opportunity) => void;
+  onOpen?: (opp: Opportunity) => void;
+  layout?: "card" | "row";
 }) {
   const tier = tierStyle(opp.score);
+
+  if (layout === "row") {
+    return (
+      <div className="flex items-center justify-between gap-3 border-b border-border p-3.5 px-4 transition-colors last:border-b-0 hover:bg-muted/50 md:gap-4">
+        <div className="flex min-w-0 items-center gap-3.5">
+          <span className="w-6 shrink-0 text-right font-mono text-sm font-bold text-muted-foreground">
+            {String(rank).padStart(2, "0")}
+          </span>
+          <div className="flex min-w-0 flex-col">
+            <div className="flex items-center gap-2">
+              <Link
+                href={`/hunter/opportunities/${opp.id}`}
+                className="truncate font-serif font-bold text-foreground transition-colors hover:text-primary"
+              >
+                {opp.title}
+              </Link>
+              {opp.category && (
+                <span className="hidden shrink-0 rounded border border-border bg-muted px-1 font-mono text-[10px] text-muted-foreground sm:inline">
+                  {opp.category}
+                </span>
+              )}
+            </div>
+            <div className="mt-0.5 flex items-center gap-2 font-mono text-xs text-muted-foreground">
+              <span className="font-medium text-score-medium">
+                {opp.rating != null ? `${opp.rating} ★` : "—"}
+              </span>
+              <span>·</span>
+              <span>{opp.installs ? `${opp.installs} installs` : "—"}</span>
+              <span className="hidden md:inline">·</span>
+              <span className="hidden max-w-[190px] truncate md:inline">{opp.appId}</span>
+              {opp.scanJob && (
+                <>
+                  <span className="hidden md:inline">·</span>
+                  <span className="hidden md:inline">kw: &quot;{opp.scanJob.keyword}&quot;</span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-3 md:gap-4">
+          <div className="text-right">
+            <span className={`font-serif text-lg font-bold ${tier.text}`}>
+              {fmtScore(opp.score)}
+            </span>
+            <span className="font-mono text-[10px] text-muted-foreground">/100</span>
+          </div>
+          <span
+            className={`hidden rounded border px-2 py-0.5 text-[11px] font-semibold sm:inline ${tier.pill}`}
+          >
+            {tier.label}
+          </span>
+          <BookmarkStar
+            variant="desktop"
+            active={opp.isBookmarked}
+            onToggle={() => onBookmark(opp)}
+            label={opp.isBookmarked ? "Remove bookmark" : "Bookmark"}
+          />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <article
-      onClick={() => onOpen(opp)}
+      onClick={() => onOpen?.(opp)}
       className="card-paper cursor-pointer p-3 transition-colors active:scale-[0.99]"
       role="button"
       tabIndex={0}
       onKeyDown={(e) => {
-        if (e.key === "Enter") onOpen(opp);
+        if (e.key === "Enter") onOpen?.(opp);
       }}
     >
       <div className="flex items-start justify-between gap-2">
@@ -645,12 +744,16 @@ export default function HunterPage() {
     return (
       <>
         <TopAppBar onLogout={logout} />
-        <main className="mx-auto w-full max-w-[1100px] px-4 py-8">
+        <main className="mx-auto w-full max-w-[1100px] px-4 py-8 lg:hidden">
+          <p className="text-muted-foreground">Loading…</p>
+        </main>
+        <main className="mx-auto hidden w-full max-w-[1580px] px-4 py-8 md:px-6 lg:block">
           <p className="text-muted-foreground">Loading…</p>
         </main>
       </>
     );
   }
+
 
   const tabs = [
     {
@@ -690,6 +793,632 @@ export default function HunterPage() {
 
   return (
     <>
+      {/* ============ DESKTOP (lg+) — cream Stitch dashboard ============ */}
+      <div className="hidden lg:block">
+    <main className="mx-auto w-full max-w-[1580px] flex-1 px-4 py-7 md:px-6">
+      <div className="grid grid-cols-1 gap-8 lg:grid-cols-12">
+        {/* LEFT: main content */}
+        <div className="flex flex-col gap-6 lg:col-span-8">
+          {/* 1. Page title block */}
+          <div className="flex flex-col gap-1 border-b border-border pb-5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[11px] font-semibold uppercase tracking-wider text-primary">
+                <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+                Play Store realtime telemetry
+              </span>
+            </div>
+            <h1 className="mt-1 font-serif text-3xl font-bold tracking-tight text-foreground">
+              Opportunity Hunter
+            </h1>
+            <p className="text-sm font-normal text-muted-foreground">
+              Trending app ideas, validated against the real Play Store. High ratings
+              coupled with underserved install volume.
+            </p>
+          </div>
+
+          {/* 2. Stat strip */}
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="Overview">
+            <StatCard variant="desktop"
+              label="Opportunities Indexed"
+              value={oppMeta.total.toLocaleString()}
+              sub="Verified Play Store packages"
+            />
+            <StatCard variant="desktop"
+              label="Bookmarked"
+              value={bookmarkedCount.toLocaleString()}
+              badge={
+                <span className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                  Active queue
+                </span>
+              }
+              sub="Saved for pipeline refine"
+            />
+            <StatCard variant="desktop"
+              label="Recent Scans"
+              value={scans.length}
+              sub="latest scan runs"
+            />
+            <StatCard variant="desktop"
+              label="Watchlist"
+              value={
+                <>
+                  12 <span className="font-mono text-xs font-normal text-muted-foreground">terms</span>
+                </>
+              }
+              badge={
+                <span className="rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground">
+                  Auto-scan
+                </span>
+              }
+              sub="12 keywords · daily 06:51 EAT"
+            />
+          </div>
+
+          {/* 3. Scan hero */}
+          <section ref={scanRef} className="card-elevated flex scroll-mt-24 flex-col gap-4 p-5">
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <div className="flex items-center gap-2">
+                <div className="flex h-6 w-6 items-center justify-center rounded border border-primary/30 bg-primary/10 text-primary">
+                  <span className="material-symbols text-[14px]">radar</span>
+                </div>
+                <h2 className="font-serif text-lg font-semibold text-foreground">
+                  Scan the Play Store
+                </h2>
+              </div>
+            </div>
+
+            <form onSubmit={(e) => runScan(e)} className="flex flex-col gap-2 sm:flex-row">
+              <div className="relative flex-1">
+                <span className="material-symbols pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-muted-foreground">
+                  search
+                </span>
+                <input
+                  value={keyword}
+                  onChange={(e) => setKeyword(e.target.value)}
+                  placeholder="e.g. minimalist habit tracker, offline inventory…"
+                  className="input-paper pl-10"
+                  aria-label="Play Store keyword"
+                />
+              </div>
+              <button
+                type="submit"
+                disabled={scanning || !keyword.trim()}
+                className="btn-primary min-h-[44px] shrink-0"
+              >
+                <span className="material-symbols text-[18px]">qr_code_scanner</span>
+                <span>{scanning ? "Scanning…" : "Scan Play Store"}</span>
+              </button>
+            </form>
+            {scanError && (
+              <p className="rounded-md border border-score-low/40 bg-score-low/10 px-3 py-2 text-sm text-score-low">
+                {scanError}
+              </p>
+            )}
+
+            {scans.length > 0 && (
+              <div className="flex flex-col gap-2 pt-1">
+                <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                  Recent scans (click chip to rerun)
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {scans.slice(0, 8).map((s) => (
+                    <ScanChip variant="desktop"
+                      key={s.id}
+                      scan={s}
+                      onRerun={(kw) => {
+                        setKeyword(kw);
+                        runScan(undefined, kw);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </section>
+
+          {/* 4. Editor's pick */}
+          {pick && pickTier && (
+            <section className="card-elevated relative overflow-hidden p-5" aria-label="Top opportunity">
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-xs font-bold uppercase tracking-wider text-primary">
+                    № 01 · Top opportunity
+                  </span>
+                  <span className="text-xs text-muted-foreground">
+                    Highest scoring opportunity
+                  </span>
+                </div>
+                <span className="rounded border border-border bg-card px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                  ★ {pick.rating != null ? pick.rating : "—"} /{" "}
+                  {pick.installs ? `${pick.installs} installs` : "—"}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 items-start gap-5 md:grid-cols-12">
+                <div className="flex items-center justify-between gap-4 border-b border-border pb-3 md:col-span-3 md:flex-col md:items-start md:justify-center md:border-b-0 md:border-r md:pb-0 md:pr-4">
+                  <span className="font-mono text-xs uppercase tracking-wider text-muted-foreground">
+                    Opportunity
+                  </span>
+                  <div className="my-1 flex items-baseline gap-1">
+                    <span className={`font-serif text-5xl font-bold leading-none ${pickTier.text}`}>
+                      {fmtScore(pick.score)}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">/100</span>
+                  </div>
+                  <span
+                    className={`mt-1 inline-flex items-center rounded border px-2 py-0.5 text-xs font-semibold ${pickTier.pill}`}
+                  >
+                    {pickTier.label} Potential
+                  </span>
+                </div>
+
+                <div className="flex h-full flex-col justify-between md:col-span-9">
+                  <div>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <Link
+                          href={`/hunter/opportunities/${pick.id}`}
+                          className="font-serif text-xl font-bold tracking-tight text-foreground transition-colors hover:text-primary"
+                        >
+                          {pick.title}
+                        </Link>
+                        <div className="mt-1.5 flex flex-wrap items-center gap-2 font-mono text-xs text-muted-foreground">
+                          <span className="font-semibold text-score-medium">
+                            {pick.rating != null ? `${pick.rating} ★` : "—"}
+                          </span>
+                          <span>·</span>
+                          <span className="font-medium text-foreground">
+                            {pick.installs ? `${pick.installs} installs` : "—"}
+                          </span>
+                          <span>·</span>
+                          <span className="truncate">pkg: {pick.appId}</span>
+                          {pick.scanJob && (
+                            <>
+                              <span>·</span>
+                              <span className="rounded border border-border bg-muted px-1.5 py-0.5">
+                                kw: &quot;{pick.scanJob.keyword}&quot;
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => toggleBookmark(pick)}
+                        aria-label={pick.isBookmarked ? "Remove bookmark" : "Bookmark"}
+                        title={pick.isBookmarked ? "Remove bookmark" : "Bookmark"}
+                        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                          pick.isBookmarked
+                            ? "border-score-medium/40 bg-score-medium/10 text-score-medium"
+                            : "border-border text-muted-foreground hover:bg-muted hover:text-score-medium"
+                        }`}
+                      >
+                        <span
+                          className="material-symbols text-[18px]"
+                          style={
+                            pick.isBookmarked
+                              ? { fontVariationSettings: '"FILL" 1, "wght" 400, "GRAD" 0, "opsz" 20' }
+                              : undefined
+                          }
+                        >
+                          bookmark
+                        </span>
+                      </button>
+                    </div>
+
+                    {pick.summary && (
+                      <p className="mt-3 rounded-r border-l-2 border-primary/40 bg-muted/50 py-0.5 pl-3 text-xs leading-relaxed text-muted-foreground">
+                        <strong className="font-medium text-foreground">Why it scores:</strong>{" "}
+                        {pick.summary}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {pick.scanJob ? `Scanned ${timeAgo(pick.scanJob.createdAt)}` : "Scanned recently"}
+                    </span>
+                    <Link
+                      href={`/hunter/opportunities/${pick.id}`}
+                      className="btn-primary min-h-[44px] !px-4 !py-2 text-xs"
+                    >
+                      <span>Analyze</span>
+                      <span className="material-symbols text-[16px]">arrow_forward</span>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+            </section>
+          )}
+
+          {/* 5. Ranked opportunities list */}
+          <section className="card-paper flex flex-col" aria-label="Ranked opportunities">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
+              <div className="flex min-w-[240px] flex-1 flex-wrap items-center gap-2">
+                <div className="relative w-full max-w-sm">
+                  <span className="material-symbols pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[18px] text-muted-foreground">
+                    filter_list
+                  </span>
+                  <input
+                    value={search}
+                    onChange={(e) => applyFilters(e.target.value, bookmarkedOnly)}
+                    placeholder="Filter ranked opportunities…"
+                    aria-label="Filter ranked opportunities"
+                    className="input-paper min-h-[44px] pl-10 !text-xs"
+                  />
+                </div>
+                <button
+                  onClick={() => applyFilters(search, !bookmarkedOnly)}
+                  aria-pressed={bookmarkedOnly}
+                  className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                    bookmarkedOnly
+                      ? "border-score-medium/50 bg-score-medium/10 text-score-medium"
+                      : "border-border bg-card text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  <span
+                    className="material-symbols text-[16px]"
+                    style={
+                      bookmarkedOnly
+                        ? { fontVariationSettings: '"FILL" 1, "wght" 400, "GRAD" 0, "opsz" 20' }
+                        : undefined
+                    }
+                  >
+                    star
+                  </span>
+                  <span>Bookmarked only</span>
+                </button>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-xs">
+                <span className="font-mono text-muted-foreground">Sort:</span>
+                <div className="inline-flex rounded-md border border-border bg-muted p-0.5">
+                  <button
+                    onClick={() => setSortDir("desc")}
+                    className={`min-h-[44px] rounded px-2 py-1 font-medium md:min-h-0 ${
+                      sortDir === "desc"
+                        ? "bg-card font-semibold text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Score: High → Low
+                  </button>
+                  <button
+                    onClick={() => setSortDir("asc")}
+                    className={`min-h-[44px] rounded px-2 py-1 font-medium md:min-h-0 ${
+                      sortDir === "asc"
+                        ? "bg-card font-semibold text-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Low → High
+                  </button>
+                </div>
+                {(search || bookmarkedOnly) && (
+                  <button
+                    onClick={() => applyFilters("", false)}
+                    title="Reset filters"
+                    aria-label="Reset filters"
+                    className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
+                  >
+                    <span className="material-symbols text-[18px]">refresh</span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {listOpps.length === 0 ? (
+              <div className="p-12 text-center">
+                <p className="font-serif text-xl text-foreground">No opportunities yet</p>
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Run a scan above to find underrated apps.
+                </p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border">
+                {listOpps.map((o, i) => (
+                  <OpportunityCard layout="row"
+                    key={o.id}
+                    opp={o}
+                    rank={showPick ? i + 2 : i + 1}
+                    onBookmark={toggleBookmark}
+                  />
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-border bg-muted/40 p-3.5 text-xs">
+              <span className="font-mono text-muted-foreground">
+                Page <strong className="text-foreground">{oppMeta.page}</strong> of{" "}
+                <strong className="text-foreground">{oppMeta.totalPages}</strong> · Showing{" "}
+                {rangeStart}-{rangeEnd} of {oppMeta.total} opportunities
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  disabled={page <= 1}
+                  onClick={() => {
+                    setPage(page - 1);
+                    loadOpps(page - 1, search, bookmarkedOnly);
+                  }}
+                  className="btn-ghost min-h-[44px] !px-3 !py-1 text-xs disabled:opacity-40"
+                >
+                  Prev
+                </button>
+                <button
+                  disabled={page >= oppMeta.totalPages}
+                  onClick={() => {
+                    setPage(page + 1);
+                    loadOpps(page + 1, search, bookmarkedOnly);
+                  }}
+                  className="btn-ghost min-h-[44px] !px-3 !py-1 text-xs disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* RIGHT: Idea Radar rail */}
+        <div className="lg:col-span-4">
+          <div className="sticky top-20 flex flex-col gap-4">
+            <div className="card-paper p-4">
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="h-2 w-2 animate-ping rounded-full bg-primary" />
+                  <h3 className="font-serif text-base font-bold text-foreground">Idea Radar</h3>
+                  <span className="rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] text-primary">
+                    Live
+                  </span>
+                </div>
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={loadIdeas}
+                    title="Refresh radar stream"
+                    aria-label="Refresh radar stream"
+                    className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <span className="material-symbols text-[18px]">refresh</span>
+                  </button>
+                  <button
+                    onClick={() => setRadarOpen(!radarOpen)}
+                    title={radarOpen ? "Collapse card" : "Expand card"}
+                    aria-label={radarOpen ? "Collapse card" : "Expand card"}
+                    aria-expanded={radarOpen}
+                    className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                  >
+                    <span className="material-symbols text-[18px]">
+                      {radarOpen ? "expand_less" : "expand_more"}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
+              {radarOpen &&
+                (ideasLoading ? (
+                  <p className="py-4 text-sm text-muted-foreground">Loading trending ideas…</p>
+                ) : ideas.length === 0 ? (
+                  <p className="py-4 text-sm text-muted-foreground">
+                    No ideas right now. Try refreshing.
+                  </p>
+                ) : (
+                  <>
+                    <p className="my-2.5 text-[11px] leading-normal text-muted-foreground">
+                      Realtime community discussions signaling unmet user demand. Click any
+                      item to inspect analysis.
+                    </p>
+                    <div className="divide-y divide-border">
+                      {visibleIdeas.map((idea) => {
+                        const badge = sourceBadge(idea.source);
+                        return (
+                          <button
+                            key={idea.id}
+                            onClick={() => analyzeIdea(idea)}
+                            className="group -mx-2 w-[calc(100%+1rem)] cursor-pointer rounded px-2 py-2.5 text-left transition-colors hover:bg-muted/50"
+                          >
+                            <div className="mb-1 flex items-center justify-between gap-1">
+                              <span
+                                className={`rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold ${badge.cls}`}
+                              >
+                                {badge.label}
+                              </span>
+                              <div className="flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
+                                <span className="font-semibold text-primary">
+                                  {idea.hotness} pts
+                                </span>
+                              </div>
+                            </div>
+                            <h5
+                              className={`line-clamp-2 text-xs font-medium leading-snug transition-colors group-hover:text-primary ${
+                                selected?.id === idea.id ? "text-primary" : "text-foreground"
+                              }`}
+                            >
+                              {idea.title}
+                            </h5>
+                            <div className="mt-1 flex items-center gap-2 font-mono text-[10px] text-muted-foreground">
+                              <span>{timeAgo(idea.createdAt)}</span>
+                              <span>→ Tap to analyze</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                    {ideas.length > 6 && (
+                      <div className="mt-2 border-t border-border pt-3 text-center">
+                        <button
+                          onClick={() => setShowAllIdeas(!showAllIdeas)}
+                          className="mx-auto flex min-h-[44px] items-center justify-center gap-1 text-xs font-semibold text-primary transition-colors hover:text-primary-hover"
+                        >
+                          <span>
+                            {showAllIdeas ? "Show less" : `Show all ${ideas.length} ideas`}
+                          </span>
+                          <span className="material-symbols text-[16px]">
+                            {showAllIdeas ? "expand_less" : "expand_more"}
+                          </span>
+                        </button>
+                      </div>
+                    )}
+                  </>
+                ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Idea analysis slide-over */}
+      {selected && (
+        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true">
+          <div
+            className="absolute inset-0 bg-black/25 backdrop-blur-[1px]"
+            onClick={() => setSelected(null)}
+          />
+          <aside className="drawer-shadow absolute right-0 top-0 flex h-full w-full max-w-[480px] flex-col border-l border-border bg-card-elevated">
+            <div className="flex items-start justify-between gap-4 border-b border-border bg-card p-5">
+              <div className="flex min-w-0 flex-col gap-1 pr-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  {(() => {
+                    const badge = sourceBadge(selected.source);
+                    return (
+                      <span
+                        className={`rounded border px-2 py-0.5 font-mono text-[10px] font-bold ${badge.cls}`}
+                      >
+                        {badge.label}
+                      </span>
+                    );
+                  })()}
+                  <span className="font-mono text-xs font-semibold text-primary">
+                    {selected.hotness} hotness pts
+                  </span>
+                  <span className="text-muted-foreground">·</span>
+                  <span className="font-mono text-[10px] text-muted-foreground">
+                    Realtime Scan
+                  </span>
+                </div>
+                <h3 className="mt-1 font-serif text-lg font-bold leading-snug tracking-tight text-foreground">
+                  {selected.title}
+                </h3>
+              </div>
+              <button
+                onClick={() => setSelected(null)}
+                title="Close analysis"
+                aria-label="Close analysis"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              >
+                <span className="material-symbols text-[20px]">close</span>
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-5 overflow-y-auto p-5 text-xs text-muted-foreground">
+              {analyzing ? (
+                <p className="text-sm">Analyzing this idea…</p>
+              ) : analysis ? (
+                <>
+                  <SheetSection icon="description" label="Summary">
+                    <p className="rounded border border-border bg-muted p-3 font-sans leading-relaxed text-muted-foreground">
+                      {analysis.summary}
+                    </p>
+                  </SheetSection>
+
+                  <SheetSection icon="trending_up" label="Why Trending">
+                    <p className="font-sans leading-relaxed">{analysis.why_trending}</p>
+                  </SheetSection>
+
+                  <SheetSection icon="group" label="Target Audience">
+                    <div className="grid grid-cols-1 gap-2 font-sans sm:grid-cols-2">
+                      {audienceHalves[0] && (
+                        <div className="rounded border border-border bg-card p-2.5">
+                          <p className="text-[11px] leading-relaxed">{audienceHalves[0]}</p>
+                        </div>
+                      )}
+                      {audienceHalves[1] && (
+                        <div className="rounded border border-border bg-card p-2.5">
+                          <p className="text-[11px] leading-relaxed">{audienceHalves[1]}</p>
+                        </div>
+                      )}
+                    </div>
+                  </SheetSection>
+
+                  <SheetSection icon="check_circle" label="Key Features">
+                    <ul className="space-y-1.5 pl-1 font-sans">
+                      {analysis.key_features?.map((f, i) => (
+                        <li key={i} className="flex items-start gap-2">
+                          <span className="material-symbols mt-0.5 shrink-0 text-[14px] text-primary">
+                            check
+                          </span>
+                          <span>{f}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </SheetSection>
+
+                  <SheetSection icon="payments" label="Monetization Ideas">
+                    <div className="rounded border border-score-medium/30 bg-score-medium/10 p-3 font-sans">
+                      <p className="leading-relaxed text-foreground">{analysis.monetization}</p>
+                    </div>
+                  </SheetSection>
+
+                  <SheetSection icon="swords" label="Competition Angle">
+                    <p className="font-sans leading-relaxed">{analysis.competition_angle}</p>
+                  </SheetSection>
+
+                  {analysis.suggested_keywords?.length > 0 && (
+                    <SheetSection
+                      icon="sell"
+                      label="Suggested Keywords"
+                      right={
+                        <span className="font-mono text-[10px] font-normal normal-case tracking-normal text-muted-foreground">
+                          Tap to trigger Play Store scan
+                        </span>
+                      }
+                    >
+                      <div className="flex flex-wrap gap-1.5 pt-1">
+                        {analysis.suggested_keywords.map((k) => (
+                          <button
+                            key={k}
+                            onClick={() => scanFromPill(k)}
+                            disabled={scanning}
+                            className="flex min-h-[44px] items-center gap-1 rounded-md border border-border bg-card px-2.5 py-1 font-mono text-[11px] text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+                          >
+                            <span>&quot;{k}&quot;</span>
+                            <span className="material-symbols text-[12px] text-primary">
+                              search
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </SheetSection>
+                  )}
+                </>
+              ) : null}
+            </div>
+
+            {analysis && (
+              <div className="flex items-center justify-between gap-3 border-t border-border bg-card p-4">
+                <div className="flex flex-col">
+                  <span className="font-mono text-[10px] text-muted-foreground">
+                    Pipeline Transition
+                  </span>
+                  <span className="text-xs font-semibold text-foreground">
+                    Send to Step 2: Refine
+                  </span>
+                </div>
+                <button
+                  onClick={sendToBuilder}
+                  disabled={sending}
+                  className="btn-primary min-h-[44px] !px-5 !py-2.5 text-xs"
+                >
+                  <span>{sending ? "Sending…" : "Send to Builder"}</span>
+                  <span className="material-symbols text-[16px]">arrow_forward</span>
+                </button>
+              </div>
+            )}
+          </aside>
+        </div>
+      )}
+    </main>
+      </div>
+
+      {/* ============ MOBILE (<lg) — discovery layout ============ */}
+      <div className="lg:hidden">
       <TopAppBar onLogout={logout} />
 
       <main className="mx-auto w-full max-w-[1100px] flex-1 space-y-6 px-4 pb-28 pt-4 lg:pb-12">
@@ -1249,6 +1978,7 @@ export default function HunterPage() {
           </aside>
         </div>
       )}
+      </div>
 
       <Toast msg={toastMsg} />
     </>
