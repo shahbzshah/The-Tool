@@ -74,7 +74,26 @@ export default function StitchPromptPage() {
     try {
       const res = await fetch(`/api/stitch-prompt?projectId=${projectId}`);
       const data = await res.json();
-      setPrompt(data.prompt ?? null);
+      const existing = data.prompt ?? null;
+      setPrompt(existing);
+      // No prompt yet → generate it automatically; it's a required step.
+      if (!existing) {
+        setGenerating(true);
+        try {
+          const gen = await fetch("/api/stitch-prompt", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ projectId }),
+          });
+          const genData = await gen.json();
+          if (!gen.ok) throw new Error(genData.error || "Generation failed.");
+          setPrompt(genData.prompt);
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "Something went wrong.");
+        } finally {
+          setGenerating(false);
+        }
+      }
     } catch {
       // ignore — treat as no prompt yet
     } finally {
@@ -181,24 +200,18 @@ export default function StitchPromptPage() {
           </p>
         </header>
 
-        {!prompt && !generating && (
+        {!prompt && !generating && error && (
           <section className="card-elevated mx-auto max-w-xl p-8 text-center">
-            <span className="material-symbols mb-4 inline-block text-[32px] text-primary">
-              auto_awesome
-            </span>
             <p className="mb-6 text-muted-foreground">
-              You have an approved idea. Generate a detailed, copy-paste-ready
-              prompt for Google Stitch now.
+              The prompt couldn&apos;t be generated.
             </p>
             <button onClick={generate} className="btn-primary">
-              <span className="material-symbols text-[20px]">auto_awesome</span>
-              Generate Stitch Prompt
+              <span className="material-symbols text-[20px]">refresh</span>
+              Try again
             </button>
-            {error && (
-              <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                {error}
-              </p>
-            )}
+            <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {error}
+            </p>
           </section>
         )}
 
