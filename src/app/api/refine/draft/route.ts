@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { chat } from "@/lib/ai";
+import { chat, parseJsonLoose } from "@/lib/ai";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -80,22 +80,26 @@ export async function POST(req: Request) {
     { temperature: 0.6, maxTokens: 2048 }
   );
 
-  const match = reply.match(/```update\s*([\s\S]*?)\s*```/);
-  if (!match) {
-    return NextResponse.json(
-      { error: "The AI didn't return a draft. Try again." },
-      { status: 500 }
-    );
+  // The model is instructed to return a fenced ```update block, but it
+  // sometimes returns bare JSON or a ```json fence instead — parse tolerantly.
+  let upd: any = null;
+  const fence = reply.match(/```(?:update|json)?\s*([\s\S]*?)\s*```/i);
+  if (fence) {
+    try {
+      upd = JSON.parse(fence[1]);
+    } catch {
+      // fall through to loose parsing
+    }
   }
-
-  let upd: any;
-  try {
-    upd = JSON.parse(match[1]);
-  } catch {
-    return NextResponse.json(
-      { error: "The AI returned a bad draft. Try again." },
-      { status: 500 }
-    );
+  if (!upd) {
+    try {
+      upd = parseJsonLoose<any>(reply);
+    } catch {
+      return NextResponse.json(
+        { error: "The AI didn't return a draft. Try again." },
+        { status: 500 }
+      );
+    }
   }
 
   const data: any = {};
