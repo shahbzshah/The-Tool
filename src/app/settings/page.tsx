@@ -71,7 +71,12 @@ export default function SettingsPage() {
           <h1 className="mt-1 font-serif text-4xl tracking-tight">Settings</h1>
         </div>
         <button
-          onClick={() => router.push("/")}
+          onClick={() => {
+            // Back to wherever settings was opened from (Refine, Design, …),
+            // so in-progress work isn't lost. Fallback to Hunter if opened directly.
+            if (window.history.length > 1) router.back();
+            else router.push("/");
+          }}
           aria-label="Close settings"
           title="Close settings"
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
