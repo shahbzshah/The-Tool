@@ -73,9 +73,15 @@ export default function SettingsPage() {
         <button
           onClick={() => {
             // Back to wherever settings was opened from (Refine, Design, …),
-            // so in-progress work isn't lost. Fallback to Hunter if opened directly.
-            if (window.history.length > 1) router.back();
-            else router.push("/");
+            // so in-progress work isn't lost. Falls back to Hunter.
+            let target = "/";
+            try {
+              const last = sessionStorage.getItem("lastAppPath");
+              if (last && last.startsWith("/") && !last.startsWith("//")) target = last;
+            } catch {
+              /* ignore */
+            }
+            router.push(target);
           }}
           aria-label="Close settings"
           title="Close settings"

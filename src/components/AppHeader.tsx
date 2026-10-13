@@ -27,7 +27,22 @@ export default function AppHeader({ className = "" }: { className?: string }) {
   const router = useRouter();
   const [dark, setDark] = useState(false);
   const [email, setEmail] = useState<string | null>(null);
-  const current = activeStep(pathname);
+  // Remember the last pipeline page so /settings keeps its highlight
+  // instead of jumping back to Hunter.
+  useEffect(() => {
+    if (pathname !== "/settings") {
+      try {
+        sessionStorage.setItem("lastAppPath", pathname);
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [pathname]);
+  const effectivePath =
+    pathname === "/settings" && typeof window !== "undefined"
+      ? sessionStorage.getItem("lastAppPath") || "/"
+      : pathname;
+  const current = activeStep(effectivePath);
 
   useEffect(() => {
     setDark(document.documentElement.classList.contains("dark"));
