@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { Newsreader, Plus_Jakarta_Sans, Space_Mono } from "next/font/google";
 import HeaderSwitch from "@/components/HeaderSwitch";
+import Onboarding from "@/components/Onboarding";
+import ShortcutProvider from "@/components/ShortcutProvider";
 import "./globals.css";
 
 const noFlashScript = `(function(){try{if(localStorage.getItem('theme')==='dark'){document.documentElement.classList.add('dark')}}catch(e){}})()`;
@@ -47,6 +49,8 @@ export default function RootLayout({
       <body>
         <HeaderSwitch />
         {children}
+        <Onboarding />
+        <ShortcutProvider />
       </body>
     </html>
   );

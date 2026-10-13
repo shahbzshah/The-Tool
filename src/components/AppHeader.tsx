@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { ONBOARD_EVENT } from "@/lib/shortcuts";
 
 const STEPS = [
   { label: "Hunter", href: "/" },
@@ -135,6 +136,14 @@ export default function AppHeader({ className = "" }: { className?: string }) {
 
         {/* Right utility controls */}
         <div className="flex shrink-0 items-center gap-2 md:gap-3">
+          <button
+            onClick={() => window.dispatchEvent(new Event(ONBOARD_EVENT))}
+            aria-label="Help and pipeline tour"
+            title="Help — take the pipeline tour"
+            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground md:h-9 md:min-h-0 md:w-9 md:min-w-0"
+          >
+            <span className="material-symbols text-[20px]">help</span>
+          </button>
           <button
             onClick={toggleTheme}
             aria-label="Toggle theme"

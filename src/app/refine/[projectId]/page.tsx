@@ -1,8 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
+import {
+  apiFetch,
+  consumeSavedState,
+  locationKey,
+} from "@/lib/api";
+import { useEscapeClose } from "@/lib/shortcuts";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -31,8 +37,56 @@ function fmtTime(iso?: string | null): string {
   }
 }
 
+const STARTER_PROMPTS = [
+  "Summarize the idea so far",
+  "Challenge my assumptions",
+  "Suggest 3 monetization models",
+  "What would you cut?",
+  "Who is this NOT for?",
+];
+
+type Decision = {
+  createdAt?: string | null;
+  keys: string[];
+};
+
+// Derives the applied ```update JSON blocks from the persisted chat history.
+// The AI writes agreed changes as fenced ```update blocks; each block's
+// top-level JSON keys tell us what changed.
+function extractDecisions(msgs: ChatMessage[]): Decision[] {
+  const out: Decision[] = [];
+  const fence = /```update\s*([\s\S]*?)```/g;
+  for (const m of msgs) {
+    if (m.role !== "assistant") continue;
+    let match: RegExpExecArray | null;
+    while ((match = fence.exec(m.content)) !== null) {
+      let keys: string[] = [];
+      try {
+        const parsed = JSON.parse(match[1].trim());
+        if (parsed && typeof parsed === "object") keys = Object.keys(parsed);
+      } catch {
+        // Non-JSON block; still counts as an update.
+      }
+      out.push({ createdAt: m.createdAt, keys });
+    }
+  }
+  return out;
+}
+
+function conversationMarkdown(msgs: ChatMessage[], ideaTitle?: string): string {
+  const header = ideaTitle
+    ? `# Refine conversation — ${ideaTitle}\n`
+    : `# Refine conversation\n`;
+  const turns = msgs
+    .map(
+      (m) =>
+        `## ${m.role === "user" ? "You" : "Editorial Analyst"}\n\n${m.content.trim()}`
+    )
+    .join("\n\n---\n\n");
+  return `${header}\n${turns}\n`;
+}
+
 export default function RefinePage({ params }: { params: { projectId: string } }) {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const ideaId = searchParams.get("idea");
   const { projectId } = params;
@@ -48,7 +102,35 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   const [showFullIdea, setShowFullIdea] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [modelName, setModelName] = useState("");
+  const [copied, setCopied] = useState(false);
+  const [decisionsOpen, setDecisionsOpen] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // State snapshot restored after a login redirect (session expired mid-work).
+  const savedStateRef = useRef<{
+    messages?: ChatMessage[];
+    draft?: string;
+  } | null>(null);
+
+  const decisions = extractDecisions(messages);
+
+  async function copyConversation() {
+    const md = conversationMarkdown(messages, idea?.title);
+    try {
+      await navigator.clipboard.writeText(md);
+    } catch {
+      // Fallback for clipboard-restricted contexts.
+      const ta = document.createElement("textarea");
+      ta.value = md;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   const loadIdea = useCallback(async () => {
     if (!ideaId) {
@@ -56,11 +138,10 @@ export default function RefinePage({ params }: { params: { projectId: string } }
       return;
     }
     try {
-      const res = await fetch(`/api/ideas/${ideaId}`);
-      if (res.status === 401) {
-        router.push("/login");
-        return;
-      }
+      // apiFetch snapshots nothing here (no draft yet) but redirects to
+      // /login?next=… on 401; the guard below stops further work.
+      const res = await apiFetch(`/api/ideas/${ideaId}`);
+      if (res.status === 401) return; // apiFetch already redirected to /login?next=…
       if (!res.ok) {
         setError("Idea not found.");
         return;
@@ -76,7 +157,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
 
       // Check for an existing saved brief and the market analysis.
       try {
-        const d = await fetch(`/api/docs?ideaId=${ideaId}`);
+        const d = await apiFetch(`/api/docs?ideaId=${ideaId}`);
         const dd = await d.json();
         const brief = (dd.docs ?? []).find((x: any) => x.kind === "REFINED_BRIEF");
         if (brief) {
@@ -90,9 +171,18 @@ export default function RefinePage({ params }: { params: { projectId: string } }
         setAnalysisText(data.idea.project.preferences);
       }
 
+      // Restore a conversation snapshot from a login redirect first —
+      // it is newer than the DB history.
+      const saved = savedStateRef.current;
+      if (saved?.messages?.length) {
+        setMessages(saved.messages);
+        savedStateRef.current = null;
+        return;
+      }
+
       // Restore saved conversation; a refresh no longer loses anything.
       try {
-        const h = await fetch(
+        const h = await apiFetch(
           `/api/refine/chat?projectId=${projectId}&ideaId=${ideaId}`
         );
         const hd = await h.json();
@@ -112,15 +202,25 @@ export default function RefinePage({ params }: { params: { projectId: string } }
     } catch {
       setError("Could not load the idea.");
     }
-  }, [ideaId, projectId, router]);
+  }, [ideaId, projectId]);
 
   useEffect(() => {
+    // Pull any snapshot saved before a login redirect and restore the draft.
+    const saved = consumeSavedState(locationKey()) as {
+      messages?: ChatMessage[];
+      draft?: string;
+    } | null;
+    if (saved?.draft) setInput(saved.draft);
+    if (saved?.messages?.length) savedStateRef.current = saved;
     loadIdea();
   }, [loadIdea]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  // Esc closes the full-idea reader.
+  useEscapeClose(() => setShowFullIdea(false));
 
   async function send(e?: React.FormEvent, overrideText?: string) {
     if (e) e.preventDefault();
@@ -132,11 +232,17 @@ export default function RefinePage({ params }: { params: { projectId: string } }
     const next = [...messages, { role: "user" as const, content: text, createdAt: now }];
     setMessages(next);
     try {
-      const res = await fetch("/api/refine/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, ideaId, message: text }),
-      });
+      const res = await apiFetch(
+        "/api/refine/chat",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId, ideaId, message: text }),
+        },
+        // If the session expired, apiFetch snapshots this so login restores it.
+        { snapshot: { messages: next, draft: "" } }
+      );
+      if (res.status === 401) return; // redirect already fired
       const data = await res.json();
       if (!res.ok) {
         setMessages([
@@ -168,11 +274,16 @@ export default function RefinePage({ params }: { params: { projectId: string } }
     setDrafting(true);
     setError("");
     try {
-      const res = await fetch("/api/refine/draft", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId, ideaId }),
-      });
+      const res = await apiFetch(
+        "/api/refine/draft",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ projectId, ideaId }),
+        },
+        { snapshot: { messages, draft: input } }
+      );
+      if (res.status === 401) return; // redirect already fired
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Draft failed.");
       setIdea(data.idea);
@@ -199,11 +310,11 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-6 py-6">
+    <main className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
       {/* Page header */}
       <section className="flex flex-col justify-between gap-4 border-b border-border pb-4 md:flex-row md:items-center">
         <div className="space-y-1">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
               Project Spec #{projectId.slice(0, 8).toUpperCase()}
             </span>
@@ -218,7 +329,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
               </span>
             )}
           </div>
-          <h1 className="font-serif text-3xl font-medium tracking-tight md:text-4xl">
+          <h1 className="break-words font-serif text-2xl font-medium tracking-tight md:text-4xl">
             Refine Brief: {idea?.title ?? "Loading…"}
           </h1>
         </div>
@@ -233,18 +344,27 @@ export default function RefinePage({ params }: { params: { projectId: string } }
       {/* Two-pane workspace */}
       <div className="grid grid-cols-1 items-start gap-6 pb-10 min-[900px]:grid-cols-12">
         {/* LEFT — chat */}
-        <section className="card-paper flex h-[60vh] flex-col overflow-hidden min-[900px]:col-span-7 min-[900px]:h-[760px]">
+        <section className="card-paper flex h-[64dvh] flex-col overflow-hidden md:h-[60vh] min-[900px]:col-span-7 min-[900px]:h-[760px]">
           {/* Chat topbar */}
           <div className="flex items-center justify-between border-b border-border bg-card-elevated px-5 py-3.5">
             <div className="flex min-w-0 items-center gap-2.5">
               <span className="material-symbols text-[19px] text-primary">neurology</span>
               <span className="text-sm font-semibold">Synthesis Co-Pilot</span>
               {modelName && (
-                <span className="max-w-[220px] truncate rounded bg-secondary px-2 py-0.5 font-mono text-[11px] text-muted-foreground" title={modelName}>
+                <span className="hidden max-w-[220px] truncate rounded bg-secondary px-2 py-0.5 font-mono text-[11px] text-muted-foreground sm:inline" title={modelName}>
                   {modelName}
                 </span>
               )}
             </div>
+            <button
+              onClick={copyConversation}
+              title="Copy conversation as markdown"
+              aria-label="Copy conversation as markdown"
+              className="btn-ghost !px-3 !py-1.5"
+            >
+              <span className="material-symbols text-[16px]">content_copy</span>
+              <span className="hidden sm:inline">Copy conversation</span>
+            </button>
           </div>
 
           {/* Message stream */}
@@ -302,8 +422,20 @@ export default function RefinePage({ params }: { params: { projectId: string } }
             <div ref={bottomRef} />
           </div>
 
-          {/* Pinned input */}
+          {/* Starter prompts + pinned input */}
           <div className="border-t border-border bg-card-elevated p-4">
+            <div className="mb-3 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
+              {STARTER_PROMPTS.map((p) => (
+                <button
+                  key={p}
+                  onClick={() => send(undefined, p)}
+                  disabled={sending}
+                  className="min-h-[44px] shrink-0 whitespace-nowrap rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                >
+                  {p}
+                </button>
+              ))}
+            </div>
             <form onSubmit={send} className="flex items-end gap-2">
               <textarea
                 value={input}
@@ -337,7 +469,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
         </section>
 
         {/* RIGHT — living idea specification */}
-        <aside className="card-elevated space-y-6 p-6 min-[900px]:col-span-5 min-[900px]:sticky min-[900px]:top-24">
+        <aside className="card-elevated space-y-6 p-4 md:p-6 min-[900px]:col-span-5 min-[900px]:sticky min-[900px]:top-24">
           <div className="flex items-start justify-between border-b border-border pb-4">
             <div className="space-y-1">
               <span className="label-caps block text-primary">CANONICAL ARTIFACT</span>
@@ -455,6 +587,45 @@ export default function RefinePage({ params }: { params: { projectId: string } }
             )}
           </div>
 
+          {/* Decisions log */}
+          <div className="border-t border-border pt-4">
+            <button
+              onClick={() => setDecisionsOpen((v) => !v)}
+              className="flex w-full items-center justify-between"
+            >
+              <span className="label-caps text-muted-foreground">
+                Decisions{decisions.length > 0 ? ` (${decisions.length})` : ""}
+              </span>
+              <span className="material-symbols text-[16px] text-muted-foreground">
+                {decisionsOpen ? "expand_less" : "expand_more"}
+              </span>
+            </button>
+            {decisionsOpen &&
+              (decisions.length > 0 ? (
+                <ul className="mt-2 space-y-1.5">
+                  {decisions.map((d, i) => (
+                    <li
+                      key={i}
+                      className="flex items-start gap-2 font-mono text-[11.5px] text-muted-foreground"
+                    >
+                      <span className="material-symbols mt-0.5 text-[13px] text-score-high">
+                        done
+                      </span>
+                      <span>
+                        {d.createdAt ? fmtTime(d.createdAt) : ""}
+                        {d.createdAt ? " — " : ""}
+                        Updated: {d.keys.length > 0 ? d.keys.join(", ") : "idea"}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  No applied updates yet — agreed changes from the chat will appear here.
+                </p>
+              ))}
+          </div>
+
           {/* Proceed CTA */}
           {ideaId && (
             <div className="pt-2">
@@ -543,6 +714,15 @@ export default function RefinePage({ params }: { params: { projectId: string } }
                 </div>
               )}
             </div>
+          </div>
+        </div>
+      )}
+      {/* Copy-confirmation toast */}
+      {copied && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2">
+          <div className="card-elevated flex items-center gap-2 px-4 py-2.5 text-sm">
+            <span className="material-symbols text-[16px] text-score-high">check</span>
+            <span>Conversation copied as markdown</span>
           </div>
         </div>
       )}

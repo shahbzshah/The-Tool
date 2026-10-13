@@ -29,7 +29,20 @@ export async function GET(req: Request) {
     );
   }
   const prompt = await prisma.stitchPrompt.findUnique({ where: { projectId } });
-  return NextResponse.json({ prompt });
+  // Feature list from the approved idea — the Design page uses it for the
+  // feature-coverage checklist (all derived from real project data).
+  const project = await prisma.project.findUnique({
+    where: { id: projectId },
+    include: {
+      ideas: {
+        where: { status: "approved" },
+        take: 1,
+        select: { features: true },
+      },
+    },
+  });
+  const features = project?.ideas[0] ? parseFeatures(project.ideas[0].features) : [];
+  return NextResponse.json({ prompt, features });
 }
 
 export async function POST(req: Request) {

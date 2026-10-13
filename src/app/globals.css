@@ -169,3 +169,30 @@
     height: 44px;
   }
 }
+
+/* Print stylesheet — clean document output from the docs reader.
+   Elements marked .print-hide (nav chrome, index sidebar, toolbars, footer)
+   are hidden; the document body prints full-length on white. */
+@media print {
+  .print-hide {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .print-doc {
+    max-height: none !important;
+    overflow: visible !important;
+    border: none !important;
+    background: transparent !important;
+    color: #000000 !important;
+    white-space: pre-wrap !important;
+    padding: 0 !important;
+  }
+  .print-doc mark {
+    background: transparent !important;
+    color: inherit !important;
+    font-weight: bold;
+  }
+}

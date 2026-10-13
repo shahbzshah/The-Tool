@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { chat, getModel } from "@/lib/ai";
+import { estimateTokens, logAiUsage } from "@/lib/usage";
+import { snapshotDocVersion } from "@/lib/docgen";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -132,6 +134,20 @@ export async function POST(req: Request) {
     { temperature: 0.6, maxTokens: 2048 }
   );
 
+  // Track NVIDIA token consumption (estimated — the API returns no usage).
+  await logAiUsage({
+    userId: auth.user.id,
+    projectId,
+    kind: "refine",
+    tokensIn: estimateTokens(
+      SYSTEM_PROMPT.length +
+        context.length +
+        message.length +
+        history.reduce((sum, m) => sum + (m.content?.length ?? 0), 0)
+    ),
+    tokensOut: estimateTokens(reply.length),
+  });
+
   // Extract a trailing ```update block, apply it, strip it from the reply.
   // A ```brief block (anywhere in the reply) saves/updates the Refined Brief file.
   let cleaned = reply;
@@ -141,6 +157,8 @@ export async function POST(req: Request) {
   const briefMatch = reply.match(/```brief\s*([\s\S]*?)\s*```/);
   if (briefMatch && briefMatch[1].trim().length > 50) {
     const briefContent = briefMatch[1].trim().slice(0, 20000);
+    // Snapshot the previous brief so updates stay revertible.
+    await snapshotDocVersion(idea.id, "REFINED_BRIEF");
     await prisma.document.upsert({
       where: { ideaId_kind: { ideaId: idea.id, kind: "REFINED_BRIEF" } },
       create: { ideaId: idea.id, kind: "REFINED_BRIEF", content: briefContent },

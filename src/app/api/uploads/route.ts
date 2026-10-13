@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { randomUUID } from "crypto";
 import JSZip from "jszip";
 
 export const runtime = "nodejs";
@@ -42,14 +43,16 @@ function isJunk(path: string): boolean {
 /**
  * Unpack a Stitch export zip: one Upload record per screen file, with the
  * folder structure preserved in the filename (e.g. "home/index.html").
+ * All records share one batchId so the Design page can version them together.
  */
 async function extractZip(
   projectId: string,
-  file: File
-): Promise<{ id: string; type: string; filename: string; createdAt: Date }[]> {
+  file: File,
+  batchId: string
+): Promise<{ id: string; type: string; filename: string; batchId: string | null; createdAt: Date }[]> {
   const buffer = await file.arrayBuffer();
   const zip = await JSZip.loadAsync(buffer);
-  const created: { id: string; type: string; filename: string; createdAt: Date }[] = [];
+  const created: { id: string; type: string; filename: string; batchId: string | null; createdAt: Date }[] = [];
 
   // Strip a single top-level wrapper folder if everything sits inside one.
   const paths = Object.keys(zip.files).filter((p) => !zip.files[p].dir && !isJunk(p));
@@ -74,8 +77,9 @@ async function extractZip(
         filename,
         path: `uploads/${projectId}/${filename}`,
         content,
+        batchId,
       },
-      select: { id: true, type: true, filename: true, createdAt: true },
+      select: { id: true, type: true, filename: true, batchId: true, createdAt: true },
     });
     created.push(upload);
   }
@@ -94,7 +98,7 @@ export async function GET(req: Request) {
   const uploads = await prisma.upload.findMany({
     where: { projectId },
     orderBy: { createdAt: "desc" },
-    select: { id: true, type: true, filename: true, createdAt: true },
+    select: { id: true, type: true, filename: true, batchId: true, createdAt: true },
   });
   return NextResponse.json({ uploads });
 }
@@ -140,7 +144,9 @@ export async function POST(req: Request) {
       if (file.size > MAX_ZIP_BYTES) {
         return NextResponse.json({ error: "Zip is too large (max 25 MB)." }, { status: 400 });
       }
-      const created = await extractZip(projectId, file);
+      // One batchId for the whole zip: the Design page treats these as a
+      // single design version.
+      const created = await extractZip(projectId, file, randomUUID());
       if (created.length === 0) {
         return NextResponse.json(
           { error: "No design files found in the zip." },
@@ -175,7 +181,7 @@ export async function POST(req: Request) {
         path: `uploads/${projectId}/${filename}`,
         content,
       },
-      select: { id: true, type: true, filename: true, createdAt: true },
+      select: { id: true, type: true, filename: true, batchId: true, createdAt: true },
     });
 
     return NextResponse.json({ upload });

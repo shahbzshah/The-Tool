@@ -35,6 +35,9 @@ model Project {
   platform     String? // "mobile" (Android + iOS, web optional) | "web" | null (AI decides)
   preferences  String?
   stackLock    String? // canonical tech stack — injected into all doc generation
+  status       String         @default("refine") // hunter | refine | design | docs | export — current pipeline stage
+  archivedAt   DateTime?      // set when the project is archived
+  notes        String?        @db.Text
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   ideas        Idea[]
@@ -84,6 +87,7 @@ model Upload {
   type      String // design_md | html | screenshot
   filename  String
   path      String
+  batchId   String? // groups uploads from one design import (another worker manages this)
   content   String? // extracted text for design_md / html
   createdAt DateTime @default(now())
 
@@ -98,8 +102,33 @@ model Document {
   content   String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  versions  DocumentVersion[]
 
   @@unique([ideaId, kind])
+}
+
+model DocumentVersion {
+  id         String   @id @default(cuid())
+  documentId String
+  document   Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  version    Int      // 1-based, increments per document
+  content    String   @db.Text
+  createdAt  DateTime @default(now())
+
+  @@index([documentId, version])
+}
+
+model AiUsage {
+  id        String   @id @default(cuid())
+  userId    String
+  projectId String?
+  kind      String   // docgen | refine
+  tokensIn  Int      @default(0)
+  tokensOut Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([projectId])
 }
 
 // ---- Opportunity Hunter models (merged) ----

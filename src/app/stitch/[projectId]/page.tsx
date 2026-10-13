@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 
@@ -22,6 +22,50 @@ type StitchReview = {
   gaps: string[];
   recommendations: string[];
 };
+
+type DesignUpload = {
+  id: string;
+  type: string;
+  filename: string;
+  batchId: string | null;
+  createdAt: string;
+};
+
+type DesignVersion = {
+  key: string;
+  uploads: DesignUpload[];
+  firstAt: string; // earliest createdAt in the batch — versions order by this
+};
+
+/**
+ * Coverage heuristic (deliberately simple, advisory only — every row has a
+ * manual override for when it's wrong): a feature counts as "covered" when
+ * some uploaded screen filename contains the feature's full text, or any
+ * significant word (4+ chars) from the feature — compared case-insensitively.
+ * E.g. feature "Push notifications for price drops" matches
+ * "notifications/index.html" via the word "notifications".
+ */
+function heuristicCoverage(
+  feature: string,
+  screens: DesignUpload[]
+): { covered: boolean; matched: string | null } {
+  const f = feature.toLowerCase();
+  const words = f.split(/[^a-z0-9]+/).filter((w) => w.length >= 4);
+  for (const s of screens) {
+    const name = s.filename.toLowerCase();
+    if (name.includes(f) || words.some((w) => name.includes(w))) {
+      return { covered: true, matched: s.filename };
+    }
+  }
+  return { covered: false, matched: null };
+}
+
+function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime())
+    ? ""
+    : d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
 
 function parseArr(json: string): string[] {
   try {
@@ -54,10 +98,11 @@ export default function StitchPromptPage() {
   const [error, setError] = useState<string | null>(null);
   const [review, setReview] = useState<StitchReview | null>(null);
   const [reviewing, setReviewing] = useState(false);
-  const [uploads, setUploads] = useState<
-    { id: string; type: string; filename: string; createdAt: string }[]
-  >([]);
+  const [uploads, setUploads] = useState<DesignUpload[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [features, setFeatures] = useState<string[]>([]);
+  const [overrides, setOverrides] = useState<Record<number, boolean>>({});
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const loadUploads = useCallback(async () => {
@@ -76,6 +121,7 @@ export default function StitchPromptPage() {
       const data = await res.json();
       const existing = data.prompt ?? null;
       setPrompt(existing);
+      setFeatures(Array.isArray(data.features) ? data.features : []);
       // No prompt yet → generate it automatically; it's a required step.
       if (!existing) {
         setGenerating(true);
@@ -170,6 +216,75 @@ export default function StitchPromptPage() {
     }
   }
 
+  // Group uploads into design versions: every zip import shares one batchId.
+  // Older uploads with no batchId are grouped together as "Version 1".
+  // Versions order oldest → newest; the newest is the "current" one.
+  const versions: DesignVersion[] = useMemo(() => {
+    const byKey = new Map<string, DesignUpload[]>();
+    for (const u of uploads) {
+      const key = u.batchId ?? "legacy";
+      const list = byKey.get(key) ?? [];
+      list.push(u);
+      byKey.set(key, list);
+    }
+    return [...byKey.entries()]
+      .map(([key, list]) => {
+        const sorted = [...list].sort((a, b) =>
+          a.createdAt.localeCompare(b.createdAt)
+        );
+        return {
+          key,
+          uploads: sorted,
+          firstAt: sorted.reduce(
+            (m, u) => (u.createdAt < m ? u.createdAt : m),
+            sorted[0].createdAt
+          ),
+        };
+      })
+      .sort((a, b) => a.firstAt.localeCompare(b.firstAt));
+  }, [uploads]);
+
+  const currentVersion: DesignVersion | null =
+    versions.find((v) => v.key === selectedKey) ??
+    versions[versions.length - 1] ??
+    null;
+  const visibleUploads = currentVersion?.uploads ?? [];
+
+  // Feature coverage against the currently shown version's screens.
+  // Advisory only — Docs stays accessible regardless.
+  const coverage = useMemo(
+    () =>
+      features.map((feature, i) => {
+        const auto = heuristicCoverage(feature, visibleUploads);
+        const manual = overrides[i];
+        return {
+          feature,
+          covered: manual ?? auto.covered,
+          auto: auto.covered,
+          overridden: manual !== undefined,
+          matched: auto.matched,
+        };
+      }),
+    [features, visibleUploads, overrides]
+  );
+  const coveredCount = coverage.filter((c) => c.covered).length;
+  const readyForDocs = features.length > 0 && coveredCount === features.length;
+
+  function toggleOverride(i: number) {
+    setOverrides((prev) => ({
+      ...prev,
+      [i]: !(prev[i] ?? coverage[i].covered),
+    }));
+  }
+
+  function clearOverride(i: number) {
+    setOverrides((prev) => {
+      const next = { ...prev };
+      delete next[i];
+      return next;
+    });
+  }
+
   if (loading) {
     return (
       <main className="mx-auto max-w-[1200px] px-4 py-16 text-center text-muted-foreground md:px-8">
@@ -179,7 +294,7 @@ export default function StitchPromptPage() {
   }
 
   return (
-    <main className="mx-auto max-w-[1200px] px-4 py-12 md:px-8">
+    <main className="mx-auto max-w-[1200px] px-4 py-6 md:px-8 md:py-12">
       <div className="mx-auto max-w-4xl">
         {/* Strict pipeline: Refine → Design → Docs */}
         <Link
@@ -192,7 +307,7 @@ export default function StitchPromptPage() {
 
         <header className="mb-8 mt-4">
           <p className="label-caps mb-2 text-primary">Step 3 — Design</p>
-          <h1 className="mb-2 font-serif text-4xl tracking-tight text-foreground">
+          <h1 className="mb-2 font-serif text-3xl tracking-tight text-foreground md:text-4xl">
             Stitch Prompt Generator
           </h1>
           <p className="text-muted-foreground">
@@ -238,13 +353,13 @@ export default function StitchPromptPage() {
               <p className="whitespace-pre-wrap rounded-md border border-border bg-background p-4 font-mono text-sm leading-relaxed text-foreground/90">
                 {prompt.promptText}
               </p>
-              <div className="mt-4 flex flex-wrap gap-3">
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <button
                   onClick={async () => {
                     await copyPrompt();
                     window.open("https://stitch.withgoogle.com/", "_blank", "noopener");
                   }}
-                  className="btn-primary"
+                  className="btn-primary min-h-[48px] w-full justify-center sm:w-auto"
                 >
                   <span className="material-symbols text-[20px]">open_in_new</span>
                   {copied ? "Copied! Opening Stitch…" : "Copy prompt & Open Stitch"}
@@ -252,7 +367,7 @@ export default function StitchPromptPage() {
                 <button
                   onClick={generate}
                   disabled={generating}
-                  className="btn-ghost"
+                  className="btn-ghost min-h-[44px] w-full justify-center sm:w-auto"
                 >
                   <span className="material-symbols text-[20px]">refresh</span>
                   Regenerate
@@ -299,14 +414,34 @@ export default function StitchPromptPage() {
                   <span className="material-symbols text-[18px]">upload_file</span>
                   Stitch exports
                 </h2>
-                <button
-                  onClick={() => fileRef.current?.click()}
-                  disabled={uploading}
-                  className="btn-secondary !px-4 !py-1.5 !text-sm"
-                >
-                  <span className="material-symbols text-[18px]">upload</span>
-                  {uploading ? "Uploading…" : "Upload export"}
-                </button>
+                <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:flex-wrap">
+                  {versions.length > 0 && (
+                    <label className="inline-flex w-full items-center gap-2 text-sm text-muted-foreground sm:w-auto">
+                      <span className="material-symbols shrink-0 text-[18px]">history</span>
+                      <select
+                        value={currentVersion?.key ?? ""}
+                        onChange={(e) => setSelectedKey(e.target.value)}
+                        className="input-paper !w-full !py-1.5 text-sm sm:!w-auto"
+                        aria-label="Design version"
+                      >
+                        {versions.map((v, i) => (
+                          <option key={v.key} value={v.key}>
+                            Version {i + 1} — {fmtDate(v.firstAt)}
+                            {i === versions.length - 1 ? " (current)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  )}
+                  <button
+                    onClick={() => fileRef.current?.click()}
+                    disabled={uploading}
+                    className="btn-secondary min-h-[44px] w-full !px-4 !py-1.5 !text-sm sm:w-auto"
+                  >
+                    <span className="material-symbols text-[18px]">upload</span>
+                    {uploading ? "Uploading…" : "Upload export"}
+                  </button>
+                </div>
                 <input
                   ref={fileRef}
                   type="file"
@@ -330,6 +465,8 @@ export default function StitchPromptPage() {
                       if (!res.ok) throw new Error(data.error || "Upload failed.");
                       const list = data.uploads ?? (data.upload ? [data.upload] : []);
                       setUploads((prev) => [...list, ...prev]);
+                      // A fresh upload is always the newest → show the "current" version.
+                      setSelectedKey(null);
                     } catch (err) {
                       setError(err instanceof Error ? err.message : "Upload failed.");
                     } finally {
@@ -344,13 +481,13 @@ export default function StitchPromptPage() {
                 separate entries). Single files work too. The design review and
                 your Docs are then built from what was actually designed.
               </p>
-              {uploads.length === 0 ? (
+              {visibleUploads.length === 0 ? (
                 <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
                   No exports yet.
                 </p>
               ) : (
                 <ul className="space-y-2">
-                  {uploads.map((u) => (
+                  {visibleUploads.map((u) => (
                     <li
                       key={u.id}
                       className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
@@ -379,6 +516,106 @@ export default function StitchPromptPage() {
                 <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                   {error}
                 </p>
+              )}
+            </section>
+
+            {/* Feature coverage — advisory checklist against the current version */}
+            <section className="card-elevated p-5">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="label-caps inline-flex items-center gap-2 text-muted-foreground">
+                  <span className="material-symbols text-[18px]">checklist</span>
+                  Feature coverage
+                </h2>
+                {features.length > 0 && (
+                  <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
+                      readyForDocs
+                        ? "border-score-high/40 bg-score-high/10 text-score-high"
+                        : "border-score-medium/40 bg-score-medium/10 text-score-medium"
+                    }`}
+                  >
+                    <span className="material-symbols text-[16px]">
+                      {readyForDocs ? "check_circle" : "pending"}
+                    </span>
+                    {readyForDocs
+                      ? "Ready for docs"
+                      : `${features.length - coveredCount} feature${features.length - coveredCount === 1 ? "" : "s"} not yet covered`}
+                  </span>
+                )}
+              </div>
+              <p className="mb-4 text-sm text-muted-foreground">
+                Each feature from your approved idea, checked against the
+                screens in the selected version above. Advisory only — the
+                toggle on each row lets you correct the automatic guess, and
+                Docs stays open either way.
+              </p>
+              {features.length === 0 ? (
+                <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                  No approved idea features found — approve an idea in Refine to
+                  track coverage here.
+                </p>
+              ) : (
+                <>
+                  <p className="mb-3 font-serif text-2xl text-foreground">
+                    {coveredCount}
+                    <span className="text-muted-foreground"> of {features.length} features covered</span>
+                  </p>
+                  <ul className="space-y-2">
+                    {coverage.map((c, i) => (
+                      <li
+                        key={i}
+                        className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5"
+                      >
+                        <span className="flex min-w-0 items-start gap-2.5">
+                          <span
+                            className={`material-symbols mt-0.5 shrink-0 text-[20px] ${
+                              c.covered ? "text-score-high" : "text-score-medium"
+                            }`}
+                          >
+                            {c.covered ? "check_circle" : "radio_button_unchecked"}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block text-sm font-medium text-foreground">
+                              {c.feature}
+                            </span>
+                            {c.matched && !c.overridden && (
+                              <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
+                                matched: {c.matched}
+                              </span>
+                            )}
+                            {c.overridden && (
+                              <span className="mt-0.5 block text-xs text-muted-foreground">
+                                set manually · was{" "}
+                                <button
+                                  onClick={() => clearOverride(i)}
+                                  className="underline hover:text-foreground"
+                                >
+                                  auto ({c.auto ? "covered" : "uncovered"})
+                                </button>
+                              </span>
+                            )}
+                          </span>
+                        </span>
+                        <button
+                          onClick={() => toggleOverride(i)}
+                          role="switch"
+                          aria-checked={c.covered}
+                          aria-label={`Mark feature "${c.feature}" as ${c.covered ? "uncovered" : "covered"}`}
+                          title={c.covered ? "Mark as uncovered" : "Mark as covered"}
+                          className="ml-2 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center"
+                        >
+                          <span
+                            className={`material-symbols text-[32px] transition-colors ${
+                              c.covered ? "text-primary" : "text-muted-foreground/50"
+                            }`}
+                          >
+                            {c.covered ? "toggle_on" : "toggle_off"}
+                          </span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
               )}
             </section>
 
@@ -477,8 +714,8 @@ export default function StitchPromptPage() {
 
         {/* Strict pipeline: Design → Docs (no skipping, no back) */}
         {ideaId && (
-          <div className="mt-10 flex justify-end border-t border-border pt-6">
-            <Link href={`/docs/${ideaId}`} className="btn-primary">
+          <div className="mt-8 flex border-t border-border pt-6 md:mt-10">
+            <Link href={`/docs/${ideaId}`} className="btn-primary min-h-[48px] w-full justify-center sm:w-auto">
               Continue to Docs
               <span className="material-symbols text-[20px]">arrow_forward</span>
             </Link>

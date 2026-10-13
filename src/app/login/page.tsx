@@ -26,7 +26,11 @@ export default function LoginPage() {
         setError(data.error ?? "Sign in failed.");
         return;
       }
-      router.push("/");
+      // apiFetch saved any in-progress state under the location key when the
+      // session expired; the destination page restores it via consumeSavedState().
+      const next =
+        new URLSearchParams(window.location.search).get("next") ?? "/";
+      router.push(next);
       router.refresh();
     } finally {
       setBusy(false);

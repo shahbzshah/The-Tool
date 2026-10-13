@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { ONBOARD_EVENT } from "@/lib/shortcuts";
 
 type SettingStatus = {
   key: string;
@@ -69,6 +70,16 @@ export default function SettingsPage() {
         the database — they&apos;re never shown back. Environment variables, when
         set, always take precedence.
       </p>
+
+      <div className="mt-6">
+        <button
+          onClick={() => window.dispatchEvent(new Event(ONBOARD_EVENT))}
+          className="btn-secondary min-h-[44px]"
+        >
+          <span className="material-symbols text-[18px]">help</span>
+          <span>Take the pipeline tour</span>
+        </button>
+      </div>
 
       <div className="mt-8 space-y-4">
         {settings.map((s) => (

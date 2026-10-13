@@ -17,6 +17,113 @@ const TOOL_ICONS: Record<ExportToolId, string> = {
   v0: "terminal",
 };
 
+type PreviewDoc = { kind: string; label: string; present: boolean };
+type PackPreview = {
+  platform: string | null;
+  docs: PreviewDoc[];
+  refinedBrief: boolean;
+  uploads: { total: number; includable: number };
+  skills: { names: string[]; status: "cached" | "will-download"; cachedCount: number };
+};
+
+function ChecklistRow({
+  ok,
+  title,
+  detail,
+}: {
+  ok: boolean;
+  title: string;
+  detail: string;
+}) {
+  return (
+    <li className="flex items-start gap-3 py-3">
+      <span
+        className={`material-symbols text-[22px] ${
+          ok ? "text-score-high" : "text-score-medium"
+        }`}
+      >
+        {ok ? "check_circle" : "warning"}
+      </span>
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-foreground">{title}</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>
+      </div>
+    </li>
+  );
+}
+
+function PackChecklist({ preview }: { preview: PackPreview }) {
+  const docsPresent = preview.docs.filter((d) => d.present);
+  const docsMissing = preview.docs.filter((d) => !d.present);
+  const docsOk = docsMissing.length === 0;
+  const uploads = preview.uploads;
+  const uploadsOk = uploads.includable > 0;
+  const skillsOk = preview.skills.status === "cached";
+
+  return (
+    <ul className="divide-y divide-border">
+      <ChecklistRow
+        ok={docsOk}
+        title={
+          docsOk
+            ? `All ${DOC_KINDS.length} documents in the pack`
+            : `${docsPresent.length}/${DOC_KINDS.length} documents in the pack`
+        }
+        detail={
+          docsOk
+            ? "Every doc kind is generated."
+            : `Missing: ${docsMissing.map((d) => d.label).join(", ")}`
+        }
+      />
+      <ChecklistRow
+        ok={preview.refinedBrief}
+        title={
+          preview.refinedBrief
+            ? "Refined brief present"
+            : "No refined brief"
+        }
+        detail={
+          preview.refinedBrief
+            ? "The Refine decisions record is included."
+            : "Approve one from Refine and generate REFINED_BRIEF.md to include it."
+        }
+      />
+      <ChecklistRow
+        ok={uploadsOk}
+        title={
+          uploads.total === 0
+            ? "No design uploads"
+            : uploadsOk
+              ? `${uploads.includable} design file(s) included`
+              : "Design uploads not includable"
+        }
+        detail={
+          uploads.total === 0
+            ? "Nothing from Design to include."
+            : uploadsOk
+              ? uploads.includable < uploads.total
+                ? `${uploads.total - uploads.includable} screenshot(s) have no stored content and are skipped.`
+                : "From your Stitch design exports."
+              : `${uploads.total} upload(s) exist but carry no stored content, so nothing is included.`
+        }
+      />
+      <ChecklistRow
+        ok={skillsOk}
+        title={
+          skillsOk
+            ? `${preview.skills.names.length} agent skills ready`
+            : `${preview.skills.names.length} agent skills selected`
+        }
+        detail={
+          skillsOk
+            ? "Cached locally — the pack includes them with no extra download."
+            : "Will be downloaded from addyosmani/agent-skills when you export. If the download fails, the pack still builds without them."
+        }
+      />
+    </ul>
+  );
+}
+
 export default function ExportPage() {
   const params = useParams<{ ideaId: string }>();
   const ideaId = params.ideaId;
@@ -34,6 +141,7 @@ export default function ExportPage() {
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
   const [writtenCount, setWrittenCount] = useState(0);
+  const [preview, setPreview] = useState<PackPreview | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -43,6 +151,9 @@ export default function ExportPage() {
       const docsRes = await fetch(`/api/docs?ideaId=${ideaId}`);
       const docsData = await docsRes.json();
       if (docsRes.ok) setDocCount((docsData.docs ?? []).length);
+      const previewRes = await fetch(`/api/export/preview?ideaId=${ideaId}`);
+      const previewData = await previewRes.json();
+      if (previewRes.ok) setPreview(previewData);
     } catch {
       // ignore
     } finally {
@@ -176,7 +287,7 @@ export default function ExportPage() {
   }
 
   return (
-    <main className="mx-auto max-w-[1200px] px-4 py-12 md:px-8">
+    <main className="mx-auto max-w-[1200px] px-4 py-6 md:px-8 md:py-12">
       <div className="mx-auto max-w-3xl">
         <div className="mb-6 text-sm">
           <Link
@@ -190,7 +301,7 @@ export default function ExportPage() {
 
         <header className="mb-8 text-center">
           <p className="label-caps mb-3 text-primary">Export</p>
-          <h1 className="mb-3 font-serif text-4xl tracking-tight text-foreground">
+          <h1 className="mb-3 font-serif text-3xl tracking-tight text-foreground md:text-4xl">
             Your build pack is ready
           </h1>
           <p className="text-muted-foreground">
@@ -288,18 +399,31 @@ export default function ExportPage() {
           </div>
         </section>
 
-        <section className="card-elevated p-6">
+        {preview && (
+          <section className="card-paper mb-6 p-4 md:p-6">
+            <h2 className="label-caps mb-1 text-muted-foreground">
+              2. Pack checklist
+            </h2>
+            <p className="mb-2 text-sm text-muted-foreground">
+              What the pack will contain. Gaps are informational — you can
+              still download.
+            </p>
+            <PackChecklist preview={preview} />
+          </section>
+        )}
+
+        <section className="card-elevated p-4 md:p-6">
           <h2 className="label-caps mb-1 text-muted-foreground">
-            2. Download the pack
+            3. Download the pack
           </h2>
           <p className="mb-5 text-sm text-muted-foreground">
             <span className="text-foreground">{tool.name}</span>: {tool.usage}
           </p>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
             <button
               onClick={download}
               disabled={downloading || docCount === 0}
-              className="btn-primary"
+              className="btn-primary min-h-[48px] w-full sm:w-auto"
             >
               <span className="material-symbols text-[20px]">download</span>
               {downloading ? "Building zip…" : `Download ${tool.name} pack`}
@@ -307,7 +431,7 @@ export default function ExportPage() {
             <button
               onClick={saveToFolder}
               disabled={downloading || docCount === 0}
-              className="btn-secondary"
+              className="btn-secondary min-h-[48px] w-full sm:w-auto"
             >
               <span className="material-symbols text-[20px]">folder</span>
               {downloading ? "Writing files…" : "Save to folder"}

@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { buildDocMessages, generateDocForIdea } from "@/lib/docgen";
+import {
+  buildDocMessages,
+  generateDocForIdea,
+  snapshotDocVersion,
+} from "@/lib/docgen";
+import { getSessionUser } from "@/lib/auth";
+import { estimateTokens, logAiUsage } from "@/lib/usage";
 import { AIConfigError, chatStream } from "@/lib/ai";
 
 export const runtime = "nodejs";
@@ -13,15 +19,23 @@ export async function POST(req: Request) {
     const body = await req.json();
     const ideaId = String(body?.ideaId ?? "");
     const kind = String(body?.kind ?? "");
+    // Optional session — usage logging only; generation itself stays open.
+    const sessionUser = await getSessionUser(req);
 
     if (!stream) {
-      const doc = await generateDocForIdea(ideaId, kind);
+      const doc = await generateDocForIdea(ideaId, kind, {
+        userId: sessionUser?.id,
+      });
       return NextResponse.json({ doc });
     }
 
     // Streaming mode: Server-Sent Events, one {token} per chunk,
     // then a final {done:true} once the doc is saved.
     const { messages } = await buildDocMessages(ideaId, kind);
+    const idea = await prisma.idea.findUnique({
+      where: { id: ideaId },
+      select: { projectId: true },
+    });
     const startedAt = Date.now();
     const encoder = new TextEncoder();
     let full = "";
@@ -40,6 +54,18 @@ export async function POST(req: Request) {
             full += token;
             send({ token });
           }
+          // Log usage and snapshot the outgoing content before overwriting.
+          const tokensIn = estimateTokens(
+            messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0)
+          );
+          await logAiUsage({
+            userId: sessionUser?.id,
+            projectId: idea?.projectId ?? null,
+            kind: "docgen",
+            tokensIn,
+            tokensOut: estimateTokens(full.length),
+          });
+          await snapshotDocVersion(ideaId, kind);
           const doc = await prisma.document.upsert({
             where: { ideaId_kind: { ideaId, kind } },
             create: { ideaId, kind, content: full },
