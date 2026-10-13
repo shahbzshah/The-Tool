@@ -526,7 +526,7 @@ export default function StitchPromptPage() {
                   <span className="material-symbols text-[18px]">checklist</span>
                   Feature coverage
                 </h2>
-                {features.length > 0 && (
+                {features.length > 0 && uploads.length > 0 && (
                   <span
                     className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
                       readyForDocs
@@ -553,6 +553,13 @@ export default function StitchPromptPage() {
                 <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
                   No approved idea features found — approve an idea in Refine to
                   track coverage here.
+                </p>
+              ) : uploads.length === 0 ? (
+                <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
+                  Your features are already in the Stitch prompt above — Stitch
+                  was told to design screens for every one of them. Upload your
+                  Stitch export and this checklist will verify each feature made
+                  it into the design.
                 </p>
               ) : (
                 <>
