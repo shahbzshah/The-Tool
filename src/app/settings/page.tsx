@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { ONBOARD_EVENT } from "@/lib/shortcuts";
 
 type SettingStatus = {
@@ -14,6 +15,7 @@ type SettingStatus = {
 };
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [settings, setSettings] = useState<SettingStatus[]>([]);
   const [values, setValues] = useState<Record<string, string>>({});
   const [show, setShow] = useState<Record<string, boolean>>({});
@@ -62,9 +64,21 @@ export default function SettingsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[720px] px-4 py-8 md:px-8">
-      <p className="label-caps mono text-primary">Configuration</p>
-      <h1 className="mt-1 font-serif text-4xl tracking-tight">Settings</h1>
+    <main className="mx-auto w-full max-w-[1100px] px-4 py-8 md:px-8">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="label-caps mono text-primary">Configuration</p>
+          <h1 className="mt-1 font-serif text-4xl tracking-tight">Settings</h1>
+        </div>
+        <button
+          onClick={() => router.push("/")}
+          aria-label="Close settings"
+          title="Close settings"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-border text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <span className="material-symbols text-[22px]">close</span>
+        </button>
+      </div>
       <p className="mt-2 max-w-xl text-[15px] text-muted-foreground">
         API keys and secrets for the app. Values are encrypted before they touch
         the database — they&apos;re never shown back. Environment variables, when
@@ -81,7 +95,7 @@ export default function SettingsPage() {
         </button>
       </div>
 
-      <div className="mt-8 space-y-4">
+      <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
         {settings.map((s) => (
           <section key={s.key} className="card-paper p-6">
             <div className="flex items-start justify-between gap-4">
