@@ -50,28 +50,9 @@ type Decision = {
   keys: string[];
 };
 
-// Derives the applied ```update JSON blocks from the persisted chat history.
-// The AI writes agreed changes as fenced ```update blocks; each block's
-// top-level JSON keys tell us what changed.
-function extractDecisions(msgs: ChatMessage[]): Decision[] {
-  const out: Decision[] = [];
-  const fence = /```update\s*([\s\S]*?)```/g;
-  for (const m of msgs) {
-    if (m.role !== "assistant") continue;
-    let match: RegExpExecArray | null;
-    while ((match = fence.exec(m.content)) !== null) {
-      let keys: string[] = [];
-      try {
-        const parsed = JSON.parse(match[1].trim());
-        if (parsed && typeof parsed === "object") keys = Object.keys(parsed);
-      } catch {
-        // Non-JSON block; still counts as an update.
-      }
-      out.push({ createdAt: m.createdAt, keys });
-    }
-  }
-  return out;
-}
+// Decisions are built from each chat POST response's `appliedUpdates` —
+// the server strips ```update blocks before persisting, so persisted
+// messages can no longer be parsed for them.
 
 function conversationMarkdown(msgs: ChatMessage[], ideaTitle?: string): string {
   const header = ideaTitle
@@ -96,6 +77,9 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  // M16: draft failures render inline (above the input) and never wipe the
+  // workspace.
+  const [draftError, setDraftError] = useState("");
   const [briefUpdatedAt, setBriefUpdatedAt] = useState<string | null>(null);
   const [briefContent, setBriefContent] = useState<string | null>(null);
   const [analysisText, setAnalysisText] = useState<string | null>(null);
@@ -104,14 +88,17 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   const [modelName, setModelName] = useState("");
   const [copied, setCopied] = useState(false);
   const [decisionsOpen, setDecisionsOpen] = useState(true);
+  // M21-client: the decisions log, built from each chat POST response's
+  // `appliedUpdates` instead of parsing persisted messages.
+  const [decisions, setDecisions] = useState<Decision[]>([]);
   const bottomRef = useRef<HTMLDivElement>(null);
+  // M8: localStorage key for the autosaved draft input.
+  const DRAFT_KEY = `refine-draft:${projectId}`;
   // State snapshot restored after a login redirect (session expired mid-work).
   const savedStateRef = useRef<{
     messages?: ChatMessage[];
     draft?: string;
   } | null>(null);
-
-  const decisions = extractDecisions(messages);
 
   async function copyConversation() {
     const md = conversationMarkdown(messages, idea?.title);
@@ -137,71 +124,92 @@ export default function RefinePage({ params }: { params: { projectId: string } }
       setError("No idea selected.");
       return;
     }
+    // E3: the idea, docs, and chat-history fetches are independent — fire
+    // them together instead of sequentially.
+    const [ideaRes, docsRes, chatRes] = await Promise.allSettled([
+      apiFetch(`/api/ideas/${ideaId}`),
+      apiFetch(`/api/docs?ideaId=${ideaId}`),
+      apiFetch(`/api/refine/chat?projectId=${projectId}&ideaId=${ideaId}`),
+    ]);
+    if (
+      ideaRes.status !== "fulfilled" ||
+      docsRes.status !== "fulfilled" ||
+      chatRes.status !== "fulfilled"
+    ) {
+      setError("Could not load the idea.");
+      return;
+    }
+    const ideaResponse = ideaRes.value;
+    const docsResponse = docsRes.value;
+    const chatResponse = chatRes.value;
+    // apiFetch redirects to /login?next=… on 401; the guards below stop
+    // further work.
+    if (
+      ideaResponse.status === 401 ||
+      docsResponse.status === 401 ||
+      chatResponse.status === 401
+    ) {
+      return;
+    }
+    if (!ideaResponse.ok) {
+      setError("Idea not found.");
+      return;
+    }
+    let data: any;
     try {
-      // apiFetch snapshots nothing here (no draft yet) but redirects to
-      // /login?next=… on 401; the guard below stops further work.
-      const res = await apiFetch(`/api/ideas/${ideaId}`);
-      if (res.status === 401) return; // apiFetch already redirected to /login?next=…
-      if (!res.ok) {
-        setError("Idea not found.");
-        return;
-      }
-      const data = await res.json();
-      let features: string[] = [];
-      try {
-        features = JSON.parse(data.idea.features ?? "[]");
-      } catch {
-        // ignore
-      }
-      setIdea({ ...data.idea, features });
-
-      // Check for an existing saved brief and the market analysis.
-      try {
-        const d = await apiFetch(`/api/docs?ideaId=${ideaId}`);
-        const dd = await d.json();
-        const brief = (dd.docs ?? []).find((x: any) => x.kind === "REFINED_BRIEF");
-        if (brief) {
-          setBriefUpdatedAt(brief.updatedAt);
-          setBriefContent(brief.content);
-        }
-      } catch {
-        // ignore
-      }
-      if (data.idea.project?.preferences) {
-        setAnalysisText(data.idea.project.preferences);
-      }
-
-      // Restore a conversation snapshot from a login redirect first —
-      // it is newer than the DB history.
-      const saved = savedStateRef.current;
-      if (saved?.messages?.length) {
-        setMessages(saved.messages);
-        savedStateRef.current = null;
-        return;
-      }
-
-      // Restore saved conversation; a refresh no longer loses anything.
-      try {
-        const h = await apiFetch(
-          `/api/refine/chat?projectId=${projectId}&ideaId=${ideaId}`
-        );
-        const hd = await h.json();
-        if (Array.isArray(hd.messages) && hd.messages.length > 0) {
-          setMessages(hd.messages);
-          return;
-        }
-      } catch {
-        // fall through to greeting
-      }
-      setMessages([
-        {
-          role: "assistant",
-          content: `I've read the full analysis on “${data.idea.title}”. What do you want to dig into first — features, scope, audience, or how to beat the competition?`,
-        },
-      ]);
+      data = await ideaResponse.json();
     } catch {
       setError("Could not load the idea.");
+      return;
     }
+    let features: string[] = [];
+    try {
+      features = JSON.parse(data.idea.features ?? "[]");
+    } catch {
+      // ignore
+    }
+    setIdea({ ...data.idea, features });
+    if (data.idea.project?.preferences) {
+      setAnalysisText(data.idea.project.preferences);
+    }
+
+    // Check for an existing saved brief.
+    try {
+      const dd = await docsResponse.json();
+      const brief = (dd.docs ?? []).find((x: any) => x.kind === "REFINED_BRIEF");
+      if (brief) {
+        setBriefUpdatedAt(brief.updatedAt);
+        setBriefContent(brief.content);
+      }
+    } catch {
+      // ignore
+    }
+
+    // Restore a conversation snapshot from a login redirect first —
+    // it is newer than the DB history.
+    const saved = savedStateRef.current;
+    if (saved?.messages?.length) {
+      setMessages(saved.messages);
+      savedStateRef.current = null;
+      return;
+    }
+
+    // Restore saved conversation; a refresh no longer loses anything.
+    try {
+      const hd = await chatResponse.json();
+      if (Array.isArray(hd.messages) && hd.messages.length > 0) {
+        setMessages(hd.messages);
+        return;
+      }
+    } catch {
+      // fall through to greeting
+    }
+    setMessages([
+      {
+        role: "assistant",
+        content: `I've read the full analysis on “${data.idea.title}”. What do you want to dig into first — features, scope, audience, or how to beat the competition?`,
+      },
+    ]);
   }, [ideaId, projectId]);
 
   useEffect(() => {
@@ -215,6 +223,45 @@ export default function RefinePage({ params }: { params: { projectId: string } }
     loadIdea();
   }, [loadIdea]);
 
+  // M8: restore an autosaved draft from before a refresh or navigation.
+  // The login-redirect snapshot above is newer and wins if both exist.
+  useEffect(() => {
+    try {
+      const autosaved = localStorage.getItem(DRAFT_KEY);
+      if (autosaved) setInput((prev) => prev || autosaved);
+    } catch {
+      // storage blocked — nothing to restore
+    }
+    // DRAFT_KEY is derived from the route param; it never changes mid-page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // M8: autosave the draft input ~1s after the user stops typing.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      try {
+        if (input.trim()) localStorage.setItem(DRAFT_KEY, input);
+        else localStorage.removeItem(DRAFT_KEY);
+      } catch {
+        // storage blocked — the draft just won't survive a refresh
+      }
+    }, 1000);
+    return () => clearTimeout(t);
+  }, [input, DRAFT_KEY]);
+
+  // M8: warn before leaving with unsaved draft input.
+  useEffect(() => {
+    const onBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (input.trim()) {
+        e.preventDefault();
+        // Chrome requires returnValue to be set for the dialog.
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", onBeforeUnload);
+    return () => window.removeEventListener("beforeunload", onBeforeUnload);
+  }, [input]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
@@ -227,6 +274,12 @@ export default function RefinePage({ params }: { params: { projectId: string } }
     const text = (overrideText ?? input).trim();
     if (!text || sending || !ideaId) return;
     setInput("");
+    // The draft is now a sent message — drop the autosave.
+    try {
+      localStorage.removeItem(DRAFT_KEY);
+    } catch {
+      // ignore
+    }
     setSending(true);
     const now = new Date().toISOString();
     const next = [...messages, { role: "user" as const, content: text, createdAt: now }];
@@ -255,6 +308,17 @@ export default function RefinePage({ params }: { params: { projectId: string } }
       setMessages([...next, { role: "assistant", content: data.reply, createdAt: new Date().toISOString() }]);
       if (data.idea) setIdea(data.idea);
       if (data.briefSaved) setBriefUpdatedAt(new Date().toISOString());
+      // M21-client: build the decisions log from the response's
+      // `appliedUpdates` — no parsing of persisted messages.
+      if (Array.isArray(data.appliedUpdates) && data.appliedUpdates.length > 0) {
+        setDecisions((prev) => [
+          ...prev,
+          {
+            createdAt: new Date().toISOString(),
+            keys: data.appliedUpdates.map(String),
+          },
+        ]);
+      }
     } catch {
       setMessages([
         ...next,
@@ -272,7 +336,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   async function draftFromAnalysis() {
     if (!ideaId || drafting) return;
     setDrafting(true);
-    setError("");
+    setDraftError("");
     try {
       const res = await apiFetch(
         "/api/refine/draft",
@@ -292,25 +356,33 @@ export default function RefinePage({ params }: { params: { projectId: string } }
         { role: "assistant", content: data.summary, createdAt: new Date().toISOString() },
       ]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Draft failed.");
+      setDraftError(err instanceof Error ? err.message : "Draft failed.");
     } finally {
       setDrafting(false);
     }
   }
 
-  if (error) {
-    return (
-      <main className="mx-auto w-full max-w-[1200px] px-4 py-8">
-        <p className="text-muted-foreground">{error}</p>
-        <Link href="/" className="mt-2 inline-block text-sm underline">
-          ← Back to Hunter
-        </Link>
-      </main>
-    );
-  }
-
   return (
     <main className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
+      {/* M16: page-level load errors render inline — the workspace stays. */}
+      {error && (
+        <div
+          className="flex items-start justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm"
+          role="alert"
+        >
+          <span className="flex items-start gap-2">
+            <span className="material-symbols text-[18px] text-destructive">error</span>
+            <span>{error}</span>
+          </span>
+          <button
+            onClick={() => setError("")}
+            aria-label="Dismiss"
+            className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+          >
+            <span className="material-symbols text-[16px]">close</span>
+          </button>
+        </div>
+      )}
       {/* Page header */}
       <section className="flex flex-col justify-between gap-4 border-b border-border pb-4 md:flex-row md:items-center">
         <div className="space-y-1">
@@ -379,7 +451,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
             {messages.map((m, i) =>
               m.role === "user" ? (
                 <div key={i} className="ml-auto flex max-w-[92%] items-start justify-end gap-3">
-                  <div className="space-y-2 rounded-lg border border-primary/25 bg-primary/[0.07] p-4 shadow-sm">
+                  <div className="space-y-2 rounded-md border border-primary/25 bg-primary/[0.07] p-4 shadow-sm">
                     <div className="flex items-center justify-end gap-4">
                       {fmtTime(m.createdAt) && (
                         <span className="font-mono text-[11px] text-muted-foreground">{fmtTime(m.createdAt)}</span>
@@ -436,6 +508,25 @@ export default function RefinePage({ params }: { params: { projectId: string } }
                 </button>
               ))}
             </div>
+            {/* M16: draft failures render inline here — the workspace stays. */}
+            {draftError && (
+              <div
+                className="mb-3 flex items-start justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2.5 text-sm"
+                role="alert"
+              >
+                <span className="flex items-start gap-2">
+                  <span className="material-symbols text-[18px] text-destructive">error</span>
+                  <span>{draftError}</span>
+                </span>
+                <button
+                  onClick={() => setDraftError("")}
+                  aria-label="Dismiss"
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-background hover:text-foreground"
+                >
+                  <span className="material-symbols text-[16px]">close</span>
+                </button>
+              </div>
+            )}
             <form onSubmit={send} className="flex items-end gap-2">
               <textarea
                 value={input}

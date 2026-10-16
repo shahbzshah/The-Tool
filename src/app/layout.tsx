@@ -44,6 +44,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <head>
+        <link
+          rel="preload"
+          href="/fonts/material-symbols-outlined.woff2"
+          as="font"
+          type="font/woff2"
+          crossOrigin="anonymous"
+        />
         <script dangerouslySetInnerHTML={{ __html: noFlashScript }} />
       </head>
       <body>

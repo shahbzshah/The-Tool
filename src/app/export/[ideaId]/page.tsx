@@ -5,10 +5,11 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { EXPORT_TOOLS, type ExportToolId } from "@/lib/exporters";
 import { DOC_KINDS } from "@/lib/constants";
+import { apiFetch } from "@/lib/api";
 
 const TOOL_ICONS: Record<ExportToolId, string> = {
   vscode: "code",
-  cursor: "text_cursor",
+  cursor: "code",
   claude: "auto_awesome",
   copilot: "assistant",
   windsurf: "sailing",
@@ -145,14 +146,18 @@ export default function ExportPage() {
 
   const load = useCallback(async () => {
     try {
-      const ideaRes = await fetch(`/api/ideas/${ideaId}`);
-      const ideaData = await ideaRes.json();
+      const [ideaRes, docsRes, previewRes] = await Promise.all([
+        apiFetch(`/api/ideas/${ideaId}`),
+        apiFetch(`/api/docs?ideaId=${ideaId}`),
+        apiFetch(`/api/export/preview?ideaId=${ideaId}`),
+      ]);
+      const [ideaData, docsData, previewData] = await Promise.all([
+        ideaRes.json(),
+        docsRes.json(),
+        previewRes.json(),
+      ]);
       if (ideaRes.ok) setIdea(ideaData.idea);
-      const docsRes = await fetch(`/api/docs?ideaId=${ideaId}`);
-      const docsData = await docsRes.json();
       if (docsRes.ok) setDocCount((docsData.docs ?? []).length);
-      const previewRes = await fetch(`/api/export/preview?ideaId=${ideaId}`);
-      const previewData = await previewRes.json();
       if (previewRes.ok) setPreview(previewData);
     } catch {
       // ignore
@@ -171,7 +176,7 @@ export default function ExportPage() {
     setError(null);
     setDone(false);
     try {
-      const res = await fetch("/api/export/zip", {
+      const res = await apiFetch("/api/export/zip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ideaId, tool: selected }),
@@ -215,7 +220,7 @@ export default function ExportPage() {
     setError(null);
     setDone(false);
     try {
-      const res = await fetch("/api/export/zip", {
+      const res = await apiFetch("/api/export/zip", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ideaId, tool: selected }),

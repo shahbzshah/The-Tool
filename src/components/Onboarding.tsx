@@ -66,8 +66,6 @@ export default function Onboarding() {
     return () => window.removeEventListener(ONBOARD_EVENT, show);
   }, []);
 
-  useEscapeClose(() => setVisible(false));
-
   const dismiss = useCallback(() => {
     try {
       localStorage.setItem(FLAG, "1");
@@ -76,6 +74,8 @@ export default function Onboarding() {
     }
     setVisible(false);
   }, []);
+
+  useEscapeClose(dismiss);
 
   const start = useCallback(() => {
     dismiss();
@@ -100,7 +100,7 @@ export default function Onboarding() {
             </h2>
           </div>
           <button
-            onClick={() => setVisible(false)}
+            onClick={dismiss}
             aria-label="Close"
             className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md text-muted-foreground transition-colors hover:text-foreground"
           >

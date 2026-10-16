@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
+import { checkAiQuota } from "@/lib/ai-quota";
 import { analyzeIdea } from "@/lib/hunter/ai";
 
 /**
@@ -7,6 +9,16 @@ import { analyzeIdea } from "@/lib/hunter/ai";
  * Body: { id: string } (TrendIdea id). Result is cached on the idea.
  */
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
+  if (!(await checkAiQuota(auth.user.id))) {
+    return NextResponse.json(
+      { error: "Daily AI quota exceeded." },
+      { status: 429 }
+    );
+  }
+
   const { id } = await req.json().catch(() => ({}));
   if (!id || typeof id !== "string") {
     return NextResponse.json({ error: "Missing idea id." }, { status: 400 });

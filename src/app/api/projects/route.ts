@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,6 +15,9 @@ export async function GET(req: Request) {
   if (IS_BUILD) {
     return NextResponse.json({ projects: [], building: true });
   }
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+  const { user } = auth;
   // --- Worker F: archived filter ---
   const showArchived = new URL(req.url).searchParams.get("archived") === "1";
   // --- end Worker F addition ---
@@ -21,7 +25,10 @@ export async function GET(req: Request) {
     const [projects, usage] = await Promise.all([
       prisma.project.findMany({
         // --- Worker F: hide archived by default ---
-        where: showArchived ? undefined : { archivedAt: null },
+        // C5: user-scoped — never leak another user's projects.
+        where: showArchived
+          ? { userId: user.id }
+          : { userId: user.id, archivedAt: null },
         // --- end Worker F addition ---
         orderBy: { createdAt: "desc" },
         take: 30,
@@ -45,8 +52,10 @@ export async function GET(req: Request) {
         },
       }),
       // Per-project AI token totals for the history cards.
+      // C5: user-scoped, matching the projects we return.
       prisma.aiUsage.groupBy({
         by: ["projectId"],
+        where: { userId: user.id },
         _sum: { tokensIn: true, tokensOut: true },
       }),
     ]);

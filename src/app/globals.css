@@ -7,7 +7,7 @@
   font-family: "Material Symbols Outlined";
   font-style: normal;
   font-weight: 100 700;
-  font-display: block;
+  font-display: swap;
   src: url("/fonts/material-symbols-outlined.woff2") format("woff2");
 }
 
@@ -167,6 +167,9 @@
   .input-paper {
     @apply w-full rounded-md border border-input bg-card-elevated px-3.5 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none;
     height: 44px;
+  }
+  .pill {
+    @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium leading-none;
   }
 }
 

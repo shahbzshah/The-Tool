@@ -5,7 +5,8 @@ import {
   generateDocForIdea,
   snapshotDocVersion,
 } from "@/lib/docgen";
-import { getSessionUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
+import { checkAiQuota } from "@/lib/ai-quota";
 import { estimateTokens, logAiUsage } from "@/lib/usage";
 import { AIConfigError, chatStream } from "@/lib/ai";
 
@@ -14,17 +15,36 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 300;
 
 export async function POST(req: Request) {
+  // Auth + quota go before everything — especially before the SSE
+  // stream starts, since headers can't be re-written mid-stream.
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
+  if (!(await checkAiQuota(auth.user.id))) {
+    return NextResponse.json(
+      { error: "Daily AI quota exceeded." },
+      { status: 429 }
+    );
+  }
+
   try {
     const stream = new URL(req.url).searchParams.get("stream") === "1";
     const body = await req.json();
     const ideaId = String(body?.ideaId ?? "");
     const kind = String(body?.kind ?? "");
-    // Optional session — usage logging only; generation itself stays open.
-    const sessionUser = await getSessionUser(req);
+
+    // Ownership check: the idea must belong to the caller's project.
+    const owned = await prisma.idea.findFirst({
+      where: { id: ideaId, project: { userId: auth.user.id } },
+      select: { id: true },
+    });
+    if (!owned) {
+      return NextResponse.json({ error: "Idea not found." }, { status: 404 });
+    }
 
     if (!stream) {
       const doc = await generateDocForIdea(ideaId, kind, {
-        userId: sessionUser?.id,
+        userId: auth.user.id,
       });
       return NextResponse.json({ doc });
     }
@@ -59,7 +79,7 @@ export async function POST(req: Request) {
             messages.reduce((sum, m) => sum + (m.content?.length ?? 0), 0)
           );
           await logAiUsage({
-            userId: sessionUser?.id,
+            userId: auth.user.id,
             projectId: idea?.projectId ?? null,
             kind: "docgen",
             tokensIn,

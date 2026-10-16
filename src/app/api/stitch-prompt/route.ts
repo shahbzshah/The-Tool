@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import { chatJson, AIConfigError } from "@/lib/ai";
 
 export const runtime = "nodejs";
@@ -21,6 +22,9 @@ export async function GET(req: Request) {
   if (IS_BUILD) {
     return NextResponse.json({ prompt: null, building: true });
   }
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
   const projectId = new URL(req.url).searchParams.get("projectId");
   if (!projectId) {
     return NextResponse.json(
@@ -28,11 +32,15 @@ export async function GET(req: Request) {
       { status: 400 }
     );
   }
-  const prompt = await prisma.stitchPrompt.findUnique({ where: { projectId } });
+  // C5: can't findUnique with a relation filter — findFirst on
+  // { projectId, project: { userId } } instead.
+  const prompt = await prisma.stitchPrompt.findFirst({
+    where: { projectId, project: { userId: auth.user.id } },
+  });
   // Feature list from the approved idea — the Design page uses it for the
   // feature-coverage checklist (all derived from real project data).
-  const project = await prisma.project.findUnique({
-    where: { id: projectId },
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId: auth.user.id },
     include: {
       ideas: {
         where: { status: "approved" },
@@ -41,11 +49,17 @@ export async function GET(req: Request) {
       },
     },
   });
+  if (!project && !prompt) {
+    return NextResponse.json({ error: "Project not found." }, { status: 404 });
+  }
   const features = project?.ideas[0] ? parseFeatures(project.ideas[0].features) : [];
   return NextResponse.json({ prompt, features });
 }
 
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
   try {
     const body = await req.json();
     const projectId = String(body?.projectId ?? "").trim();
@@ -56,8 +70,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, userId: auth.user.id },
       include: { ideas: true },
     });
     if (!project) {
@@ -67,7 +81,7 @@ export async function POST(req: Request) {
     const approvedIdea = project.ideas.find((i) => i.status === "approved");
     if (!approvedIdea) {
       return NextResponse.json(
-        { error: "Approve an idea first (click 'I Like This! ✅')." },
+        { error: "Approve an idea first (click 'I Like This!')." },
         { status: 400 }
       );
     }

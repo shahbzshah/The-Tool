@@ -6,11 +6,10 @@ import { prisma } from "./db";
 const COOKIE_NAME = "tt_session";
 
 function getSecret(): Uint8Array {
-  // Falls back to a dev-only secret; set AUTH_SECRET in production.
-  const s =
-    process.env.AUTH_SECRET ||
-    process.env.NVIDIA_API_KEY ||
-    "dev-only-secret-change-me";
+  const s = process.env.AUTH_SECRET;
+  if (!s) {
+    throw new Error("AUTH_SECRET is not set — refusing to sign tokens.");
+  }
   return new TextEncoder().encode(s);
 }
 
@@ -35,7 +34,7 @@ export async function createSessionToken(user: SessionUser): Promise<string> {
   return new SignJWT({ id: user.id, email: user.email })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
-    .setExpirationTime("30d")
+    .setExpirationTime("7d")
     .sign(getSecret());
 }
 
@@ -66,7 +65,7 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
 export function sessionCookie(token: string): string {
   return `${COOKIE_NAME}=${encodeURIComponent(
     token
-  )}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${30 * 24 * 3600}; Secure`;
+  )}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${7 * 24 * 3600}; Secure`;
 }
 
 export function clearSessionCookie(): string {

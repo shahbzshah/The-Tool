@@ -60,6 +60,15 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Missing projectId or ideaId." }, { status: 400 });
   }
 
+  // C6: the project must belong to the caller — scopes every query below.
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId: auth.user.id },
+    select: { id: true },
+  });
+  if (!project) {
+    return NextResponse.json({ error: "Project not found." }, { status: 404 });
+  }
+
   const messages = await prisma.refineMessage.findMany({
     where: { projectId, ideaId },
     orderBy: { createdAt: "asc" },
@@ -84,6 +93,15 @@ export async function POST(req: Request) {
       { error: "Missing projectId, ideaId or message." },
       { status: 400 }
     );
+  }
+
+  // C6: the project must belong to the caller — scopes every query below.
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId: auth.user.id },
+    select: { id: true },
+  });
+  if (!project) {
+    return NextResponse.json({ error: "Project not found." }, { status: 404 });
   }
 
   const idea = await prisma.idea.findFirst({
@@ -119,6 +137,22 @@ export async function POST(req: Request) {
     select: { role: true, content: true },
   });
 
+  // M7: persist the user's message BEFORE the AI call so a 500 mid-flight
+  // doesn't lose it. A persistence failure must never break the chat itself.
+  try {
+    await prisma.refineMessage.create({
+      data: {
+        projectId,
+        ideaId,
+        userId: auth.user.id,
+        role: "user",
+        content: message.slice(0, 4000),
+      },
+    });
+  } catch (err) {
+    console.error("[refine/chat] failed to persist user message:", err);
+  }
+
   const reply = await chat(
     [
       { role: "system", content: SYSTEM_PROMPT },
@@ -148,11 +182,15 @@ export async function POST(req: Request) {
     tokensOut: estimateTokens(reply.length),
   });
 
-  // Extract a trailing ```update block, apply it, strip it from the reply.
-  // A ```brief block (anywhere in the reply) saves/updates the Refined Brief file.
+  // Extract the ```update block, apply it, and strip just the block from the
+  // reply. A ```brief block (anywhere in the reply) saves/updates the Refined
+  // Brief file.
   let cleaned = reply;
   let updatedIdea: any = null;
   let briefSaved = false;
+  // M21: the fields the update block actually applied — returned to the
+  // client so the decisions log doesn't depend on parsing persisted messages.
+  let appliedUpdates: string[] = [];
 
   const briefMatch = reply.match(/```brief\s*([\s\S]*?)\s*```/);
   if (briefMatch && briefMatch[1].trim().length > 50) {
@@ -168,35 +206,63 @@ export async function POST(req: Request) {
     cleaned = cleaned.replace(briefMatch[0], "").trim();
   }
 
-  const match = cleaned.match(/```update\s*([\s\S]*?)\s*```\s*$/);
-  if (match) {
-    cleaned = reply.slice(0, match.index).trim();
+  // D4: find the ```update block anywhere in the reply (not only trailing —
+  // the model sometimes adds prose after it). Take the last one, which is
+  // where the system prompt tells the model to put it.
+  const updateMatches = [...cleaned.matchAll(/```update\s*([\s\S]*?)\s*```/g)];
+  const match =
+    updateMatches.length > 0 ? updateMatches[updateMatches.length - 1] : null;
+  if (match && match.index != null) {
+    const blockIndex = match.index;
+    const blockText = match[0];
+    const blockJson = match[1];
+    // D3: slice with `cleaned`'s own indices (the match came from `cleaned`,
+    // not `reply`), and remove only the block so trailing prose survives.
+    cleaned = (
+      cleaned.slice(0, blockIndex) + cleaned.slice(blockIndex + blockText.length)
+    ).trim();
     try {
-      const upd = JSON.parse(match[1]);
+      const upd = JSON.parse(blockJson);
       const data: any = {};
-      if (Array.isArray(upd.features)) data.features = JSON.stringify(upd.features);
-      if (typeof upd.pitch === "string" && upd.pitch.trim()) data.pitch = upd.pitch.trim();
-      if (typeof upd.targetAudience === "string" && upd.targetAudience.trim())
+      const applied: string[] = [];
+      if (Array.isArray(upd.features)) {
+        data.features = JSON.stringify(upd.features);
+        applied.push("features");
+      }
+      if (typeof upd.pitch === "string" && upd.pitch.trim()) {
+        data.pitch = upd.pitch.trim();
+        applied.push("pitch");
+      }
+      if (typeof upd.targetAudience === "string" && upd.targetAudience.trim()) {
         data.targetAudience = upd.targetAudience.trim();
-      if (typeof upd.monetization === "string" && upd.monetization.trim())
+        applied.push("targetAudience");
+      }
+      if (typeof upd.monetization === "string" && upd.monetization.trim()) {
         data.monetization = upd.monetization.trim();
+        applied.push("monetization");
+      }
       if (Object.keys(data).length > 0) {
         updatedIdea = await prisma.idea.update({
           where: { id: idea.id },
           data,
         });
+        appliedUpdates = applied;
       }
     } catch {
       // Malformed update block — leave the idea untouched.
     }
   }
 
-  // Persist both sides of the exchange.
-  await prisma.refineMessage.createMany({
-    data: [
-      { projectId, ideaId, role: "user", content: message.slice(0, 4000) },
-      { projectId, ideaId, role: "assistant", content: cleaned.slice(0, 8000) },
-    ],
+  // Persist the assistant side of the exchange (the user side was saved
+  // before the AI call, so a mid-flight 500 doesn't lose it).
+  await prisma.refineMessage.create({
+    data: {
+      projectId,
+      ideaId,
+      userId: auth.user.id,
+      role: "assistant",
+      content: cleaned.slice(0, 8000),
+    },
   });
 
   let refreshedFeatures: string[] = features;
@@ -211,6 +277,7 @@ export async function POST(req: Request) {
   return NextResponse.json({
     reply: cleaned,
     briefSaved,
+    appliedUpdates,
     model: await getModel(),
     idea: updatedIdea
       ? {

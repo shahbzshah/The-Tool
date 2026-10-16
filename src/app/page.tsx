@@ -4,15 +4,24 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { timeAgo } from "@/lib/hunter/ui";
+import { useEscapeClose } from "@/lib/shortcuts";
 
+/**
+ * Watchlist keyword count shown in the dashboard stat cards when the live
+ * value can't be read from GET /api/hunter/watchlist/status.
+ * Must match WATCHLIST_KEYWORDS.length in src/app/api/hunter/watchlist/route.ts.
+ */
+const WATCHLIST_KEYWORDS_FALLBACK = 12;
+
+/** TrendIdea list shape — GET /api/hunter/ideas selects only these fields;
+ *  full `text` and cached AI `analysis` are fetched per-idea via the analyze
+ *  endpoint, not read from the list response. */
 type TrendIdea = {
   id: string;
   title: string;
   source: string;
   hotness: number;
   url: string | null;
-  text: string | null;
-  analysis: string | null;
   createdAt: string;
 };
 
@@ -117,6 +126,64 @@ function StatCard({
       <span className="mt-1 truncate font-mono text-[10px] text-muted-foreground" title={sub}>
         {sub}
       </span>
+    </div>
+  );
+}
+
+/** Rating with the Material "star" icon (no raw ★ glyphs). */
+function RatingStar({
+  rating,
+  iconClass = "text-[13px]",
+}: {
+  rating: number | null;
+  iconClass?: string;
+}) {
+  if (rating == null) return <span aria-label="no rating">—</span>;
+  return (
+    <span className="inline-flex items-center gap-0.5">
+      {rating}
+      <span className={`material-symbols ${iconClass}`} aria-hidden="true">
+        star
+      </span>
+    </span>
+  );
+}
+
+/** Warning chip shown when the last automatic watchlist scan failed. */
+function WatchlistFailureChip() {
+  return (
+    <div
+      role="alert"
+      className="flex flex-wrap items-center gap-2 rounded-md border border-score-low/40 bg-score-low/10 px-3 py-2 text-sm text-score-low"
+    >
+      <span className="material-symbols text-[18px]" aria-hidden="true">
+        warning
+      </span>
+      <span>Last automatic scan failed — check Settings → Cron Public Key.</span>
+      <Link href="/settings" className="font-medium underline underline-offset-2">
+        Open Settings
+      </Link>
+    </div>
+  );
+}
+
+/** Inline data-load failure with a Retry button (replaces silent ignores). */
+function LoadError({ onRetry, message }: { onRetry: () => void; message: string }) {
+  return (
+    <div className="flex flex-col items-center gap-2 p-8 text-center">
+      <span className="material-symbols text-[28px] text-score-low" aria-hidden="true">
+        cloud_off
+      </span>
+      <p className="text-sm text-muted-foreground">{message}</p>
+      <button
+        onClick={onRetry}
+        className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-card px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-muted"
+      >
+        <span className="material-symbols text-[18px]" aria-hidden="true">
+          refresh
+        </span>
+        Retry
+      </button>
     </div>
   );
 }
@@ -258,7 +325,7 @@ function OpportunityCard({
             </div>
             <div className="mt-0.5 flex items-center gap-2 font-mono text-xs text-muted-foreground">
               <span className="font-medium text-score-medium">
-                {opp.rating != null ? `${opp.rating} ★` : "—"}
+                <RatingStar rating={opp.rating} />
               </span>
               <span>·</span>
               <span>{opp.installs ? `${opp.installs} installs` : "—"}</span>
@@ -331,7 +398,7 @@ function OpportunityCard({
           </span>
         )}
         <span className={`px-2 py-0.5 font-semibold ${tier.text}`}>
-          {opp.rating != null ? `${opp.rating} ★` : "—"}
+          <RatingStar rating={opp.rating} />
         </span>
         <span className="text-muted-foreground">
           {opp.installs ? `${opp.installs} installs` : "—"}
@@ -465,15 +532,29 @@ export default function HunterPage() {
 
   // Scans
   const [scans, setScans] = useState<ScanJob[]>([]);
+  const [scansFailed, setScansFailed] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [scanning, setScanning] = useState(false);
   const [scanError, setScanError] = useState("");
-  const scanRef = useRef<HTMLElement | null>(null);
+  // Desktop and mobile scan sections are separate elements — one ref would
+  // always point at the last-mounted (mobile, hidden on desktop) section,
+  // breaking scroll-to-scan on desktop.
+  const scanRefDesktop = useRef<HTMLElement | null>(null);
+  const scanRefMobile = useRef<HTMLElement | null>(null);
   const listRef = useRef<HTMLElement | null>(null);
   const radarRef = useRef<HTMLElement | null>(null);
 
+  /** Scroll to whichever scan section is currently visible. */
+  function scrollToScan() {
+    const el = [scanRefDesktop.current, scanRefMobile.current].find(
+      (e) => e && e.getClientRects().length > 0
+    );
+    el?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   // Opportunities
   const [opps, setOpps] = useState<Opportunity[]>([]);
+  const [oppsFailed, setOppsFailed] = useState(false);
   const [oppMeta, setOppMeta] = useState({ total: 0, page: 1, totalPages: 1 });
   const [bookmarkedCount, setBookmarkedCount] = useState(0);
   const [search, setSearch] = useState("");
@@ -484,14 +565,29 @@ export default function HunterPage() {
   // Ideas
   const [ideas, setIdeas] = useState<TrendIdea[]>([]);
   const [ideasLoading, setIdeasLoading] = useState(true);
-  const [radarOpen, setRadarOpen] = useState(
-    () => typeof window === "undefined" || window.innerWidth >= 1024
-  );
+  const [ideasFailed, setIdeasFailed] = useState(false);
+  // Init to a constant so SSR and the first client render match; the real
+  // viewport value is set on mount (hydration-safe).
+  const [radarOpen, setRadarOpen] = useState(true);
+  useEffect(() => {
+    setRadarOpen(window.innerWidth >= 1024);
+  }, []);
   const [showAllIdeas, setShowAllIdeas] = useState(false);
   const [selected, setSelected] = useState<TrendIdea | null>(null);
   const [analysis, setAnalysis] = useState<IdeaAnalysis | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
   const [sending, setSending] = useState(false);
+
+  // Watchlist status (M20 chip, D2 keyword count) — the status endpoint is
+  // created by another worker; render nothing until it answers.
+  const [watchlistFailed, setWatchlistFailed] = useState(false);
+  const [watchlistKeywords, setWatchlistKeywords] = useState(
+    WATCHLIST_KEYWORDS_FALLBACK
+  );
+
+  // Close the idea analysis sheet on Escape (the global ShortcutProvider
+  // turns the keypress into the tt:escape cascade).
+  useEscapeClose(() => setSelected(null));
 
   // Bottom nav
   const [activeTab, setActiveTab] = useState("hunter");
@@ -511,8 +607,9 @@ export default function HunterPage() {
       if (res.status === 401) return;
       const data = await res.json();
       setScans(data.scans ?? []);
+      setScansFailed(false);
     } catch {
-      /* ignore */
+      setScansFailed(true);
     }
   }, []);
 
@@ -534,8 +631,9 @@ export default function HunterPage() {
           page: data.page ?? 1,
           totalPages: data.totalPages ?? 1,
         });
+        setOppsFailed(false);
       } catch {
-        /* ignore */
+        setOppsFailed(true);
       }
     },
     [page, search, bookmarkedOnly]
@@ -547,8 +645,10 @@ export default function HunterPage() {
       const res = await fetch("/api/hunter/ideas");
       const data = await res.json();
       setIdeas(data.ideas ?? []);
+      setIdeasFailed(false);
     } catch {
       setIdeas([]);
+      setIdeasFailed(true);
     } finally {
       setIdeasLoading(false);
     }
@@ -567,6 +667,21 @@ export default function HunterPage() {
         loadScans();
         loadOpps(1, "", false);
         loadIdeas();
+        // Watchlist status: defensive — the endpoint is built by another
+        // worker and may not exist yet (404) or be unreachable.
+        try {
+          const wRes = await fetch("/api/hunter/watchlist/status");
+          if (wRes.ok) {
+            const wData = await wRes.json();
+            if (typeof wData?.keywordCount === "number") {
+              setWatchlistKeywords(wData.keywordCount);
+            }
+            const last = wData?.lastRun;
+            setWatchlistFailed(!!last && last.ok === false);
+          }
+        } catch {
+          /* endpoint missing — chip stays hidden */
+        }
         try {
           const bRes = await fetch("/api/hunter/opportunities?bookmarked=1&perPage=1");
           if (bRes.ok) {
@@ -583,17 +698,13 @@ export default function HunterPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Bottom sheet: Escape to close + lock body scroll
+  // Lock body scroll while the idea analysis sheet is open.
+  // (Escape-to-close is handled by useEscapeClose above.)
   useEffect(() => {
     if (!selected) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSelected(null);
-    };
-    document.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => {
-      document.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
     };
   }, [selected]);
@@ -616,6 +727,8 @@ export default function HunterPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ keyword: k }),
+        // Don't hang on "Scanning…" forever if the server never answers.
+        signal: AbortSignal.timeout(180_000),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -628,6 +741,12 @@ export default function HunterPage() {
       setSearch("");
       setBookmarkedOnly(false);
       await loadOpps(1, "", false);
+    } catch (err) {
+      setScanError(
+        err instanceof DOMException && err.name === "TimeoutError"
+          ? "Scan timed out — retry."
+          : "Couldn't reach the server — check your connection and retry."
+      );
     } finally {
       setScanning(false);
     }
@@ -662,8 +781,7 @@ export default function HunterPage() {
 
   async function analyzeIdea(idea: TrendIdea) {
     setSelected(idea);
-    setAnalysis(idea.analysis ? JSON.parse(idea.analysis) : null);
-    if (idea.analysis) return;
+    setAnalysis(null);
     setAnalyzing(true);
     try {
       const res = await fetch("/api/hunter/ideas/analyze", {
@@ -674,11 +792,6 @@ export default function HunterPage() {
       const data = await res.json();
       if (data.analysis) {
         setAnalysis(data.analysis);
-        setIdeas((prev) =>
-          prev.map((i) =>
-            i.id === idea.id ? { ...i, analysis: JSON.stringify(data.analysis) } : i
-          )
-        );
       }
     } finally {
       setAnalyzing(false);
@@ -708,7 +821,7 @@ export default function HunterPage() {
   async function scanFromPill(k: string) {
     setSelected(null);
     setKeyword(k);
-    scanRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    scrollToScan();
     await runScan(undefined, k);
   }
 
@@ -816,6 +929,9 @@ export default function HunterPage() {
             </p>
           </div>
 
+          {/* Watchlist failure warning */}
+          {watchlistFailed && <WatchlistFailureChip />}
+
           {/* 2. Stat strip */}
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4" aria-label="Overview">
             <StatCard variant="desktop"
@@ -842,7 +958,7 @@ export default function HunterPage() {
               label="Watchlist"
               value={
                 <>
-                  12 <span className="font-mono text-xs font-normal text-muted-foreground">terms</span>
+                  {watchlistKeywords} <span className="font-mono text-xs font-normal text-muted-foreground">terms</span>
                 </>
               }
               badge={
@@ -850,12 +966,12 @@ export default function HunterPage() {
                   Auto-scan
                 </span>
               }
-              sub="12 keywords · daily 06:51 EAT"
+              sub={`${watchlistKeywords} keywords · daily 06:51 EAT`}
             />
           </div>
 
           {/* 3. Scan hero */}
-          <section ref={scanRef} className="card-elevated flex scroll-mt-24 flex-col gap-4 p-5">
+          <section ref={scanRefDesktop} className="card-elevated flex scroll-mt-24 flex-col gap-4 p-5">
             <div className="flex items-center justify-between border-b border-border pb-3">
               <div className="flex items-center gap-2">
                 <div className="flex h-6 w-6 items-center justify-center rounded border border-primary/30 bg-primary/10 text-primary">
@@ -895,6 +1011,17 @@ export default function HunterPage() {
               </p>
             )}
 
+            {scansFailed && (
+              <p className="text-sm text-muted-foreground">
+                Couldn&apos;t load recent scans.{" "}
+                <button
+                  onClick={loadScans}
+                  className="font-medium text-primary underline underline-offset-2"
+                >
+                  Retry
+                </button>
+              </p>
+            )}
             {scans.length > 0 && (
               <div className="flex flex-col gap-2 pt-1">
                 <p className="font-mono text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
@@ -928,8 +1055,8 @@ export default function HunterPage() {
                     Highest scoring opportunity
                   </span>
                 </div>
-                <span className="rounded border border-border bg-card px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
-                  ★ {pick.rating != null ? pick.rating : "—"} /{" "}
+                <span className="inline-flex items-center gap-1 rounded border border-border bg-card px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
+                  <RatingStar rating={pick.rating} /> /{" "}
                   {pick.installs ? `${pick.installs} installs` : "—"}
                 </span>
               </div>
@@ -964,7 +1091,7 @@ export default function HunterPage() {
                         </Link>
                         <div className="mt-1.5 flex flex-wrap items-center gap-2 font-mono text-xs text-muted-foreground">
                           <span className="font-semibold text-score-medium">
-                            {pick.rating != null ? `${pick.rating} ★` : "—"}
+                            <RatingStar rating={pick.rating} />
                           </span>
                           <span>·</span>
                           <span className="font-medium text-foreground">
@@ -1106,7 +1233,12 @@ export default function HunterPage() {
               </div>
             </div>
 
-            {listOpps.length === 0 ? (
+            {oppsFailed ? (
+              <LoadError
+                onRetry={() => loadOpps()}
+                message="Couldn't load opportunities — check your connection."
+              />
+            ) : listOpps.length === 0 ? (
               <div className="p-12 text-center">
                 <p className="font-serif text-xl text-foreground">No opportunities yet</p>
                 <p className="mt-2 text-sm text-muted-foreground">
@@ -1196,6 +1328,11 @@ export default function HunterPage() {
               {radarOpen &&
                 (ideasLoading ? (
                   <p className="py-4 text-sm text-muted-foreground">Loading trending ideas…</p>
+                ) : ideasFailed ? (
+                  <LoadError
+                    onRetry={loadIdeas}
+                    message="Couldn't load trending ideas — check your connection."
+                  />
                 ) : ideas.length === 0 ? (
                   <p className="py-4 text-sm text-muted-foreground">
                     No ideas right now. Try refreshing.
@@ -1422,6 +1559,9 @@ export default function HunterPage() {
       <TopAppBar onLogout={logout} />
 
       <main className="mx-auto w-full max-w-[1100px] flex-1 space-y-6 px-4 pb-28 pt-4 lg:pb-12">
+        {/* Watchlist failure warning */}
+        {watchlistFailed && <WatchlistFailureChip />}
+
         {/* 1. Stat strip — 2×2, real numbers only */}
         <section className="grid grid-cols-2 gap-2" aria-label="Overview">
           <StatCard
@@ -1437,14 +1577,14 @@ export default function HunterPage() {
           <StatCard label="Scans" value={scans.length} sub="recent" />
           <StatCard
             label="Watchlist"
-            value={12}
+            value={watchlistKeywords}
             sub="keywords · daily 06:51 EAT"
           />
         </section>
 
         {/* 2. Scan hero */}
         <section
-          ref={scanRef}
+          ref={scanRefMobile}
           className="card-elevated flex scroll-mt-24 flex-col gap-3 p-4"
           aria-labelledby="scan-heading"
         >
@@ -1480,6 +1620,17 @@ export default function HunterPage() {
           {scanError && (
             <p className="rounded-md border border-score-low/40 bg-score-low/10 px-3 py-2 text-sm text-score-low">
               {scanError}
+            </p>
+          )}
+          {scansFailed && (
+            <p className="text-sm text-muted-foreground">
+              Couldn&apos;t load recent scans.{" "}
+              <button
+                onClick={loadScans}
+                className="font-medium text-primary underline underline-offset-2"
+              >
+                Retry
+              </button>
             </p>
           )}
           {scans.length > 0 && (
@@ -1525,8 +1676,8 @@ export default function HunterPage() {
                 <h3 className="font-serif text-2xl font-normal leading-tight text-foreground">
                   {pick.title}
                 </h3>
-                <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
-                  {pick.rating != null ? `${pick.rating} ★` : "—"} ·{" "}
+                <p className="mt-0.5 flex flex-wrap items-center gap-1 font-mono text-[11px] text-muted-foreground">
+                  <RatingStar rating={pick.rating} /> ·{" "}
                   {pick.installs ? `${pick.installs} installs` : "—"}
                   {pick.scanJob ? ` · kw: "${pick.scanJob.keyword}"` : ""}
                 </p>
@@ -1630,7 +1781,14 @@ export default function HunterPage() {
               Page {oppMeta.page}/{oppMeta.totalPages}
             </span>
           </div>
-          {listOpps.length === 0 ? (
+          {oppsFailed ? (
+            <div className="card-paper">
+              <LoadError
+                onRetry={() => loadOpps()}
+                message="Couldn't load opportunities — check your connection."
+              />
+            </div>
+          ) : listOpps.length === 0 ? (
             <div className="card-paper p-12 text-center">
               <p className="font-serif text-xl text-foreground">No opportunities yet</p>
               <p className="mt-2 text-sm text-muted-foreground">
@@ -1719,6 +1877,11 @@ export default function HunterPage() {
             <div className="space-y-2 border-t border-border bg-card p-4">
               {ideasLoading ? (
                 <p className="py-4 text-sm text-muted-foreground">Loading trending ideas…</p>
+              ) : ideasFailed ? (
+                <LoadError
+                  onRetry={loadIdeas}
+                  message="Couldn't load trending ideas — check your connection."
+                />
               ) : ideas.length === 0 ? (
                 <p className="py-4 text-sm text-muted-foreground">
                   No ideas right now. Try refreshing.

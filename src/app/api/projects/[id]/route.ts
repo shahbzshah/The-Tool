@@ -1,18 +1,27 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-/** GET /api/projects/[id] — project incl. stack lock. */
-export async function GET(
-  _req: Request,
-  { params }: { params: { id: string } }
-) {
-  const project = await prisma.project.findUnique({
-    where: { id: params.id },
+/** Ownership check: the project must belong to the signed-in user (404 otherwise). */
+async function ownedProject(userId: string, id: string) {
+  return prisma.project.findFirst({
+    where: { id, userId },
     select: { id: true, name: true, stackLock: true },
   });
+}
+
+/** GET /api/projects/[id] — project incl. stack lock. */
+export async function GET(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
+  const project = await ownedProject(auth.user.id, params.id);
   if (!project) {
     return NextResponse.json({ error: "Project not found." }, { status: 404 });
   }
@@ -31,6 +40,9 @@ export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
   try {
     const body = await req.json();
     const data: {
@@ -78,6 +90,12 @@ export async function PATCH(
       );
     }
 
+    // C5: user-scoped lookup first so cross-user updates 404, not 403.
+    const existing = await ownedProject(auth.user.id, params.id);
+    if (!existing) {
+      return NextResponse.json({ error: "Project not found." }, { status: 404 });
+    }
+
     const project = await prisma.project.update({
       where: { id: params.id },
       data,
@@ -102,10 +120,18 @@ export async function PATCH(
  * AiUsage rows are cleaned up explicitly since they carry no relation.
  */
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
   try {
+    // C5: user-scoped lookup first so cross-user deletes 404, not 403.
+    const existing = await ownedProject(auth.user.id, params.id);
+    if (!existing) {
+      return NextResponse.json({ error: "Project not found." }, { status: 404 });
+    }
     await prisma.$transaction([
       prisma.aiUsage.deleteMany({ where: { projectId: params.id } }),
       prisma.project.delete({ where: { id: params.id } }),

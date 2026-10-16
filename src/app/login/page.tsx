@@ -28,8 +28,12 @@ export default function LoginPage() {
       }
       // apiFetch saved any in-progress state under the location key when the
       // session expired; the destination page restores it via consumeSavedState().
-      const next =
+      // Validate the `next` redirect target: must be a same-origin path,
+      // rejecting protocol-relative URLs (//evil) and absolute URLs.
+      const rawNext =
         new URLSearchParams(window.location.search).get("next") ?? "/";
+      const next =
+        rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : "/";
       router.push(next);
       router.refresh();
     } finally {

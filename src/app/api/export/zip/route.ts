@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import JSZip from "jszip";
 import { findTool } from "@/lib/exporters";
 import { buildSkillsBundle } from "@/lib/skills";
@@ -7,6 +8,9 @@ import { buildSkillsBundle } from "@/lib/skills";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
   try {
     const body = await req.json();
     const ideaId = String(body?.ideaId ?? "");
@@ -20,8 +24,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const idea = await prisma.idea.findUnique({
-      where: { id: ideaId },
+    // C5: user-scoped lookup — cross-user exports 404.
+    const idea = await prisma.idea.findFirst({
+      where: { id: ideaId, project: { userId: auth.user.id } },
       include: { project: { select: { category: true, platform: true } } },
     });
     if (!idea) {

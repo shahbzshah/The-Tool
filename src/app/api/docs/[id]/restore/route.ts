@@ -11,6 +11,7 @@ export const dynamic = "force-dynamic";
  * document's live content. The document's CURRENT content is snapshotted as a
  * new version first, so restoring never loses history.
  * Body: { versionId: string }
+ * C6: scoped through idea -> project.userId (cross-user access 404s).
  */
 export async function POST(
   req: Request,
@@ -30,7 +31,11 @@ export async function POST(
   }
 
   const version = await prisma.documentVersion.findFirst({
-    where: { id: versionId, documentId: id },
+    where: {
+      id: versionId,
+      documentId: id,
+      document: { idea: { project: { userId: auth.user.id } } },
+    },
     include: { document: { select: { id: true } } },
   });
   if (!version) {

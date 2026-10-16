@@ -63,6 +63,7 @@ export async function POST(req: Request) {
 
   const project = await prisma.project.create({
     data: {
+      userId: auth.user.id,
       name: opp.title,
       category: "from-play-store-scan",
       platform: "mobile", // Play Store opportunity → Android + iOS native app, web optional

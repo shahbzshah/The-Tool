@@ -27,6 +27,12 @@ export default function RegisterPage() {
         setError(data.error ?? "Registration failed.");
         return;
       }
+      // Duplicate-email path returns 200 with a message but no session —
+      // show it instead of redirecting into a login wall.
+      if (data.message && !data.user) {
+        setError(data.message);
+        return;
+      }
       router.push("/");
       router.refresh();
     } finally {

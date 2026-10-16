@@ -42,6 +42,15 @@ export async function POST(req: Request) {
     );
   }
 
+  // C6: the project must belong to the caller — scopes every query below.
+  const project = await prisma.project.findFirst({
+    where: { id: projectId, userId: auth.user.id },
+    select: { id: true },
+  });
+  if (!project) {
+    return NextResponse.json({ error: "Project not found." }, { status: 404 });
+  }
+
   const idea = await prisma.idea.findFirst({
     where: { id: ideaId, projectId },
     include: { project: true },

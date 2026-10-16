@@ -157,6 +157,9 @@ export async function ensureSkillsCache(
           `https://raw.githubusercontent.com/${AGENT_SKILLS_REPO}/${AGENT_SKILLS_REF}/${p}`
         );
         const dest = path.join(CACHE_DIR, p);
+        // Path-traversal guard: tree paths like skills/x/../../evil.md would
+        // pass the filter above but resolve outside the cache directory.
+        if (dest !== CACHE_DIR && !dest.startsWith(CACHE_DIR + path.sep)) return;
         fs.mkdirSync(path.dirname(dest), { recursive: true });
         fs.writeFileSync(dest, text);
       })

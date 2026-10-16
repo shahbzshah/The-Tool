@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { chatJson, AIConfigError } from "@/lib/ai";
+import { requireUser } from "@/lib/auth";
+import { checkAiQuota } from "@/lib/ai-quota";
 import { parseJsonField, type IdeaValidation } from "@/lib/constants";
 
 export const runtime = "nodejs";
@@ -12,12 +14,22 @@ export const maxDuration = 60;
  * persists the report on the idea.
  */
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
+  if (!(await checkAiQuota(auth.user.id))) {
+    return NextResponse.json(
+      { error: "Daily AI quota exceeded." },
+      { status: 429 }
+    );
+  }
+
   try {
-    const idea = await prisma.idea.findUnique({
-      where: { id: params.id },
+    const idea = await prisma.idea.findFirst({
+      where: { id: params.id, project: { userId: auth.user.id } },
       include: { project: { select: { category: true } } },
     });
     if (!idea) {

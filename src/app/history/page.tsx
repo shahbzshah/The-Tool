@@ -7,6 +7,7 @@ import {
   parseJsonField,
   type IdeaScores,
 } from "@/lib/constants";
+import { apiFetch } from "@/lib/api";
 // --- Worker A (foundation): pipeline progress on history cards ---
 // This block is the foundation's addition; the rename/duplicate/archive/
 // delete/notes worker should build below it, not inside it.
@@ -80,13 +81,15 @@ function ProjectCard({
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteText, setDeleteText] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
+  const [cardError, setCardError] = useState<string | null>(null);
 
   async function patchProject(body: Record<string, unknown>) {
-    const res = await fetch(`/api/projects/${project.id}`, {
+    const res = await apiFetch(`/api/projects/${project.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
+    if (res.status === 401) return; // redirect already fired
     if (!res.ok) throw new Error("Update failed");
   }
 
@@ -98,9 +101,12 @@ function ProjectCard({
       return;
     }
     setBusy("rename");
+    setCardError(null);
     try {
       await patchProject({ name });
       onReload();
+    } catch {
+      setCardError("Could not rename the project. Try again.");
     } finally {
       setBusy(null);
       setRenaming(false);
@@ -109,11 +115,14 @@ function ProjectCard({
 
   async function saveNotes() {
     setBusy("notes");
+    setCardError(null);
     try {
       await patchProject({ notes: notesDraft });
       setNotesSaved(true);
       onReload();
       window.setTimeout(() => setNotesSaved(false), 2500);
+    } catch {
+      setCardError("Could not save the notes. Try again.");
     } finally {
       setBusy(null);
     }
@@ -121,12 +130,16 @@ function ProjectCard({
 
   async function duplicate() {
     setBusy("duplicate");
+    setCardError(null);
     try {
-      const res = await fetch(`/api/projects/${project.id}/duplicate`, {
+      const res = await apiFetch(`/api/projects/${project.id}/duplicate`, {
         method: "POST",
       });
+      if (res.status === 401) return; // redirect already fired
       if (!res.ok) throw new Error("Duplicate failed");
       onReload();
+    } catch {
+      setCardError("Could not duplicate the project. Try again.");
     } finally {
       setBusy(null);
     }
@@ -134,9 +147,12 @@ function ProjectCard({
 
   async function toggleArchive() {
     setBusy("archive");
+    setCardError(null);
     try {
       await patchProject({ archived: !archived });
       onReload();
+    } catch {
+      setCardError("Could not update the archive status. Try again.");
     } finally {
       setBusy(null);
     }
@@ -145,12 +161,16 @@ function ProjectCard({
   async function confirmDelete() {
     if (deleteText !== project.name) return;
     setBusy("delete");
+    setCardError(null);
     try {
-      const res = await fetch(`/api/projects/${project.id}`, {
+      const res = await apiFetch(`/api/projects/${project.id}`, {
         method: "DELETE",
       });
+      if (res.status === 401) return; // redirect already fired
       if (!res.ok) throw new Error("Delete failed");
       onRemoved(project.id);
+    } catch {
+      setCardError("Could not delete the project. Try again.");
     } finally {
       setBusy(null);
     }
@@ -279,6 +299,25 @@ function ProjectCard({
         </button>
       </div>
 
+      {cardError && (
+        <p
+          role="alert"
+          className="mb-4 flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <span className="material-symbols text-[16px]">error</span>
+            {cardError}
+          </span>
+          <button
+            onClick={() => setCardError(null)}
+            aria-label="Dismiss error"
+            className="shrink-0 text-destructive/70 transition-colors hover:text-destructive"
+          >
+            <span className="material-symbols text-[16px]">close</span>
+          </button>
+        </p>
+      )}
+
       {confirmingDelete && (
         <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 p-4">
           <p className="text-sm font-medium text-foreground">
@@ -379,7 +418,7 @@ function ProjectCard({
               {approved && (
                 <div className="flex shrink-0 gap-2">
                   <Link
-                    href={`/stitch/${project.id}`}
+                    href={`/stitch/${project.id}?idea=${idea.id}`}
                     className="btn-ghost !px-2.5 !py-1 !font-mono !text-xs"
                   >
                     Design
@@ -421,7 +460,8 @@ export default function HistoryPage() {
     const url = showArchived ? "/api/projects?archived=1" : "/api/projects";
     // --- end Worker F addition ---
     try {
-      const res = await fetch(url);
+      const res = await apiFetch(url);
+      if (res.status === 401) return; // redirect already fired
       const data = await res.json();
       setProjects(data.projects ?? []);
     } catch {

@@ -32,7 +32,6 @@ type Idea = {
 type DocVersion = {
   id: string;
   version: number;
-  content: string;
   createdAt: string;
 };
 
@@ -49,6 +48,12 @@ function DocHistoryMenu({
   const [versions, setVersions] = useState<DocVersion[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [previewId, setPreviewId] = useState<string | null>(null);
+  // Version contents are fetched on demand — the versions list intentionally
+  // omits them. Cached by version id so re-opening a preview is instant.
+  const [previewContents, setPreviewContents] = useState<Record<string, string>>(
+    {}
+  );
+  const [previewLoadingId, setPreviewLoadingId] = useState<string | null>(null);
   const [restoring, setRestoring] = useState<string | null>(null);
   const [menuError, setMenuError] = useState<string | null>(null);
 
@@ -78,6 +83,35 @@ function DocHistoryMenu({
     }
   }
 
+  async function openPreview(versionId: string) {
+    if (previewId === versionId) {
+      setPreviewId(null);
+      return;
+    }
+    setPreviewId(versionId);
+    if (previewContents[versionId] != null || previewLoadingId === versionId) {
+      return;
+    }
+    setPreviewLoadingId(versionId);
+    setMenuError(null);
+    try {
+      const res = await apiFetch(`/api/docs/${docId}/versions/${versionId}`);
+      if (res.status === 401) return; // redirect already fired
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Failed to load preview.");
+      setPreviewContents((prev) => ({
+        ...prev,
+        [versionId]: data.version?.content ?? "",
+      }));
+    } catch (err) {
+      setMenuError(
+        err instanceof Error ? err.message : "Failed to load preview."
+      );
+    } finally {
+      setPreviewLoadingId(null);
+    }
+  }
+
   async function restore(versionId: string) {
     if (restoring) return;
     setRestoring(versionId);
@@ -101,8 +135,6 @@ function DocHistoryMenu({
       setRestoring(null);
     }
   }
-
-  const preview = previewId ? versions?.find((v) => v.id === previewId) : null;
 
   return (
     <div className="relative">
@@ -154,7 +186,7 @@ function DocHistoryMenu({
                 <div key={v.id} className="border-b border-border/50 px-4 py-2.5 last:border-0">
                   <div className="flex items-center justify-between gap-2">
                     <button
-                      onClick={() => setPreviewId(previewId === v.id ? null : v.id)}
+                      onClick={() => openPreview(v.id)}
                       className="text-left"
                     >
                       <span className="font-mono text-xs font-semibold text-foreground">
@@ -172,11 +204,18 @@ function DocHistoryMenu({
                       {restoring === v.id ? "Restoring…" : "Restore"}
                     </button>
                   </div>
-                  {previewId === v.id && preview && (
-                    <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded border border-border bg-background/60 p-3 font-mono text-[11px] leading-relaxed text-foreground/80">
-                      {preview.content}
-                    </pre>
-                  )}
+                  {previewId === v.id &&
+                    (previewLoadingId === v.id ? (
+                      <p className="mt-2 py-3 text-center font-mono text-[11px] text-muted-foreground">
+                        Loading preview…
+                      </p>
+                    ) : (
+                      previewContents[v.id] != null && (
+                        <pre className="mt-2 max-h-48 overflow-auto whitespace-pre-wrap rounded border border-border bg-background/60 p-3 font-mono text-[11px] leading-relaxed text-foreground/80">
+                          {previewContents[v.id]}
+                        </pre>
+                      )
+                    ))}
                 </div>
               ))}
             </div>
@@ -568,7 +607,7 @@ export default function DocsPage() {
           className={
             i === safeFindIndex
               ? "rounded-sm bg-primary px-px text-primary-foreground"
-              : "rounded-sm bg-amber-300/60 px-px text-inherit"
+              : "rounded-sm bg-score-medium/60 px-px text-inherit"
           }
         >
           {activeContent.slice(start, start + qlen)}
@@ -763,7 +802,7 @@ export default function DocsPage() {
                     </span>
                     {docIsStale(d.kind) && docs[d.kind] && (
                       <span
-                        className="material-symbols shrink-0 text-[14px] text-amber-600 dark:text-amber-400"
+                        className="material-symbols shrink-0 text-[14px] text-score-medium"
                         title="May be outdated — idea changed since generation"
                       >
                         warning
@@ -836,8 +875,8 @@ export default function DocsPage() {
               </span>
             </button>
             {failedDocs.length > 0 && (
-              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
-                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
+              <div className="rounded-md border border-score-medium/40 bg-score-medium/10 p-3">
+                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-score-medium">
                   <span className="material-symbols text-[15px]">warning</span>
                   {failedDocs.length} doc{failedDocs.length > 1 ? "s" : ""}{" "}
                   failed — the rest completed
@@ -857,7 +896,7 @@ export default function DocsPage() {
                       <button
                         onClick={() => retryDoc(f.kind)}
                         disabled={retryingKind !== null}
-                        className="shrink-0 rounded border border-amber-500/40 px-2 py-1 font-mono text-[11px] font-semibold text-amber-700 transition-colors hover:bg-amber-500/20 disabled:opacity-50 dark:text-amber-400"
+                        className="shrink-0 rounded border border-score-medium/40 px-2 py-1 font-mono text-[11px] font-semibold text-score-medium transition-colors hover:bg-score-medium/20 disabled:opacity-50"
                       >
                         {retryingKind === f.kind ? "Retrying…" : "Retry"}
                       </button>
@@ -890,7 +929,7 @@ export default function DocsPage() {
                       </span>
                     )}
                     {activeStale && !regenerating && (
-                      <span className="inline-flex items-center gap-1.5 rounded border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                      <span className="inline-flex items-center gap-1.5 rounded border border-score-medium/40 bg-score-medium/10 px-2 py-0.5 text-[11px] font-medium text-score-medium">
                         <span className="material-symbols text-[14px]">warning</span>
                         <span>May be outdated — idea changed since generation</span>
                         <button

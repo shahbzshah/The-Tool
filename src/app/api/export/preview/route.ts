@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import { DOC_KINDS } from "@/lib/constants";
 import { skillsForPlatform, getSkillsCacheStatus } from "@/lib/skills";
 
@@ -11,6 +12,9 @@ export const dynamic = "force-dynamic";
  * Informational only; the download is allowed even with gaps.
  */
 export async function GET(req: Request) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
   try {
     const ideaId = new URL(req.url).searchParams.get("ideaId");
     if (!ideaId) {
@@ -20,8 +24,9 @@ export async function GET(req: Request) {
       );
     }
 
-    const idea = await prisma.idea.findUnique({
-      where: { id: ideaId },
+    // C5: user-scoped lookup — cross-user previews 404.
+    const idea = await prisma.idea.findFirst({
+      where: { id: ideaId, project: { userId: auth.user.id } },
       select: {
         id: true,
         projectId: true,

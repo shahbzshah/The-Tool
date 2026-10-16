@@ -26,17 +26,21 @@ export async function POST(req: Request) {
     where: { email: normalized },
   });
   if (existing) {
-    return NextResponse.json(
-      { error: "An account with that email already exists." },
-      { status: 409 }
-    );
+    return NextResponse.json({
+      ok: true,
+      message: "If this email is already registered, you can sign in with it instead.",
+    });
   }
+
+  // First account ever becomes the admin (bootstrap).
+  const adminCount = await prisma.user.count({ where: { isAdmin: true } });
 
   const user = await prisma.user.create({
     data: {
       email: normalized,
       passwordHash: await hashPassword(password),
       name: typeof name === "string" && name.trim() ? name.trim() : null,
+      isAdmin: adminCount === 0,
     },
     select: { id: true, email: true, name: true },
   });

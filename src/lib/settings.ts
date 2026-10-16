@@ -1,4 +1,4 @@
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from "crypto";
+import { createCipheriv, createDecipheriv, createPublicKey, randomBytes, scryptSync } from "crypto";
 import { prisma } from "@/lib/db";
 
 /**
@@ -52,7 +52,7 @@ export const SETTING_DEFS = [
   {
     key: "CRON_SECRET",
     label: "Cron Secret",
-    hint: "Bearer token the daily watchlist job uses to trigger scans. (Legacy — the job now signs requests instead.)",
+    hint: "Bearer token the daily watchlist job uses to trigger scans. (Older method, no longer used.)",
     secret: true,
     env: "CRON_SECRET",
   },
@@ -88,6 +88,13 @@ export async function setSetting(key: string, plain: string): Promise<void> {
     return;
   }
   const value = key === "CRON_PUBLIC_KEY" ? normalizePublicKeyPem(plain) : plain;
+  if (key === "CRON_PUBLIC_KEY") {
+    try {
+      createPublicKey(value);
+    } catch {
+      throw new Error("Invalid public key: CRON_PUBLIC_KEY must be a valid PEM public key.");
+    }
+  }
   await prisma.appSetting.upsert({
     where: { key },
     create: { key, value: encryptValue(value) },

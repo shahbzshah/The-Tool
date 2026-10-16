@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import { ideasFeed } from "@/lib/hunter/trends";
 
 export const runtime = "nodejs";
@@ -17,16 +18,30 @@ const IS_BUILD = process.env.NEXT_PHASE === "phase-production-build";
 /**
  * GET /api/hunter/ideas — trending app ideas (Hacker News).
  * Cached in the database for 6 hours; empty results cached 5 min.
+ * M29: the list only selects { id, title, source, hotness, url, createdAt } —
+ * the heavy text/analysis payload is fetched per-idea on demand.
  */
-export async function GET() {
+const ideaListSelect = {
+  id: true,
+  title: true,
+  source: true,
+  hotness: true,
+  url: true,
+  createdAt: true,
+} as const;
+
+export async function GET(req: Request) {
   if (IS_BUILD) {
     return NextResponse.json({ ideas: [], cached: false, building: true });
   }
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
 
   // Check for a fresh cached feed.
   let cached;
   try {
     cached = await prisma.trendIdea.findMany({
+      select: ideaListSelect,
       orderBy: { hotness: "desc" },
       take: 30,
     });
@@ -66,6 +81,7 @@ export async function GET() {
   }
 
   const fresh = await prisma.trendIdea.findMany({
+    select: ideaListSelect,
     orderBy: { hotness: "desc" },
     take: 30,
   });

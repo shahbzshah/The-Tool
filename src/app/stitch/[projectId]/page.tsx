@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
+import { apiFetch } from "@/lib/api";
 
 type StitchPrompt = {
   id: string;
@@ -107,7 +108,7 @@ export default function StitchPromptPage() {
 
   const loadUploads = useCallback(async () => {
     try {
-      const res = await fetch(`/api/uploads?projectId=${projectId}`);
+      const res = await apiFetch(`/api/uploads?projectId=${projectId}`);
       const data = await res.json();
       setUploads(data.uploads ?? []);
     } catch {
@@ -117,7 +118,7 @@ export default function StitchPromptPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/stitch-prompt?projectId=${projectId}`);
+      const res = await apiFetch(`/api/stitch-prompt?projectId=${projectId}`);
       const data = await res.json();
       const existing = data.prompt ?? null;
       setPrompt(existing);
@@ -126,7 +127,7 @@ export default function StitchPromptPage() {
       if (!existing) {
         setGenerating(true);
         try {
-          const gen = await fetch("/api/stitch-prompt", {
+          const gen = await apiFetch("/api/stitch-prompt", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ projectId }),
@@ -156,7 +157,7 @@ export default function StitchPromptPage() {
     setGenerating(true);
     setError(null);
     try {
-      const res = await fetch("/api/stitch-prompt", {
+      const res = await apiFetch("/api/stitch-prompt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId }),
@@ -184,7 +185,7 @@ export default function StitchPromptPage() {
 
   async function deleteUpload(id: string) {
     try {
-      const res = await fetch(`/api/uploads?id=${id}`, { method: "DELETE" });
+      const res = await apiFetch(`/api/uploads?id=${id}`, { method: "DELETE" });
       if (res.ok) setUploads((prev) => prev.filter((u) => u.id !== id));
     } catch {
       // ignore
@@ -195,7 +196,7 @@ export default function StitchPromptPage() {
     setReviewing(true);
     setError(null);
     try {
-      const res = await fetch("/api/stitch-review", {
+      const res = await apiFetch("/api/stitch-review", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId }),
@@ -457,7 +458,7 @@ export default function StitchPromptPage() {
                       const form = new FormData();
                       form.append("file", file);
                       form.append("projectId", projectId);
-                      const res = await fetch("/api/uploads", {
+                      const res = await apiFetch("/api/uploads", {
                         method: "POST",
                         body: form,
                       });

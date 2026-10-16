@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import { generateDocForIdea, STACK_SENSITIVE_KINDS } from "@/lib/docgen";
 import { AIConfigError } from "@/lib/ai";
 
@@ -13,12 +14,16 @@ export const maxDuration = 60;
  * project's canonical stack. Requires a stack lock to be set.
  */
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
   try {
     const body = await req.json();
     const ideaId = String(body?.ideaId ?? "");
 
-    const idea = await prisma.idea.findUnique({
-      where: { id: ideaId },
+    // C5: user-scoped lookup — cross-user alignment 404s.
+    const idea = await prisma.idea.findFirst({
+      where: { id: ideaId, project: { userId: auth.user.id } },
       include: { project: { select: { stackLock: true } } },
     });
     if (!idea) {

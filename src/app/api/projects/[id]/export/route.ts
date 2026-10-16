@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import JSZip from "jszip";
 import { DOC_KINDS } from "@/lib/constants";
 import { averageScore, parseJsonField, type IdeaScores } from "@/lib/constants";
@@ -23,12 +24,16 @@ function slug(text: string): string {
  * and every document generated for approved ideas.
  */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
   try {
-    const project = await prisma.project.findUnique({
-      where: { id: params.id },
+    // C5: user-scoped lookup — cross-user exports 404, not 403.
+    const project = await prisma.project.findFirst({
+      where: { id: params.id, userId: auth.user.id },
       include: {
         ideas: {
           orderBy: { createdAt: "asc" },

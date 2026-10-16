@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { DOC_KINDS } from "@/lib/constants";
+import { apiFetch } from "@/lib/api";
 
 const PRESETS: { label: string; stack: string }[] = [
   {
@@ -63,7 +64,7 @@ export default function StackLockPanel({
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(`/api/projects/${projectId}`, {
+      const res = await apiFetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ stackLock: lock }),
@@ -74,7 +75,7 @@ export default function StackLockPanel({
       setDraft(data.project.stackLock ?? "");
       setMessage(
         data.project.stackLock
-          ? "Stack locked 🔒 — every doc generated from now on will follow it."
+          ? "Stack locked — every doc generated from now on will follow it."
           : "Stack lock cleared."
       );
     } catch (err) {
@@ -94,7 +95,7 @@ export default function StackLockPanel({
         setAlignLabel(
           `${meta?.label ?? ALIGN_KINDS[i]} (${i + 1}/${ALIGN_KINDS.length})`
         );
-        const res = await fetch("/api/docs/align", {
+        const res = await apiFetch("/api/docs/align", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ideaId }),
@@ -107,7 +108,7 @@ export default function StackLockPanel({
           onDocsUpdated(map);
         }
       }
-      setMessage("Docs aligned to the locked stack ✅");
+      setMessage("Docs aligned to the locked stack.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Alignment failed.");
     } finally {
@@ -122,7 +123,7 @@ export default function StackLockPanel({
     <div className="rounded-xl border border-border bg-card p-5">
       <div className="mb-1 flex items-center justify-between">
         <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          2. Stack Lock 🔒
+          2. Stack Lock
         </h2>
         {locked && (
           <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
@@ -164,7 +165,7 @@ export default function StackLockPanel({
           disabled={saving || aligning}
           className="rounded bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
         >
-          {saving ? "Saving…" : locked ? "Update lock 🔒" : "Lock stack 🔒"}
+          {saving ? "Saving…" : locked ? "Update lock" : "Lock stack"}
         </button>
         {locked && (
           <button

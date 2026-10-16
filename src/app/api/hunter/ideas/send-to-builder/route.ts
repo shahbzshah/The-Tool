@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 import type { IdeaAnalysis } from "@/lib/hunter/ai";
 
 /**
@@ -9,6 +10,9 @@ import type { IdeaAnalysis } from "@/lib/hunter/ai";
  * Body: { id: string } (TrendIdea id, must have a cached AI analysis).
  */
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
   const { id } = await req.json().catch(() => ({}));
   if (!id || typeof id !== "string") {
     return NextResponse.json({ error: "Missing idea id." }, { status: 400 });
@@ -30,6 +34,7 @@ export async function POST(req: Request) {
   // Create the project with the idea pre-filled from the Hunter's analysis.
   const project = await prisma.project.create({
     data: {
+      userId: auth.user.id,
       name: trend.title,
       category: "from-opportunity-hunter",
       preferences: `Source: ${trend.source} (${trend.url ?? "n/a"})\nWhy trending: ${analysis.why_trending ?? ""}`,

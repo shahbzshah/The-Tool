@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { requireUser } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,11 +15,16 @@ export const dynamic = "force-dynamic";
  * the duplicate re-enters the pipeline as a fresh design candidate.
  */
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
-  const src = await prisma.project.findUnique({
-    where: { id: params.id },
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+  const { user } = auth;
+
+  // C5: user-scoped lookup — cross-user duplicates 404, not 403.
+  const src = await prisma.project.findFirst({
+    where: { id: params.id, userId: user.id },
     include: {
       ideas: {
         orderBy: { createdAt: "asc" },
@@ -35,6 +41,7 @@ export async function POST(
   const copy = await prisma.$transaction(async (tx) => {
     const project = await tx.project.create({
       data: {
+        userId: user.id,
         name: `${src.name} (copy)`,
         category: src.category,
         platform: src.platform,

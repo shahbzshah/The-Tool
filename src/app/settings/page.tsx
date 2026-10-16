@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ONBOARD_EVENT } from "@/lib/shortcuts";
+import { apiFetch } from "@/lib/api";
 
 type SettingStatus = {
   key: string;
@@ -25,7 +26,7 @@ export default function SettingsPage() {
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch("/api/settings");
+      const res = await apiFetch("/api/settings");
       const data = await res.json();
       setSettings(data.settings ?? []);
     } finally {
@@ -40,7 +41,7 @@ export default function SettingsPage() {
   async function save(key: string, explicit?: string) {
     setSaving(key);
     try {
-      const res = await fetch("/api/settings", {
+      const res = await apiFetch("/api/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ key, value: explicit ?? values[key] ?? "" }),
@@ -68,7 +69,7 @@ export default function SettingsPage() {
     <main className="mx-auto w-full max-w-[1100px] px-4 py-8 md:px-8">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="label-caps mono text-primary">Configuration</p>
+          <p className="label-caps font-mono text-primary">Configuration</p>
           <h1 className="mt-1 font-serif text-4xl tracking-tight">Settings</h1>
         </div>
         <button
@@ -199,7 +200,7 @@ export default function SettingsPage() {
               </div>
             )}
             {s.fromEnv && (
-              <p className="mono mt-3 text-xs text-muted-foreground">
+              <p className="mt-3 font-mono text-xs text-muted-foreground">
                 Managed via environment variable — remove it there to use a stored value instead.
               </p>
             )}

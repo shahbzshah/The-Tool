@@ -249,7 +249,7 @@ export default function UploadPanel({
             }}
             className="rounded border border-border px-3 py-1.5 text-xs font-medium text-foreground/80 hover:border-ring"
           >
-            Choose folder 📁
+            Choose folder <span className="material-symbols text-[16px]">folder</span>
           </button>
         </div>
         <input
@@ -307,7 +307,7 @@ export default function UploadPanel({
           {groupByScreen(uploads).map(([screen, items]) => (
             <div key={screen || "_root"} className="rounded-lg bg-background p-3">
               <p className="mb-2 flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">
-                📁 {screen || "Loose files"}
+                <span className="material-symbols text-[16px]">folder</span> {screen || "Loose files"}
                 <span className="rounded-full bg-muted px-2 py-0.5 text-[10px]">
                   {items.length} file{items.length === 1 ? "" : "s"}
                 </span>

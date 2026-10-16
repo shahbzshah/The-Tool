@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { chatJson, AIConfigError } from "@/lib/ai";
+import { requireUser } from "@/lib/auth";
+import { checkAiQuota } from "@/lib/ai-quota";
 import { getCachedTrends, formatTrendsForPrompt } from "@/lib/trends";
 import type { GeneratedIdea } from "@/lib/constants";
 
@@ -14,12 +16,22 @@ const VARIANTS = 3;
  * Generates fresh variations of an existing idea, seeded by its content.
  */
 export async function POST(
-  _req: Request,
+  req: Request,
   { params }: { params: { id: string } }
 ) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
+  if (!(await checkAiQuota(auth.user.id))) {
+    return NextResponse.json(
+      { error: "Daily AI quota exceeded." },
+      { status: 429 }
+    );
+  }
+
   try {
-    const source = await prisma.idea.findUnique({
-      where: { id: params.id },
+    const source = await prisma.idea.findFirst({
+      where: { id: params.id, project: { userId: auth.user.id } },
       include: { project: { select: { category: true, preferences: true } } },
     });
     if (!source) {
@@ -86,6 +98,7 @@ Respond with a JSON array of exactly ${VARIANTS} objects:
         name: `Remix of ${source.title} — ${new Date().toLocaleDateString()}`,
         category: source.project.category,
         preferences: source.project.preferences,
+        userId: auth.user.id,
         ideas: {
           create: ideas.slice(0, VARIANTS).map((idea) => ({
             title: String(idea.title ?? "Untitled remix"),

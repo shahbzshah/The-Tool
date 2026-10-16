@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { chatJson, AIConfigError } from "@/lib/ai";
+import { requireUser } from "@/lib/auth";
+import { checkAiQuota } from "@/lib/ai-quota";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -18,6 +20,16 @@ export type StitchReview = {
  * export and reports alignment, gaps, and recommended fixes.
  */
 export async function POST(req: Request) {
+  const auth = await requireUser(req);
+  if ("response" in auth) return auth.response;
+
+  if (!(await checkAiQuota(auth.user.id))) {
+    return NextResponse.json(
+      { error: "Daily AI quota exceeded." },
+      { status: 429 }
+    );
+  }
+
   try {
     const body = await req.json();
     const projectId = String(body?.projectId ?? "");
@@ -25,8 +37,8 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "projectId is required." }, { status: 400 });
     }
 
-    const project = await prisma.project.findUnique({
-      where: { id: projectId },
+    const project = await prisma.project.findFirst({
+      where: { id: projectId, userId: auth.user.id },
       include: {
         ideas: { where: { status: "approved" } },
         stitchPrompt: true,

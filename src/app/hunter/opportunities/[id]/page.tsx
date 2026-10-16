@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { scoreTier, timeAgo } from "@/lib/hunter/ui";
+import { apiFetch } from "@/lib/api";
 
 type Analysis = {
   id: string;
@@ -218,6 +219,7 @@ export default function OpportunityDetailPage({
   const [error, setError] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState("");
+  const [actionError, setActionError] = useState("");
   const [copied, setCopied] = useState(false);
   const [sending, setSending] = useState(false);
   const autoAnalyzed = useRef(false);
@@ -226,20 +228,24 @@ export default function OpportunityDetailPage({
     setAnalyzing(true);
     setAnalyzeError("");
     try {
-      const res = await fetch("/api/hunter/opportunities/analyze", {
+      const res = await apiFetch("/api/hunter/opportunities/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id }),
       });
+      if (res.status === 401) return; // redirect already fired
       if (!res.ok) {
         setAnalyzeError("Analysis failed — tap to retry.");
         return;
       }
-      const r = await fetch(`/api/hunter/opportunities/${id}`);
+      const r = await apiFetch(`/api/hunter/opportunities/${id}`);
+      if (r.status === 401) return; // redirect already fired
       if (r.ok) {
         const d = await r.json();
         setAnalyses(d.opportunity.analyses ?? []);
       }
+    } catch {
+      setAnalyzeError("Analysis failed — tap to retry.");
     } finally {
       setAnalyzing(false);
     }
@@ -247,11 +253,8 @@ export default function OpportunityDetailPage({
 
   const load = useCallback(async () => {
     try {
-      const res = await fetch(`/api/hunter/opportunities/${params.id}`);
-      if (res.status === 401) {
-        router.push("/login");
-        return;
-      }
+      const res = await apiFetch(`/api/hunter/opportunities/${params.id}`);
+      if (res.status === 401) return; // apiFetch already redirected to /login
       if (!res.ok) {
         setError("Opportunity not found.");
         return;
@@ -276,48 +279,86 @@ export default function OpportunityDetailPage({
 
   async function toggleBookmark() {
     if (!opp) return;
-    const res = await fetch(`/api/hunter/opportunities/${opp.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ isBookmarked: !opp.isBookmarked }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      setOpp({ ...opp, isBookmarked: data.opportunity.isBookmarked });
+    setActionError("");
+    try {
+      const res = await apiFetch(`/api/hunter/opportunities/${opp.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isBookmarked: !opp.isBookmarked }),
+      });
+      if (res.status === 401) return; // redirect already fired
+      if (res.ok) {
+        const data = await res.json();
+        setOpp({ ...opp, isBookmarked: data.opportunity.isBookmarked });
+      } else {
+        setActionError("Could not update the bookmark. Please try again.");
+      }
+    } catch {
+      setActionError("Could not update the bookmark. Please try again.");
     }
   }
 
   async function deleteOpp() {
     if (!opp || !window.confirm(`Delete “${opp.title}”?`)) return;
-    const res = await fetch(`/api/hunter/opportunities/${opp.id}`, {
-      method: "DELETE",
-    });
-    if (res.ok) router.push("/");
+    setActionError("");
+    try {
+      const res = await apiFetch(`/api/hunter/opportunities/${opp.id}`, {
+        method: "DELETE",
+      });
+      if (res.status === 401) return; // redirect already fired
+      if (res.ok) {
+        router.push("/");
+      } else {
+        setActionError("Could not delete the opportunity. Please try again.");
+      }
+    } catch {
+      setActionError("Could not delete the opportunity. Please try again.");
+    }
   }
 
   async function deleteAnalysis(id: string) {
     if (!opp) return;
-    const res = await fetch(`/api/hunter/opportunities/analyses/${id}`, {
-      method: "DELETE",
-    });
-    if (res.ok) {
-      setAnalyses([]);
-      // Analysis is automatic — a fresh one starts right away.
-      runAnalysis(opp.id);
+    setActionError("");
+    try {
+      const res = await apiFetch(`/api/hunter/opportunities/analyses/${id}`, {
+        method: "DELETE",
+      });
+      if (res.status === 401) return; // redirect already fired
+      if (res.ok) {
+        setAnalyses([]);
+        // Analysis is automatic — a fresh one starts right away.
+        runAnalysis(opp.id);
+      } else {
+        setActionError("Could not delete the analysis. Please try again.");
+      }
+    } catch {
+      setActionError("Could not delete the analysis. Please try again.");
     }
   }
 
   async function sendToBuilder() {
     if (!opp) return;
     setSending(true);
+    setActionError("");
     try {
-      const res = await fetch("/api/hunter/opportunities/send-to-builder", {
+      const res = await apiFetch("/api/hunter/opportunities/send-to-builder", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: opp.id }),
       });
+      if (res.status === 401) return; // redirect already fired
+      if (!res.ok) {
+        setActionError("Could not send to the builder. Please try again.");
+        return;
+      }
       const data = await res.json();
-      if (data.refineUrl) router.push(data.refineUrl);
+      if (data.refineUrl) {
+        router.push(data.refineUrl);
+      } else {
+        setActionError("Could not send to the builder. Please try again.");
+      }
+    } catch {
+      setActionError("Could not send to the builder. Please try again.");
     } finally {
       setSending(false);
     }
@@ -391,6 +432,25 @@ export default function OpportunityDetailPage({
   return (
     <>
       <main className="mx-auto flex w-full max-w-[1200px] flex-1 flex-col space-y-6 px-6 py-8">
+        {/* Inline action error (bookmark / delete / send-to-builder) */}
+        {actionError && (
+          <div
+            role="alert"
+            className="flex items-start justify-between gap-3 rounded-md border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive"
+          >
+            <span className="inline-flex items-start gap-2">
+              <Icon name="error" className="text-[18px]" />
+              {actionError}
+            </span>
+            <button
+              onClick={() => setActionError("")}
+              aria-label="Dismiss error"
+              className="shrink-0 text-destructive/70 transition-colors hover:text-destructive"
+            >
+              <Icon name="close" className="text-[18px]" />
+            </button>
+          </div>
+        )}
         {/* Top row: back link + archive id */}
         <section className="flex items-center justify-between">
           <Link
@@ -512,8 +572,9 @@ export default function OpportunityDetailPage({
           <div className="grid grid-cols-2 gap-4 pt-6 md:grid-cols-4">
             <div className="card-paper p-3">
               <p className="label-caps text-muted-foreground">User Rating</p>
-              <p className="mt-1 font-mono text-lg text-foreground">
-                ★{opp.rating ?? "—"}
+              <p className="mt-1 inline-flex items-center gap-1.5 font-mono text-lg text-foreground">
+                <Icon name="star" className="text-score-medium text-[20px]" />
+                {opp.rating ?? "—"}
               </p>
             </div>
             <div className="card-paper p-3">
@@ -616,7 +677,7 @@ export default function OpportunityDetailPage({
               </p>
             </div>
           )}
-          {analyzeError && analyses.length === 0 && !analyzing && (
+          {analyzeError && !analyzing && (
             <button
               onClick={() => opp && runAnalysis(opp.id)}
               className="text-sm text-muted-foreground underline hover:text-foreground"
@@ -673,7 +734,7 @@ export default function OpportunityDetailPage({
           </div>
           <button
             onClick={sendToBuilder}
-            disabled={sending || analyzing || analyses.length === 0}
+            disabled={sending || analyzing}
             className="btn-primary w-full sm:w-auto"
           >
             {sending ? (
