@@ -5,12 +5,9 @@ import { prisma } from "./db";
 
 const COOKIE_NAME = "tt_session";
 
-function getSecret(): Uint8Array {
-  const s = process.env.AUTH_SECRET;
-  if (!s) {
-    throw new Error("AUTH_SECRET is not set — refusing to sign tokens.");
-  }
-  return new TextEncoder().encode(s);
+async function getSecret(): Promise<Uint8Array> {
+  const { getAppSecret } = await import("./settings");
+  return new TextEncoder().encode(await getAppSecret());
 }
 
 export interface SessionUser {
@@ -35,7 +32,7 @@ export async function createSessionToken(user: SessionUser): Promise<string> {
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("7d")
-    .sign(getSecret());
+    .sign(await getSecret());
 }
 
 export async function getSessionUser(req: Request): Promise<SessionUser | null> {
@@ -47,7 +44,7 @@ export async function getSessionUser(req: Request): Promise<SessionUser | null> 
   if (!cookie) return null;
   const token = decodeURIComponent(cookie.slice(COOKIE_NAME.length + 1));
   try {
-    const { payload } = await jwtVerify(token, getSecret());
+    const { payload } = await jwtVerify(token, await getSecret());
     if (typeof payload.id !== "string" || typeof payload.email !== "string") {
       return null;
     }

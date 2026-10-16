@@ -9,26 +9,51 @@ import { prisma } from "@/lib/db";
 
 const ALGO = "aes-256-gcm";
 
-function encKey(): Buffer {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret) throw new Error("AUTH_SECRET is not set — cannot encrypt settings.");
+/**
+ * The app's root secret. Prefers the AUTH_SECRET env var; otherwise generates
+ * a cryptographically random secret once and persists it (unencrypted) in the
+ * DB so the app works out of the box with no dashboard setup. Cached in
+ * memory to avoid a DB hit per call.
+ */
+let cachedAppSecret: string | null = null;
+
+export async function getAppSecret(): Promise<string> {
+  if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
+  if (cachedAppSecret) return cachedAppSecret;
+  const row = await prisma.appSetting.findUnique({ where: { key: "APP_SECRET" } }).catch(() => null);
+  if (row?.value) {
+    cachedAppSecret = row.value;
+    return cachedAppSecret;
+  }
+  const fresh = randomBytes(48).toString("base64");
+  await prisma.appSetting.upsert({
+    where: { key: "APP_SECRET" },
+    create: { key: "APP_SECRET", value: fresh },
+    update: { value: fresh },
+  });
+  cachedAppSecret = fresh;
+  return fresh;
+}
+
+async function encKey(): Promise<Buffer> {
+  const secret = await getAppSecret();
   return scryptSync(secret, "the-tool-settings", 32);
 }
 
-export function encryptValue(plain: string): string {
+export async function encryptValue(plain: string): Promise<string> {
   const iv = randomBytes(12);
-  const cipher = createCipheriv(ALGO, encKey(), iv);
+  const cipher = createCipheriv(ALGO, await encKey(), iv);
   const enc = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
   const tag = cipher.getAuthTag();
   return Buffer.concat([iv, tag, enc]).toString("base64");
 }
 
-export function decryptValue(stored: string): string {
+export async function decryptValue(stored: string): Promise<string> {
   const buf = Buffer.from(stored, "base64");
   const iv = buf.subarray(0, 12);
   const tag = buf.subarray(12, 28);
   const enc = buf.subarray(28);
-  const decipher = createDecipheriv(ALGO, encKey(), iv);
+  const decipher = createDecipheriv(ALGO, await encKey(), iv);
   decipher.setAuthTag(tag);
   return Buffer.concat([decipher.update(enc), decipher.final()]).toString("utf8");
 }
@@ -75,7 +100,7 @@ export async function getSetting(key: string): Promise<string | null> {
   try {
     const row = await prisma.appSetting.findUnique({ where: { key } });
     if (!row?.value) return null;
-    return decryptValue(row.value);
+    return await decryptValue(row.value);
   } catch {
     return null;
   }
@@ -97,8 +122,8 @@ export async function setSetting(key: string, plain: string): Promise<void> {
   }
   await prisma.appSetting.upsert({
     where: { key },
-    create: { key, value: encryptValue(value) },
-    update: { value: encryptValue(value) },
+    create: { key, value: await encryptValue(value) },
+    update: { value: await encryptValue(value) },
   });
 }
 
