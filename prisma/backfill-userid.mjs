@@ -54,6 +54,21 @@ try {
       console.warn(`[backfill-userid] ${label}: skipped (${tableErr.message})`);
     }
   }
+  // Promote the oldest user to admin if no admin exists yet (existing
+  // users predate the isAdmin column; the register route only auto-grants
+  // admin to the first-ever signup).
+  try {
+    const adminCount = await prisma.user.count({ where: { isAdmin: true } });
+    if (adminCount === 0) {
+      await prisma.user.update({
+        where: { id: oldest.id },
+        data: { isAdmin: true },
+      });
+      console.log(`[backfill-userid] promoted oldest user ${oldest.id} to admin`);
+    }
+  } catch (adminErr) {
+    console.warn(`[backfill-userid] admin promotion skipped (${adminErr.message})`);
+  }
 } catch (err) {
   console.warn(`[backfill-userid] warning: ${err.message} — continuing build`);
 } finally {
