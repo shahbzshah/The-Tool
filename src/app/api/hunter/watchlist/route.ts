@@ -114,12 +114,17 @@ async function verifyCronAuth(
 
 /** Record the outcome of a watchlist run so GET can report it. */
 async function recordLastRun(ok: boolean, error?: string): Promise<void> {
-  const payload: { ok: boolean; at: string; error?: string } = {
-    ok,
-    at: new Date().toISOString(),
-  };
-  if (error) payload.error = error;
-  await setSetting("WATCHLIST_LAST_RUN", JSON.stringify(payload));
+  try {
+    const payload: { ok: boolean; at: string; error?: string } = {
+      ok,
+      at: new Date().toISOString(),
+    };
+    if (error) payload.error = error;
+    await setSetting("WATCHLIST_LAST_RUN", JSON.stringify(payload));
+  } catch (err) {
+    // Run logging must never take down the scan itself.
+    console.error("[watchlist] recordLastRun failed:", err instanceof Error ? err.message : err);
+  }
 }
 
 export async function POST(req: Request) {
