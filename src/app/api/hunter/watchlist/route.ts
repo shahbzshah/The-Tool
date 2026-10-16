@@ -34,10 +34,11 @@ const WATCHLIST_KEYWORDS = [  "habit tracker",
  */
 async function verifyCronSignature(req: Request): Promise<boolean> {
   try {
-    const { getSetting } = await import("@/lib/settings");
+    const { getSetting, normalizePublicKeyPem } = await import("@/lib/settings");
     const { createPublicKey, verify } = await import("crypto");
-    const pem = await getSetting("CRON_PUBLIC_KEY");
-    if (!pem) return false;
+    const raw = await getSetting("CRON_PUBLIC_KEY");
+    if (!raw) return false;
+    const pem = normalizePublicKeyPem(raw);
     const ts = req.headers.get("x-cron-timestamp");
     const sigB64 = req.headers.get("x-cron-signature");
     if (!ts || !sigB64) return false;

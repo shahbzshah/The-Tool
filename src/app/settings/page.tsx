@@ -9,6 +9,7 @@ type SettingStatus = {
   label: string;
   hint: string;
   secret: boolean;
+  multiline: boolean;
   configured: boolean;
   fromEnv: boolean;
   updatedAt: string | null;
@@ -132,6 +133,21 @@ export default function SettingsPage() {
             {!s.fromEnv && (
               <div className="mt-4 flex gap-2">
                 <div className="relative flex-1">
+                  {s.multiline ? (
+                    <textarea
+                      value={values[s.key] ?? ""}
+                      onChange={(e) =>
+                        setValues((v) => ({ ...v, [s.key]: e.target.value }))
+                      }
+                      placeholder={
+                        s.configured ? "•••••••• (enter a new value to replace)" : `Enter ${s.label.toLowerCase()}`
+                      }
+                      className="input-paper min-h-[120px] font-mono text-[13px]"
+                      autoComplete="off"
+                      spellCheck={false}
+                      rows={5}
+                    />
+                  ) : (
                   <input
                     type={s.secret && !show[s.key] ? "password" : "text"}
                     value={values[s.key] ?? ""}
@@ -145,6 +161,7 @@ export default function SettingsPage() {
                     autoComplete="off"
                     spellCheck={false}
                   />
+                  )}
                   {s.secret && (
                     <button
                       type="button"

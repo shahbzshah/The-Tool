@@ -62,6 +62,7 @@ export const SETTING_DEFS = [
     hint: "Ed25519 public key (PEM). The daily watchlist job signs its requests with the matching private key — paste the public key here and the job authenticates without any shared secret.",
     secret: false,
     env: "CRON_PUBLIC_KEY",
+    multiline: true,
   },
 ] as const;
 
@@ -86,16 +87,34 @@ export async function setSetting(key: string, plain: string): Promise<void> {
     await prisma.appSetting.delete({ where: { key } }).catch(() => {});
     return;
   }
+  const value = key === "CRON_PUBLIC_KEY" ? normalizePublicKeyPem(plain) : plain;
   await prisma.appSetting.upsert({
     where: { key },
-    create: { key, value: encryptValue(plain) },
-    update: { value: encryptValue(plain) },
+    create: { key, value: encryptValue(value) },
+    update: { value: encryptValue(value) },
   });
+}
+
+/**
+ * Rebuild a valid PEM block from a pasted Ed25519 public key, tolerating the
+ * ways a paste can get mangled (notably: single-line <input> fields strip
+ * newlines, so a 3-line PEM arrives as one long line and OpenSSL rejects it).
+ * Non-PEM input is returned unchanged.
+ */
+export function normalizePublicKeyPem(pem: string): string {
+  const m = pem.match(
+    /-----BEGIN PUBLIC KEY-----\s*([A-Za-z0-9+/=\s]+?)\s*-----END PUBLIC KEY-----/
+  );
+  if (!m) return pem;
+  const b64 = m[1].replace(/\s+/g, "");
+  if (!/^[A-Za-z0-9+/=]+$/.test(b64) || b64.length === 0) return pem;
+  const lines = b64.match(/.{1,64}/g) ?? [b64];
+  return `-----BEGIN PUBLIC KEY-----\n${lines.join("\n")}\n-----END PUBLIC KEY-----\n`;
 }
 
 /** For the Settings UI: which keys are configured (never returns values). */
 export async function settingsStatus(): Promise<
-  { key: string; label: string; hint: string; secret: boolean; configured: boolean; fromEnv: boolean; updatedAt: string | null }[]
+  { key: string; label: string; hint: string; secret: boolean; multiline: boolean; configured: boolean; fromEnv: boolean; updatedAt: string | null }[]
 > {
   return Promise.all(
     SETTING_DEFS.map(async (d) => {
@@ -107,7 +126,7 @@ export async function settingsStatus(): Promise<
         configured = !!row?.value;
         updatedAt = row?.updatedAt?.toISOString() ?? null;
       }
-      return { key: d.key, label: d.label, hint: d.hint, secret: d.secret, configured, fromEnv, updatedAt };
+      return { key: d.key, label: d.label, hint: d.hint, secret: d.secret, multiline: "multiline" in d && !!(d as { multiline?: boolean }).multiline, configured, fromEnv, updatedAt };
     })
   );
 }
