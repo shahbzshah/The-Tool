@@ -112,8 +112,13 @@ export function normalizePublicKeyPem(pem: string): string {
   const m = pem.match(
     /-----BEGIN PUBLIC KEY-----\s*([A-Za-z0-9+/=\s]+?)\s*-----END PUBLIC KEY-----/
   );
-  if (!m) return pem;
-  const b64 = m[1].replace(/\s+/g, "");
+  let b64: string;
+  if (m) {
+    b64 = m[1].replace(/\s+/g, "");
+  } else {
+    // Bare base64 without PEM markers (e.g. only the middle line was pasted).
+    b64 = pem.replace(/\s+/g, "");
+  }
   if (!/^[A-Za-z0-9+/=]+$/.test(b64) || b64.length === 0) return pem;
   const lines = b64.match(/.{1,64}/g) ?? [b64];
   return `-----BEGIN PUBLIC KEY-----\n${lines.join("\n")}\n-----END PUBLIC KEY-----\n`;
