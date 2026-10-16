@@ -48,6 +48,11 @@ export default function Onboarding() {
     if (pathname.startsWith("/login") || pathname.startsWith("/register")) {
       return;
     }
+    // Only auto-show on the homepage — not on Settings or pipeline pages,
+    // where it interrupts what the user came to do.
+    if (pathname !== "/") {
+      return;
+    }
     let stored: string | null = null;
     try {
       stored = localStorage.getItem(FLAG);
