@@ -75,13 +75,6 @@ export const SETTING_DEFS = [
     env: "NVIDIA_MODEL",
   },
   {
-    key: "CRON_SECRET",
-    label: "Cron Secret",
-    hint: "Bearer token the daily watchlist job uses to trigger scans. (Older method, no longer used.)",
-    secret: true,
-    env: "CRON_SECRET",
-  },
-  {
     key: "CRON_PUBLIC_KEY",
     label: "Cron Public Key",
     hint: "Ed25519 public key (PEM). The daily watchlist job signs its requests with the matching private key — paste the public key here and the job authenticates without any shared secret.",

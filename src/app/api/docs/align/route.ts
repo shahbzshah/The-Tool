@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
+import { checkAiQuota } from "@/lib/ai-quota";
 import { generateDocForIdea, STACK_SENSITIVE_KINDS } from "@/lib/docgen";
 import { AIConfigError } from "@/lib/ai";
 
@@ -16,6 +17,14 @@ export const maxDuration = 60;
 export async function POST(req: Request) {
   const auth = await requireUser(req);
   if ("response" in auth) return auth.response;
+
+  // AI calls go through the daily per-user quota, same as /api/docs/generate.
+  if (!(await checkAiQuota(auth.user.id))) {
+    return NextResponse.json(
+      { error: "Daily AI quota exceeded." },
+      { status: 429 }
+    );
+  }
 
   try {
     const body = await req.json();

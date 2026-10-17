@@ -72,27 +72,50 @@ export async function POST(req: Request) {
     // createMany with an empty array throws a Prisma validation error —
     // an empty result is a valid completed scan with 0 results.
     if (ranked.length > 0) {
-      await prisma.opportunity.createMany({
-        data: ranked.map((s) => {
-          // installsMin = the numeric install floor ("5,000,000+" -> 5000000),
-          // NOT the reviews count.
-          const installsMin = parseInstalls(s.installs);
-          return {
-            scanJobId: job.id,
-            appId: s.appId,
-            title: s.title,
-            rating: s.rating,
-            installs: s.installs,
-            installsMin: installsMin > 0 ? BigInt(installsMin) : null,
-            reviewsCount: s.reviews ? BigInt(Math.floor(s.reviews)) : null,
-            score: s.opportunity,
-            category: s.genre,
-            summary: whyItScores(s),
-            url: `https://play.google.com/store/apps/details?id=${s.appId}`,
-            breakdown: JSON.stringify(s.breakdown),
-          };
-        }),
+      const kw = keyword.trim();
+      const toRow = (s: (typeof ranked)[number]) => {
+        // installsMin = the numeric install floor ("5,000,000+" -> 5000000),
+        // NOT the reviews count.
+        const installsMin = parseInstalls(s.installs);
+        return {
+          appId: s.appId,
+          title: s.title,
+          rating: s.rating,
+          installs: s.installs,
+          installsMin: installsMin > 0 ? BigInt(installsMin) : null,
+          reviewsCount: s.reviews ? BigInt(Math.floor(s.reviews)) : null,
+          score: s.opportunity,
+          category: s.genre,
+          summary: whyItScores(s),
+          url: `https://play.google.com/store/apps/details?id=${s.appId}`,
+          breakdown: JSON.stringify(s.breakdown),
+        };
+      };
+      // Dedupe: re-scanning a keyword must not create duplicate rows for the
+      // same app. Update the existing opportunity (fresh score, re-link to
+      // this job) instead, preserving the user's bookmark.
+      const existing = await prisma.opportunity.findMany({
+        where: {
+          appId: { in: ranked.map((s) => s.appId) },
+          scanJob: { userId: user.id, keyword: kw },
+        },
+        select: { id: true, appId: true },
       });
+      const existingIds = new Map(existing.map((e) => [e.appId, e.id]));
+      const creates: ({ scanJobId: string } & ReturnType<typeof toRow>)[] = [];
+      const updates: { id: string; data: { scanJobId: string } & ReturnType<typeof toRow> }[] = [];
+      for (const s of ranked) {
+        const data = { scanJobId: job.id, ...toRow(s) };
+        const id = existingIds.get(s.appId);
+        if (id) updates.push({ id, data });
+        else creates.push(data);
+      }
+      if (creates.length > 0) {
+        await prisma.opportunity.createMany({ data: creates });
+      }
+      for (const u of updates) {
+        await prisma.opportunity.update({ where: { id: u.id }, data: u.data });
+      }
     }
 
     const done = await prisma.scanJob.update({

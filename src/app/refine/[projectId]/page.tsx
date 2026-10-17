@@ -91,6 +91,20 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   // M21-client: the decisions log, built from each chat POST response's
   // `appliedUpdates` instead of parsing persisted messages.
   const [decisions, setDecisions] = useState<Decision[]>([]);
+  // Item 8: the log is persisted to the project (PATCH /api/projects/[id])
+  // and restored on load. decisionsRestored flips true only once a load
+  // completed — before that, the persist effect below must not fire.
+  const decisionsRestored = useRef(false);
+  // Item 8: last decision list written to the project; the persist effect
+  // skips writes that would send identical JSON back (e.g. right after a
+  // restore).
+  const lastPersistedDecisions = useRef("");
+  // Item 7: retry for failed AI messages — the index of the failed
+  // assistant bubble and the user text to resend.
+  const [failedAt, setFailedAt] = useState<number | null>(null);
+  const [failedText, setFailedText] = useState<string | null>(null);
+  // Item 9: project-wide AI token usage, shown muted in the header.
+  const [tokensUsed, setTokensUsed] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   // M8: localStorage key for the autosaved draft input.
   const DRAFT_KEY = `refine-draft:${projectId}`;
@@ -269,6 +283,26 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   // Esc closes the full-idea reader.
   useEscapeClose(() => setShowFullIdea(false));
 
+  // Item 8: persist the decisions log to the project (debounced, best-effort
+  // — the panel still works in-memory if the write fails). Never fires
+  // before the initial restore completes, and skips identical writes.
+  useEffect(() => {
+    if (!decisionsRestored.current) return;
+    const json = JSON.stringify(decisions);
+    if (json === lastPersistedDecisions.current) return;
+    lastPersistedDecisions.current = json;
+    const t = setTimeout(() => {
+      apiFetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decisions: json }),
+      }).catch(() => {
+        // best-effort only
+      });
+    }, 800);
+    return () => clearTimeout(t);
+  }, [decisions, projectId]);
+
   async function send(e?: React.FormEvent, overrideText?: string) {
     if (e) e.preventDefault();
     const text = (overrideText ?? input).trim();
@@ -302,10 +336,16 @@ export default function RefinePage({ params }: { params: { projectId: string } }
           ...next,
           { role: "assistant", content: data.error ?? "Something went wrong. Try again.", createdAt: new Date().toISOString() },
         ]);
+        // Item 7: mark the failed bubble so it gets a Retry button.
+        setFailedAt(next.length);
+        setFailedText(text);
         return;
       }
       if (data.model) setModelName(String(data.model).split("/").pop() ?? "");
       setMessages([...next, { role: "assistant", content: data.reply, createdAt: new Date().toISOString() }]);
+      // Item 7: the retry target is resolved — clear it.
+      setFailedAt(null);
+      setFailedText(null);
       if (data.idea) setIdea(data.idea);
       if (data.briefSaved) setBriefUpdatedAt(new Date().toISOString());
       // M21-client: build the decisions log from the response's
@@ -324,9 +364,25 @@ export default function RefinePage({ params }: { params: { projectId: string } }
         ...next,
         { role: "assistant", content: "Something went wrong. Try again.", createdAt: new Date().toISOString() },
       ]);
+      // Item 7: mark the failed bubble so it gets a Retry button.
+      setFailedAt(next.length);
+      setFailedText(text);
     } finally {
       setSending(false);
     }
+  }
+
+  // Item 7: drop the failed bubble and re-send the last user message
+  // through the normal send() path.
+  async function retryFailed() {
+    const text = failedText;
+    if (!text || sending) return;
+    setMessages((prev) =>
+      failedAt == null ? prev : prev.filter((_, idx) => idx !== failedAt)
+    );
+    setFailedAt(null);
+    setFailedText(null);
+    await send(undefined, text);
   }
 
   function saveBrief() {
@@ -399,6 +455,18 @@ export default function RefinePage({ params }: { params: { projectId: string } }
               <span className="font-mono text-[11px] text-muted-foreground">
                 Brief not saved yet
               </span>
+            )}
+            {/* Item 9: project-wide AI token usage */}
+            {tokensUsed && (
+              <>
+                <span className="h-1 w-1 rounded-full bg-border" />
+                <span
+                  className="font-mono text-[11px] text-muted-foreground"
+                  title="Total AI tokens logged for this project"
+                >
+                  {tokensUsed} tokens used
+                </span>
+              </>
             )}
           </div>
           <h1 className="break-words font-serif text-2xl font-medium tracking-tight md:text-4xl">
@@ -477,6 +545,17 @@ export default function RefinePage({ params }: { params: { projectId: string } }
                       )}
                     </div>
                     <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.content}</p>
+                    {/* Item 7: retry the failed AI request */}
+                    {failedAt === i && failedText && (
+                      <button
+                        onClick={retryFailed}
+                        disabled={sending}
+                        className="mt-1 inline-flex items-center gap-1.5 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                      >
+                        <span className="material-symbols text-[15px]">refresh</span>
+                        Retry
+                      </button>
+                    )}
                   </div>
                 </div>
               )

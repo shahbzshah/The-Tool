@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { chatJson, AIConfigError } from "@/lib/ai";
 import { requireUser } from "@/lib/auth";
 import { checkAiQuota } from "@/lib/ai-quota";
+import { estimateTokens, logAiUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -103,6 +104,15 @@ Respond with a JSON object:
     if (!review || typeof review !== "object" || typeof review.alignmentScore !== "number") {
       throw new Error("AI returned an invalid review.");
     }
+
+    // Track NVIDIA token consumption (estimated — the API returns no usage).
+    await logAiUsage({
+      userId: auth.user.id,
+      projectId,
+      kind: "design",
+      tokensIn: estimateTokens(system.length + user.length),
+      tokensOut: estimateTokens(JSON.stringify(review).length),
+    });
 
     return NextResponse.json({ review });
   } catch (err) {

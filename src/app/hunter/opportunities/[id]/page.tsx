@@ -140,9 +140,57 @@ function AnalysisCards({ content }: { content: string }) {
       ),
     });
   }
-  if (a.opportunity) {
+  if (Array.isArray(a.user_pain_points) && a.user_pain_points.length > 0) {
     cards.push({
       num: "04",
+      kicker: "User Frustrations",
+      kickerClass: "text-score-low",
+      icon: "error",
+      title: "What Users Complain About",
+      body: (
+        <ul className="space-y-2.5 pt-1 text-sm text-muted-foreground">
+          {a.user_pain_points.map((s: string, i: number) => (
+            <li key={i} className="flex items-start gap-2">
+              <Icon name="error" className="text-score-low text-[16px] mt-0.5" />
+              <span>{s}</span>
+            </li>
+          ))}
+        </ul>
+      ),
+    });
+  }
+  if (a.competition) {
+    cards.push({
+      num: "05",
+      kicker: "Competitive Landscape",
+      kickerClass: "text-score-medium",
+      icon: "group",
+      title: "Who Else Is There",
+      body: <p className="text-sm leading-relaxed text-muted-foreground">{a.competition}</p>,
+    });
+  }
+  if (Array.isArray(a.differentiation) && a.differentiation.length > 0) {
+    cards.push({
+      num: "06",
+      kicker: "Standing Out",
+      kickerClass: "text-primary",
+      icon: "auto_awesome",
+      title: "How to Beat Them",
+      body: (
+        <ul className="space-y-2.5 pt-1 text-sm text-muted-foreground">
+          {a.differentiation.map((s: string, i: number) => (
+            <li key={i} className="flex items-start gap-2">
+              <Icon name="auto_awesome" className="text-primary text-[16px] mt-0.5" />
+              <span>{s}</span>
+            </li>
+          ))}
+        </ul>
+      ),
+    });
+  }
+  if (a.opportunity) {
+    cards.push({
+      num: "07",
       kicker: "Addressable Market",
       kickerClass: "text-primary",
       icon: "trending_up",
@@ -152,7 +200,7 @@ function AnalysisCards({ content }: { content: string }) {
   }
   if (mvpItems.length > 0) {
     cards.push({
-      num: "05",
+      num: "08",
       kicker: "MVP Roadmap",
       kickerClass: "text-score-medium",
       icon: "terminal",
@@ -169,14 +217,63 @@ function AnalysisCards({ content }: { content: string }) {
       ),
     });
   }
+  const laterItems: string[] = Array.isArray(a.mvp_scope?.later) ? a.mvp_scope.later : [];
+  if (laterItems.length > 0) {
+    cards.push({
+      num: "09",
+      kicker: "Deliberately Later",
+      kickerClass: "text-muted-foreground",
+      icon: "history",
+      title: "After Launch",
+      body: (
+        <ul className="space-y-2 pt-1 text-sm text-muted-foreground">
+          {laterItems.map((s: string, i: number) => (
+            <li key={i} className="flex items-start gap-2">
+              <Icon name="history" className="text-muted-foreground text-[16px] mt-0.5" />
+              <span>{s}</span>
+            </li>
+          ))}
+        </ul>
+      ),
+    });
+  }
   if (a.monetization) {
     cards.push({
-      num: "06",
+      num: "10",
       kicker: "Commercial Model",
       kickerClass: "text-score-high",
       icon: "payments",
       title: "Monetization",
       body: <p className="text-sm leading-relaxed text-muted-foreground">{a.monetization}</p>,
+    });
+  }
+  if (Array.isArray(a.risks) && a.risks.length > 0) {
+    cards.push({
+      num: "11",
+      kicker: "Honest Risks",
+      kickerClass: "text-score-medium",
+      icon: "warning",
+      title: "What Could Go Wrong",
+      body: (
+        <ul className="space-y-2.5 pt-1 text-sm text-muted-foreground">
+          {a.risks.map((s: string, i: number) => (
+            <li key={i} className="flex items-start gap-2">
+              <Icon name="warning" className="text-score-medium text-[16px] mt-0.5" />
+              <span>{s}</span>
+            </li>
+          ))}
+        </ul>
+      ),
+    });
+  }
+  if (a.go_to_market) {
+    cards.push({
+      num: "12",
+      kicker: "First 1,000 Users",
+      kickerClass: "text-primary",
+      icon: "send",
+      title: "Go to Market",
+      body: <p className="text-sm leading-relaxed text-muted-foreground">{a.go_to_market}</p>,
     });
   }
 

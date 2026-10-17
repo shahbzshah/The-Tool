@@ -8,8 +8,9 @@ import { useEscapeClose } from "@/lib/shortcuts";
 
 /**
  * Watchlist keyword count shown in the dashboard stat cards when the live
- * value can't be read from GET /api/hunter/watchlist/status.
- * Must match WATCHLIST_KEYWORDS.length in src/app/api/hunter/watchlist/route.ts.
+ * value can't be read from GET /api/hunter/watchlist/keywords.
+ * Must match DEFAULT_WATCHLIST_KEYWORDS.length in
+ * src/lib/hunter/watchlist-keywords.ts.
  */
 const WATCHLIST_KEYWORDS_FALLBACK = 12;
 
@@ -584,6 +585,13 @@ export default function HunterPage() {
   const [watchlistKeywords, setWatchlistKeywords] = useState(
     WATCHLIST_KEYWORDS_FALLBACK
   );
+  // Watchlist keyword editor (desktop): the effective list from
+  // GET /api/hunter/watchlist/keywords. kwDraft is the working copy while
+  // the user adds/removes pills; Save PUTs it back.
+  const [watchlistKeywordList, setWatchlistKeywordList] = useState<string[] | null>(null);
+  const [kwDraft, setKwDraft] = useState<string[] | null>(null);
+  const [newKeyword, setNewKeyword] = useState("");
+  const [savingKeywords, setSavingKeywords] = useState(false);
 
   // Close the idea analysis sheet on Escape (the global ShortcutProvider
   // turns the keypress into the tt:escape cascade).
@@ -673,14 +681,25 @@ export default function HunterPage() {
           const wRes = await fetch("/api/hunter/watchlist/status");
           if (wRes.ok) {
             const wData = await wRes.json();
-            if (typeof wData?.keywordCount === "number") {
-              setWatchlistKeywords(wData.keywordCount);
-            }
             const last = wData?.lastRun;
             setWatchlistFailed(!!last && last.ok === false);
           }
         } catch {
           /* endpoint missing — chip stays hidden */
+        }
+        // Watchlist keywords: the live count feeds the "Watchlist" stat card
+        // and the keyword editor below. Falls back to the hardcoded count.
+        try {
+          const kRes = await fetch("/api/hunter/watchlist/keywords");
+          if (kRes.ok) {
+            const kData = await kRes.json();
+            if (Array.isArray(kData?.keywords)) {
+              setWatchlistKeywordList(kData.keywords);
+              setWatchlistKeywords(kData.keywords.length);
+            }
+          }
+        } catch {
+          /* keep the fallback count */
         }
         try {
           const bRes = await fetch("/api/hunter/opportunities?bookmarked=1&perPage=1");
@@ -777,6 +796,111 @@ export default function HunterPage() {
     setBookmarkedOnly(b);
     setPage(1);
     loadOpps(1, s, b);
+  }
+
+  /** Watchlist keyword editor helpers (desktop). */
+  const kwList = kwDraft ?? watchlistKeywordList ?? [];
+
+  function addWatchlistKeyword(e?: React.FormEvent) {
+    if (e) e.preventDefault();
+    const t = newKeyword.trim();
+    if (!t) return;
+    if (kwList.some((k) => k.toLowerCase() === t.toLowerCase())) {
+      setNewKeyword("");
+      return;
+    }
+    if (kwList.length >= 30) {
+      showToast("At most 30 watchlist keywords.");
+      return;
+    }
+    setKwDraft([...kwList, t]);
+    setNewKeyword("");
+  }
+
+  function removeWatchlistKeyword(k: string) {
+    setKwDraft(kwList.filter((x) => x !== k));
+  }
+
+  async function saveWatchlistKeywords() {
+    setSavingKeywords(true);
+    try {
+      const res = await fetch("/api/hunter/watchlist/keywords", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ keywords: kwDraft ?? watchlistKeywordList ?? [] }),
+      });
+      if (res.status === 401) {
+        router.push("/login");
+        return;
+      }
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        showToast(data.error ?? "Couldn't save keywords.");
+        return;
+      }
+      const saved = Array.isArray(data.keywords) ? data.keywords : kwList;
+      setWatchlistKeywordList(saved);
+      setKwDraft(null);
+      setWatchlistKeywords(saved.length);
+      showToast(`Watchlist keywords saved (${saved.length}).`);
+    } catch {
+      showToast("Couldn't reach the server — check your connection and retry.");
+    } finally {
+      setSavingKeywords(false);
+    }
+  }
+
+  /** Download the currently filtered+sorted opportunities as a CSV file. */
+  function exportCsv() {
+    if (sortedOpps.length === 0) {
+      showToast("Nothing to export — run a scan first.");
+      return;
+    }
+    const esc = (v: unknown): string => {
+      const s = String(v ?? "");
+      return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = [
+      "title",
+      "appId",
+      "rating",
+      "installs",
+      "reviews",
+      "score",
+      "category",
+      "url",
+      "bookmarked",
+    ];
+    const lines = [
+      header.join(","),
+      ...sortedOpps.map((o) =>
+        [
+          o.title,
+          o.appId,
+          o.rating ?? "",
+          o.installs ?? "",
+          o.reviewsCount ?? "",
+          Math.round(o.score),
+          o.category ?? "",
+          o.url ?? "",
+          o.isBookmarked ? "yes" : "no",
+        ]
+          .map(esc)
+          .join(",")
+      ),
+    ];
+    const blob = new Blob([lines.join("\n")], {
+      type: "text/csv;charset=utf-8",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `opportunities-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast(`Exported ${sortedOpps.length} opportunities as CSV.`);
   }
 
   async function analyzeIdea(idea: TrendIdea) {
@@ -900,6 +1024,14 @@ export default function HunterPage() {
       action: () => {
         applyFilters(search, !bookmarkedOnly);
         setTimeout(() => scrollToList(), 60);
+      },
+    },
+    {
+      id: "history",
+      label: "History",
+      icon: "history",
+      action: () => {
+        router.push("/history");
       },
     },
   ];
@@ -1043,6 +1175,80 @@ export default function HunterPage() {
             )}
           </section>
 
+          {/* 3b. Watchlist keywords editor */}
+          <section className="card-elevated p-5" aria-label="Watchlist keywords">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="flex h-6 w-6 items-center justify-center rounded border border-primary/30 bg-primary/10 text-primary">
+                  <span className="material-symbols text-[14px]">settings</span>
+                </div>
+                <div>
+                  <h2 className="font-serif text-lg font-semibold text-foreground">
+                    Watchlist keywords
+                  </h2>
+                  <p className="text-xs text-muted-foreground">
+                    Auto-scanned daily at 06:51 EAT · {kwList.length}{" "}
+                    {kwList.length === 1 ? "term" : "terms"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={saveWatchlistKeywords}
+                disabled={savingKeywords}
+                className="btn-primary min-h-[40px] !px-4 !py-1.5 text-xs disabled:opacity-40"
+              >
+                {savingKeywords ? "Saving…" : "Save keywords"}
+              </button>
+            </div>
+            {watchlistKeywordList === null ? (
+              <p className="pt-4 text-sm text-muted-foreground">
+                Loading watchlist keywords…
+              </p>
+            ) : (
+              <>
+                <div className="flex flex-wrap gap-2 pt-4">
+                  {kwList.length === 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      No custom keywords — the default set will be used. Saving an
+                      empty list restores the defaults.
+                    </p>
+                  )}
+                  {kwList.map((k) => (
+                    <span
+                      key={k}
+                      className="inline-flex min-h-[32px] items-center gap-1.5 rounded-full border border-border bg-muted py-1 pl-3 pr-1.5 text-xs font-medium text-foreground"
+                    >
+                      {k}
+                      <button
+                        onClick={() => removeWatchlistKeyword(k)}
+                        aria-label={`Remove ${k}`}
+                        className="flex h-5 w-5 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-card hover:text-foreground"
+                      >
+                        <span className="material-symbols text-[14px]">close</span>
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <form onSubmit={addWatchlistKeyword} className="flex gap-2 pt-4">
+                  <input
+                    value={newKeyword}
+                    onChange={(e) => setNewKeyword(e.target.value)}
+                    placeholder="Add a keyword, e.g. plant identifier…"
+                    aria-label="Add watchlist keyword"
+                    className="input-paper min-h-[40px] flex-1 !text-xs"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!newKeyword.trim()}
+                    className="btn-ghost min-h-[40px] text-xs disabled:opacity-40"
+                  >
+                    Add
+                  </button>
+                </form>
+              </>
+            )}
+          </section>
+
           {/* 4. Editor's pick */}
           {pick && pickTier && (
             <section className="card-elevated relative overflow-hidden p-5" aria-label="Top opportunity">
@@ -1159,6 +1365,9 @@ export default function HunterPage() {
 
           {/* 5. Ranked opportunities list */}
           <section className="card-paper flex flex-col" aria-label="Ranked opportunities">
+            <p className="border-b border-border px-4 py-1.5 text-xs text-muted-foreground">
+              Scores compare apps within each scan, not across scans.
+            </p>
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border p-4">
               <div className="flex min-w-[240px] flex-1 flex-wrap items-center gap-2">
                 <div className="relative w-full max-w-sm">
@@ -1197,6 +1406,14 @@ export default function HunterPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 text-xs">
+                <button
+                  onClick={exportCsv}
+                  title="Download the filtered opportunities as CSV"
+                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:min-h-0"
+                >
+                  <span className="material-symbols text-[16px]">download</span>
+                  <span>Export CSV</span>
+                </button>
                 <span className="font-mono text-muted-foreground">Sort:</span>
                 <div className="inline-flex rounded-md border border-border bg-muted p-0.5">
                   <button
@@ -1781,6 +1998,9 @@ export default function HunterPage() {
               Page {oppMeta.page}/{oppMeta.totalPages}
             </span>
           </div>
+          <p className="text-xs text-muted-foreground">
+            Scores compare apps within each scan, not across scans.
+          </p>
           {oppsFailed ? (
             <div className="card-paper">
               <LoadError

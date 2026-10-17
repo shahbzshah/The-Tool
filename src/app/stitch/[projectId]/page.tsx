@@ -105,6 +105,8 @@ export default function StitchPromptPage() {
   const [overrides, setOverrides] = useState<Record<number, boolean>>({});
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  // Item 9: project-wide AI token usage, shown muted in the header.
+  const [tokensUsed, setTokensUsed] = useState<string | null>(null);
 
   const loadUploads = useCallback(async () => {
     try {
@@ -151,7 +153,17 @@ export default function StitchPromptPage() {
   useEffect(() => {
     load();
     loadUploads();
-  }, [load, loadUploads]);
+    // Item 9: project-wide AI token usage (advisory — the page works without it).
+    apiFetch(`/api/usage?projectId=${projectId}`)
+      .then(async (r) => {
+        if (!r.ok) return;
+        const d = await r.json().catch(() => null);
+        if (d && typeof d.display === "string") setTokensUsed(d.display);
+      })
+      .catch(() => {
+        // ignore
+      });
+  }, [load, loadUploads, projectId]);
 
   async function generate() {
     setGenerating(true);
@@ -307,7 +319,18 @@ export default function StitchPromptPage() {
         </Link>
 
         <header className="mb-8 mt-4">
-          <p className="label-caps mb-2 text-primary">Step 3 — Design</p>
+          <div className="mb-2 flex items-center justify-between gap-3">
+            <p className="label-caps text-primary">Step 3 — Design</p>
+            {/* Item 9: project-wide AI token usage */}
+            {tokensUsed && (
+              <span
+                className="font-mono text-[11px] text-muted-foreground"
+                title="Total AI tokens logged for this project"
+              >
+                {tokensUsed} tokens used
+              </span>
+            )}
+          </div>
           <h1 className="mb-2 font-serif text-3xl tracking-tight text-foreground md:text-4xl">
             Stitch Prompt Generator
           </h1>

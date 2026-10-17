@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 async function ownedProject(userId: string, id: string) {
   return prisma.project.findFirst({
     where: { id, userId },
-    select: { id: true, name: true, stackLock: true },
+    select: { id: true, name: true, stackLock: true, decisions: true },
   });
 }
 
@@ -35,6 +35,8 @@ export async function GET(
  *   { name: string }                — rename (non-empty, max 200 chars)
  *   { notes: string | null }        — free-text notes (empty string clears)
  *   { archived: boolean }           — true sets archivedAt, false clears it
+ *   { decisions: string | null }     — JSON array string of applied refine
+ *                                     decisions (null clears the log)
  */
 export async function PATCH(
   req: Request,
@@ -50,6 +52,7 @@ export async function PATCH(
       name?: string;
       notes?: string | null;
       archivedAt?: Date | null;
+      decisions?: string | null;
     } = {};
 
     // --- Worker F: extended PATCH fields (rename / notes / archive) ---
@@ -83,9 +86,36 @@ export async function PATCH(
         raw === null ? null : String(raw).trim().slice(0, 2000) || null;
     }
 
+    // Decisions log — stored as a JSON array string so the Refine page can
+    // rebuild the panel after a refresh.
+    if ("decisions" in body) {
+      const raw = body.decisions;
+      if (raw === null) {
+        data.decisions = null;
+      } else {
+        const str = String(raw);
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(str);
+        } catch {
+          return NextResponse.json(
+            { error: "decisions must be a JSON array string." },
+            { status: 400 }
+          );
+        }
+        if (!Array.isArray(parsed)) {
+          return NextResponse.json(
+            { error: "decisions must be a JSON array string." },
+            { status: 400 }
+          );
+        }
+        data.decisions = str.slice(0, 20000);
+      }
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json(
-        { error: "No updatable field provided (name, notes, archived, stackLock)." },
+        { error: "No updatable field provided (name, notes, archived, stackLock, decisions)." },
         { status: 400 }
       );
     }
@@ -105,6 +135,7 @@ export async function PATCH(
         notes: true,
         archivedAt: true,
         stackLock: true,
+        decisions: true,
       },
     });
     return NextResponse.json({ project });

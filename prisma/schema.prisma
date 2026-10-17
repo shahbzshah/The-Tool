@@ -41,6 +41,7 @@ model Project {
   status       String         @default("refine") // hunter | refine | design | docs | export — current pipeline stage
   archivedAt   DateTime?      // set when the project is archived
   notes        String?        @db.Text
+  decisions    String?        // JSON array of applied refine decisions — persists the decisions log
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   ideas        Idea[]
@@ -182,6 +183,7 @@ model Opportunity {
 
   @@index([appId])
   @@index([scanJobId])
+  @@unique([scanJobId, appId])
 }
 
 model OpportunityAnalysis {

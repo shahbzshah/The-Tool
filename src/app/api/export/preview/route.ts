@@ -30,6 +30,7 @@ export async function GET(req: Request) {
       select: {
         id: true,
         projectId: true,
+        updatedAt: true,
         project: { select: { platform: true } },
       },
     });
@@ -39,14 +40,22 @@ export async function GET(req: Request) {
 
     const documents = await prisma.document.findMany({
       where: { ideaId },
-      select: { kind: true },
+      select: { kind: true, updatedAt: true },
     });
-    const present = new Set(documents.map((d) => d.kind));
-    const docs = DOC_KINDS.map((d) => ({
-      kind: d.kind,
-      label: d.label,
-      present: present.has(d.kind),
-    }));
+    const docAt = new Map(documents.map((d) => [d.kind, d.updatedAt]));
+    const ideaAt = idea.updatedAt.getTime();
+    const docs = DOC_KINDS.map((d) => {
+      const at = docAt.get(d.kind);
+      // Stale when the idea was updated after the doc was generated.
+      // 1s tolerance for clock skew between generate and idea timestamps.
+      const stale = at != null && ideaAt > at.getTime() + 1000;
+      return {
+        kind: d.kind,
+        label: d.label,
+        present: at != null,
+        stale,
+      };
+    });
 
     const [uploadTotal, uploadIncludable] = await Promise.all([
       prisma.upload.count({ where: { projectId: idea.projectId } }),
@@ -61,7 +70,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       platform: idea.project.platform,
       docs,
-      refinedBrief: present.has("REFINED_BRIEF"),
+      refinedBrief: docAt.has("REFINED_BRIEF"),
       uploads: { total: uploadTotal, includable: uploadIncludable },
       skills: {
         names: skillNames,

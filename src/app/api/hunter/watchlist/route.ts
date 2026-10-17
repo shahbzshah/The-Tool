@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { scanKeyword } from "@/lib/hunter/scraper";
 import { rankApps, whyItScores } from "@/lib/hunter/scoring";
+import { loadWatchlistKeywords } from "@/lib/hunter/watchlist-keywords";
 import { requireUser } from "@/lib/auth";
 import { sweepStaleJobs } from "@/lib/scan-jobs";
 import { getSetting, setSetting, normalizePublicKeyPem } from "@/lib/settings";
@@ -19,21 +20,9 @@ export const maxDuration = 300;
 /**
  * POST /api/hunter/watchlist — run the daily automatic watchlist scans.
  * Runs one scan per seed keyword for every user, skipping keywords already
- * scanned in the last 20 hours.
+ * scanned in the last 20 hours. Keywords are user-editable in Settings /
+ * the Hunter dashboard and fall back to the hardcoded defaults.
  */
-const WATCHLIST_KEYWORDS = [  "habit tracker",
-  "to-do list",
-  "pomodoro timer",
-  "budget tracker",
-  "workout planner",
-  "meal planner",
-  "sleep tracker",
-  "meditation",
-  "note taking",
-  "water reminder",
-  "language learning",
-  "expense tracker",
-];
 
 /**
  * Parse the numeric floor out of a Play Store installs string like
@@ -145,17 +134,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, scanned: 0, note: "no users yet" });
   }
 
+  // Effective keywords: custom setting if the user edited it, else defaults.
+  const effectiveKeywords = await loadWatchlistKeywords();
+
   // Optional body { keywords: [...] } to scan only a batch — the daily cron
   // calls the endpoint in batches so no single invocation exceeds the
-  // function time limit.
-  let keywords = WATCHLIST_KEYWORDS;
+  // function time limit. The batch filters against the effective list.
+  let keywords = effectiveKeywords;
   const trimmed = rawBody.trim();
   if (trimmed) {
     try {
       const body = JSON.parse(trimmed);
       if (Array.isArray(body?.keywords) && body.keywords.length > 0) {
         const wanted = new Set(body.keywords.map((k: unknown) => String(k)));
-        keywords = WATCHLIST_KEYWORDS.filter((k) => wanted.has(k));
+        keywords = effectiveKeywords.filter((k) => wanted.has(k));
         if (!keywords.length) {
           await recordLastRun(false, "No matching keywords");
           return NextResponse.json({ error: "No matching keywords." }, { status: 400 });
@@ -190,22 +182,43 @@ export async function POST(req: Request) {
         try {
           const details = await scanKeyword(keyword, 30, 20);
           const ranked = rankApps(details);
-          await prisma.opportunity.createMany({
-            data: ranked.map((s) => ({
-              scanJobId: job.id,
-              appId: s.appId,
-              title: s.title,
-              rating: s.rating,
-              installs: s.installs,
-              installsMin: parseInstallsMin(s.installs),
-              reviewsCount: BigInt(s.reviews),
-              score: s.opportunity,
-              category: s.genre,
-              summary: whyItScores(s),
-              url: `https://play.google.com/store/apps/details?id=${s.appId}`,
-              breakdown: JSON.stringify(s.breakdown),
-            })),
+          // Dedupe: re-scanning a keyword must not create duplicate rows for
+          // the same app. Update the existing opportunity (fresh score,
+          // re-link to this job) instead, preserving the user's bookmark.
+          const toRow = (s: (typeof ranked)[number]) => ({
+            appId: s.appId,
+            title: s.title,
+            rating: s.rating,
+            installs: s.installs,
+            installsMin: parseInstallsMin(s.installs),
+            reviewsCount: BigInt(s.reviews),
+            score: s.opportunity,
+            category: s.genre,
+            summary: whyItScores(s),
+            url: `https://play.google.com/store/apps/details?id=${s.appId}`,
+            breakdown: JSON.stringify(s.breakdown),
           });
+          const existing = await prisma.opportunity.findMany({
+            where: {
+              appId: { in: ranked.map((s) => s.appId) },
+              scanJob: { userId: user.id, keyword },
+            },
+            select: { id: true, appId: true },
+          });
+          const existingIds = new Map(existing.map((e) => [e.appId, e.id]));
+          const creates: ({ scanJobId: string } & ReturnType<typeof toRow>)[] = [];
+          for (const s of ranked) {
+            const data = { scanJobId: job.id, ...toRow(s) };
+            const id = existingIds.get(s.appId);
+            if (id) {
+              await prisma.opportunity.update({ where: { id }, data });
+            } else {
+              creates.push(data);
+            }
+          }
+          if (creates.length > 0) {
+            await prisma.opportunity.createMany({ data: creates });
+          }
           await prisma.scanJob.update({
             where: { id: job.id },
             data: {

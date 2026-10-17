@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { chatJson, AIConfigError } from "@/lib/ai";
+import { estimateTokens, logAiUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -142,6 +143,15 @@ Respond with JSON:
     if (!data?.promptText || !Array.isArray(data?.screens)) {
       throw new Error("AI returned an invalid Stitch prompt structure.");
     }
+
+    // Track NVIDIA token consumption (estimated — the API returns no usage).
+    await logAiUsage({
+      userId: auth.user.id,
+      projectId,
+      kind: "design",
+      tokensIn: estimateTokens(system.length + user.length),
+      tokensOut: estimateTokens(JSON.stringify(data).length),
+    });
 
     const asStringArr = (v: unknown) =>
       Array.isArray(v) ? v.map(String) : [];

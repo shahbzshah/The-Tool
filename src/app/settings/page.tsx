@@ -16,6 +16,43 @@ type SettingStatus = {
   updatedAt: string | null;
 };
 
+function UsageCard() {
+  const [usage, setUsage] = useState<{ used: number; quota: number } | null>(null);
+  useEffect(() => {
+    apiFetch("/api/usage")
+      .then((r) => r.json())
+      .then((d) => {
+        if (typeof d.used === "number" && typeof d.quota === "number") {
+          setUsage({ used: d.used, quota: d.quota });
+        }
+      })
+      .catch(() => {});
+  }, []);
+  if (!usage) return null;
+  const pct = Math.min(100, Math.round((usage.used / usage.quota) * 100));
+  return (
+    <div className="card-paper mt-6 p-5">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <h2 className="font-medium">AI usage today</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {usage.used} of {usage.quota} AI calls used in the last 24 hours.
+          </p>
+        </div>
+        <span className="pill shrink-0 bg-muted text-muted-foreground">
+          {usage.quota - usage.used} left
+        </span>
+      </div>
+      <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-primary transition-all"
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<SettingStatus[]>([]);
@@ -23,12 +60,21 @@ export default function SettingsPage() {
   const [show, setShow] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   const load = useCallback(async () => {
     try {
       const res = await apiFetch("/api/settings");
       const data = await res.json();
-      setSettings(data.settings ?? []);
+      if (!res.ok) {
+        setLoadError(data.error || "Could not load settings.");
+        setSettings([]);
+      } else {
+        setLoadError("");
+        setSettings(data.settings ?? []);
+      }
+    } catch {
+      setLoadError("Could not load settings. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -98,6 +144,8 @@ export default function SettingsPage() {
         set, always take precedence.
       </p>
 
+      <UsageCard />
+
       <div className="mt-6">
         <button
           onClick={() => window.dispatchEvent(new Event(ONBOARD_EVENT))}
@@ -109,6 +157,12 @@ export default function SettingsPage() {
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        {loadError && (
+          <div className="col-span-full rounded-md border border-score-low/40 bg-score-low/10 p-4 text-sm text-foreground">
+            <p className="font-medium">Could not load settings</p>
+            <p className="mt-1 text-muted-foreground">{loadError}</p>
+          </div>
+        )}
         {settings.map((s) => (
           <section key={s.key} className="card-paper p-6">
             <div className="flex items-start justify-between gap-4">

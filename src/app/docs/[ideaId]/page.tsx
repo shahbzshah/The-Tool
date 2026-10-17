@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import UploadPanel, { type UploadItem } from "@/components/UploadPanel";
+import StackLockPanel from "@/components/StackLockPanel";
 import { DOC_KINDS, type DocKindDef } from "@/lib/constants";
 import { timeAgo } from "@/lib/hunter/ui";
 import {
@@ -249,6 +250,8 @@ export default function DocsPage() {
   const [regenerating, setRegenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [docIds, setDocIds] = useState<Record<string, string>>({});
+  // Canonical tech stack injected into generated docs (StackLockPanel).
+  const [stackLock, setStackLock] = useState<string | null>(null);
   // Find-within-doc state (isolated feature: client-side search in the open doc).
   const [findQuery, setFindQuery] = useState("");
   const [findIndex, setFindIndex] = useState(0);
@@ -283,6 +286,15 @@ export default function DocsPage() {
         );
         const upData = await upRes.json();
         setUploads(upData.uploads ?? []);
+        // StackLockPanel needs the project's canonical stack; the ideas
+        // endpoint doesn't return it, so fetch the project directly.
+        const projRes = await apiFetch(
+          `/api/projects/${ideaData.idea.projectId}`
+        );
+        if (projRes.ok) {
+          const projData = await projRes.json();
+          setStackLock(projData.project?.stackLock ?? null);
+        }
       }
       const docsData = await docsRes.json();
       if (docsRes.ok) {
@@ -522,8 +534,7 @@ export default function DocsPage() {
   }
 
   const generatedCount = DOC_KINDS.filter((d) => docs[d.kind]).length;
-  const activeContent = docs[activeKind];
-  const activeMeta = DOC_KINDS.find((d) => d.kind === activeKind);
+  const activeContent = docs[activeKind];  const activeMeta = DOC_KINDS.find((d) => d.kind === activeKind);
   const activeUpdatedAt = docsMeta[activeKind];
   const allDone = generatedCount === DOC_KINDS.length;
 
@@ -640,6 +651,18 @@ export default function DocsPage() {
   const activeStale = docIsStale(activeKind);
   // --- end stale detection -------------------------------------------------
 
+  // StackLockPanel alignment writes the aligned docs back here. The aligned
+  // docs were just regenerated, so reset their freshness stamps too.
+  const handleDocsAligned = useCallback((updated: Record<string, string>) => {
+    setDocs((prev) => ({ ...prev, ...updated }));
+    const now = new Date().toISOString();
+    setDocsMeta((prev) => {
+      const next = { ...prev };
+      for (const k of Object.keys(updated)) next[k] = now;
+      return next;
+    });
+  }, []);
+
   if (loading) {
     return (
       <main className="mx-auto max-w-[1200px] px-6 py-16 text-center">
@@ -700,6 +723,18 @@ export default function DocsPage() {
           projectId={idea.projectId}
           uploads={uploads}
           onUploaded={loadAll}
+        />
+      </div>
+
+      {/* Stack lock: the canonical tech stack injected into generated docs */}
+      <div className="print-hide mt-6">
+        <StackLockPanel
+          projectId={idea.projectId}
+          ideaId={ideaId}
+          stackLock={stackLock}
+          onStackLockChange={setStackLock}
+          docs={docs}
+          onDocsUpdated={handleDocsAligned}
         />
       </div>
 

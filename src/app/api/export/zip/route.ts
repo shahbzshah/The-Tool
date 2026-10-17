@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import JSZip from "jszip";
 import { findTool } from "@/lib/exporters";
+import { DOC_KINDS } from "@/lib/constants";
 import { buildSkillsBundle } from "@/lib/skills";
 
 export const runtime = "nodejs";
@@ -99,6 +100,30 @@ export async function POST(req: Request) {
         : skippedUploads > 0
           ? `(none) — ${skippedUploads} upload(s) have no stored content to include`
           : "(none) — no design uploads yet";
+
+    // Warn when the idea changed after docs were generated — those docs may
+    // not reflect the current idea. Mirrors the stale check in
+    // /api/export/preview (1s tolerance for clock skew).
+    const labelByKind = new Map(DOC_KINDS.map((d) => [d.kind, d.label]));
+    const staleDocs = documents.filter(
+      (d) => idea.updatedAt.getTime() > d.updatedAt.getTime() + 1000
+    );
+    if (staleDocs.length > 0) {
+      files["STALE_WARNING.txt"] =
+        `WARNING: ${staleDocs.length} document(s) in this pack may be outdated.\n` +
+        `The idea was updated after these documents were generated. Regenerate\n` +
+        `them from the Docs page before handing this pack to a builder.\n\n` +
+        `Stale documents:\n` +
+        staleDocs
+          .map(
+            (d) =>
+              `  - ${labelByKind.get(d.kind) ?? d.kind}` +
+              ` (doc generated ${d.updatedAt.toISOString()},` +
+              ` idea updated ${idea.updatedAt.toISOString()})`
+          )
+          .join("\n") +
+        "\n";
+    }
 
     // Always include a README explaining where to put the files
     files["README.txt"] = `${tool.name} export pack for "${idea.title}"

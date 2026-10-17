@@ -151,9 +151,12 @@ export function whyItScores(s: ScoredApp): string {
   const b = s.breakdown;
   const drivers: string[] = [];
   if (b.quality >= 70) drivers.push("standout quality");
-  if (b.gap >= 70) drivers.push("a wide gap between its rating and its reach");
+  // gap is a 1–5 multiplier (gapMultiplier), not 0–100.
+  if (b.gap >= 3.5) drivers.push("a wide gap between its rating and its reach (hidden gem)");
   if (b.market >= 70) drivers.push("a healthy market around it");
-  if (b.competition <= 30) drivers.push("thin competition");
+  // competition is 1–10 from competitionFactor; lower = less competition.
+  if (b.competition <= 4) drivers.push("thin competition");
+  else if (b.competition >= 7) drivers.push("a crowded field");
   if (drivers.length) {
     parts.push(` — the score comes from ${drivers.join(", ")}.`);
   } else {

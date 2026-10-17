@@ -18,7 +18,7 @@ const TOOL_ICONS: Record<ExportToolId, string> = {
   v0: "terminal",
 };
 
-type PreviewDoc = { kind: string; label: string; present: boolean };
+type PreviewDoc = { kind: string; label: string; present: boolean; stale: boolean };
 type PackPreview = {
   platform: string | null;
   docs: PreviewDoc[];
@@ -205,6 +205,9 @@ export default function ExportPage() {
 
   const tool = EXPORT_TOOLS.find((t) => t.id === selected)!;
 
+  const staleDocs = preview ? preview.docs.filter((d) => d.present && d.stale) : [];
+  const docsReady = docCount === DOC_KINDS.length;
+
   async function saveToFolder() {
     const picker = (window as unknown as {
       showDirectoryPicker?: (opts?: unknown) => Promise<FileSystemDirectoryHandle>;
@@ -307,7 +310,9 @@ export default function ExportPage() {
         <header className="mb-8 text-center">
           <p className="label-caps mb-3 text-primary">Export</p>
           <h1 className="mb-3 font-serif text-3xl tracking-tight text-foreground md:text-4xl">
-            Your build pack is ready
+            {docsReady
+              ? "Your build pack is ready"
+              : `${docCount} of ${DOC_KINDS.length} docs generated`}
           </h1>
           <p className="text-muted-foreground">
             Pack for <span className="text-foreground">{idea.title}</span> —{" "}
@@ -414,6 +419,31 @@ export default function ExportPage() {
               still download.
             </p>
             <PackChecklist preview={preview} />
+            {staleDocs.length > 0 && (
+              <div className="mt-4 rounded-md border border-score-medium/40 bg-score-medium/10 p-3">
+                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-score-medium">
+                  <span className="material-symbols text-[15px]">warning</span>
+                  {staleDocs.length} doc{staleDocs.length > 1 ? "s" : ""} may
+                  be outdated
+                </p>
+                <ul className="space-y-1.5">
+                  {staleDocs.map((d) => (
+                    <li
+                      key={d.kind}
+                      className="flex items-start gap-1.5 text-xs text-foreground"
+                    >
+                      <span className="material-symbols mt-px shrink-0 text-[14px] text-score-medium">
+                        warning
+                      </span>
+                      <span>
+                        <span className="font-medium">{d.label}</span> — May
+                        be outdated — idea changed since generation
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </section>
         )}
 

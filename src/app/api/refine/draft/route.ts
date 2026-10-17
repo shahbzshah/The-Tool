@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { chat, parseJsonLoose } from "@/lib/ai";
+import { estimateTokens, logAiUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -78,16 +79,25 @@ export async function POST(req: Request) {
     );
   }
 
+  const draftUserPrompt =
+    `App: ${idea.title}\n\nMarket analysis:\n${idea.project.preferences.slice(0, 12000)}`;
+
   const reply = await chat(
     [
       { role: "system", content: DRAFT_SYSTEM },
-      {
-        role: "user",
-        content: `App: ${idea.title}\n\nMarket analysis:\n${idea.project.preferences.slice(0, 12000)}`,
-      },
+      { role: "user", content: draftUserPrompt },
     ],
     { temperature: 0.6, maxTokens: 2048 }
   );
+
+  // Track NVIDIA token consumption (estimated — the API returns no usage).
+  await logAiUsage({
+    userId: auth.user.id,
+    projectId,
+    kind: "refine",
+    tokensIn: estimateTokens(DRAFT_SYSTEM.length + draftUserPrompt.length),
+    tokensOut: estimateTokens(reply.length),
+  });
 
   // The model is instructed to return a fenced ```update block, but it
   // sometimes returns bare JSON or a ```json fence instead — parse tolerantly.
