@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/auth";
-import { prisma } from "@/lib/db";
+import { requireUser, isAdminUser } from "@/lib/auth";
 import { settingsStatus, setSetting, SETTING_DEFS } from "@/lib/settings";
 
 export const runtime = "nodejs";
@@ -12,11 +11,7 @@ async function requireAdmin(
 ): Promise<NextResponse | null> {
   const auth = await requireUser(req);
   if ("response" in auth) return auth.response;
-  const admin = await prisma.user.findUnique({
-    where: { id: auth.user.id },
-    select: { isAdmin: true },
-  });
-  if (!admin?.isAdmin) {
+  if (!(await isAdminUser(auth.user.id, auth.user.email))) {
     return NextResponse.json(
       { error: "Admin access required." },
       { status: 403 }

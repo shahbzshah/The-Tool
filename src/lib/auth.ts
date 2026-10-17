@@ -81,3 +81,23 @@ export async function requireUser(
   }
   return { user };
 }
+
+/**
+ * Owner email: always treated as admin, even if the isAdmin DB flag was
+ * never set (e.g. accounts created before the admin column existed).
+ * Override with the ADMIN_EMAIL env var.
+ */
+export function isOwnerEmail(email: string): boolean {
+  const owner = (process.env.ADMIN_EMAIL || "admin@gmail.com").toLowerCase();
+  return email.toLowerCase() === owner;
+}
+
+/** True if the user is an admin: DB flag or owner email. */
+export async function isAdminUser(userId: string, email: string): Promise<boolean> {
+  if (isOwnerEmail(email)) return true;
+  const admin = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { isAdmin: true },
+  });
+  return !!admin?.isAdmin;
+}
