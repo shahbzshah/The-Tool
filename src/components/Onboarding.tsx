@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { ONBOARD_EVENT, useEscapeClose } from "@/lib/shortcuts";
 
 const FLAG = "tt_onboarded";
@@ -41,29 +41,11 @@ const STEPS = [
  */
 export default function Onboarding() {
   const router = useRouter();
-  const pathname = usePathname();
   const [visible, setVisible] = useState(false);
 
-  useEffect(() => {
-    if (pathname.startsWith("/login") || pathname.startsWith("/register")) {
-      return;
-    }
-    // Only auto-show on the homepage — not on Settings or pipeline pages,
-    // where it interrupts what the user came to do.
-    if (pathname !== "/") {
-      return;
-    }
-    let stored: string | null = null;
-    try {
-      stored = localStorage.getItem(FLAG);
-    } catch {
-      // storage unavailable — show the tour anyway
-    }
-    if (!stored) {
-      const t = setTimeout(() => setVisible(true), 600);
-      return () => clearTimeout(t);
-    }
-  }, [pathname]);
+  // No auto-show: the tour only appears when manually triggered via the
+  // help icon or the Settings "Take the pipeline tour" button.
+  // (Auto-show kept interrupting users on pages they came to use.)
 
   useEffect(() => {
     const show = () => setVisible(true);
