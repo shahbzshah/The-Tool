@@ -83,6 +83,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   const [briefUpdatedAt, setBriefUpdatedAt] = useState<string | null>(null);
   const [briefContent, setBriefContent] = useState<string | null>(null);
   const [analysisText, setAnalysisText] = useState<string | null>(null);
+  const [ideaJustUpdated, setIdeaJustUpdated] = useState(false);
   const [showFullIdea, setShowFullIdea] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [modelName, setModelName] = useState("");
@@ -346,7 +347,12 @@ export default function RefinePage({ params }: { params: { projectId: string } }
       // Item 7: the retry target is resolved — clear it.
       setFailedAt(null);
       setFailedText(null);
-      if (data.idea) setIdea(data.idea);
+      if (data.idea) {
+        setIdea(data.idea);
+        // Flash the panel so the user sees the edit land live.
+        setIdeaJustUpdated(true);
+        setTimeout(() => setIdeaJustUpdated(false), 2500);
+      }
       if (data.briefSaved) setBriefUpdatedAt(new Date().toISOString());
       // M21-client: build the decisions log from the response's
       // `appliedUpdates` — no parsing of persisted messages.
@@ -639,7 +645,16 @@ export default function RefinePage({ params }: { params: { projectId: string } }
         </section>
 
         {/* RIGHT — living idea specification */}
-        <aside className="card-elevated space-y-6 p-4 md:p-6 min-[900px]:col-span-5 min-[900px]:sticky min-[900px]:top-24">
+        <aside
+          className={`card-elevated space-y-6 p-4 transition-shadow duration-500 md:p-6 min-[900px]:col-span-5 min-[900px]:sticky min-[900px]:top-24 ${
+            ideaJustUpdated ? "shadow-[0_0_0_2px_var(--primary)]" : ""
+          }`}
+        >
+          {ideaJustUpdated && (
+            <div className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
+              Idea updated from your chat — watch the changes above
+            </div>
+          )}
           <div className="flex items-start justify-between border-b border-border pb-4">
             <div className="space-y-1">
               <span className="label-caps block text-primary">CANONICAL ARTIFACT</span>
