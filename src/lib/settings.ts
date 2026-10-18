@@ -82,6 +82,22 @@ export const SETTING_DEFS = [
     env: "CRON_PUBLIC_KEY",
     multiline: true,
   },
+  {
+    key: "RESEND_API_KEY",
+    label: "Resend API Key",
+    hint: "For password-reset emails. Get a free key at resend.com (100 emails/day). Without this, the forgot-password flow can't send emails.",
+    secret: true,
+    env: "RESEND_API_KEY",
+    multiline: false,
+  },
+  {
+    key: "RESEND_FROM",
+    label: "Resend From Address (optional)",
+    hint: "Email address reset emails come from. Defaults to onboarding@resend.dev (only sends to your own email). Use a verified domain address to email anyone.",
+    secret: true,
+    env: "RESEND_FROM",
+    multiline: false,
+  },
 ] as const;
 
 export type SettingKey = (typeof SETTING_DEFS)[number]["key"];

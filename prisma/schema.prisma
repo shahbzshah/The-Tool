@@ -18,6 +18,7 @@ model User {
   scoreHistories OpportunityScoreHistory[]
   projects     Project[]
   isAdmin      Boolean   @default(false)
+  resetTokens  PasswordResetToken[]
 }
 
 model RefineMessage {
@@ -266,4 +267,17 @@ model ShareToken {
   expiresAt DateTime?
 
   @@index([token])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
 }
