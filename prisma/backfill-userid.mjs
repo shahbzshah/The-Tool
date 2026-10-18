@@ -69,35 +69,6 @@ try {
   } catch (adminErr) {
     console.warn(`[backfill-userid] admin promotion skipped (${adminErr.message})`);
   }
-  // Consolidate: if the owner account (admin@gmail.com) exists, move all
-  // data from other accounts to it. This handles the case where the user
-  // switched accounts and wants their old scans/projects under one login.
-  // Idempotent — once consolidated, there's nothing left to move.
-  try {
-    const owner = await prisma.user.findFirst({
-      where: { email: { equals: "admin@gmail.com", mode: "insensitive" } },
-      select: { id: true },
-    });
-    if (owner) {
-      for (const [label, delegate] of tables) {
-        try {
-          const res = await delegate.updateMany({
-            where: { userId: { not: owner.id } },
-            data: { userId: owner.id },
-          });
-          if (res.count > 0) {
-            console.log(
-              `[backfill-userid] ${label}: consolidated ${res.count} row(s) to owner ${owner.id}`
-            );
-          }
-        } catch (tableErr) {
-          console.warn(`[backfill-userid] ${label}: consolidate skipped (${tableErr.message})`);
-        }
-      }
-    }
-  } catch (consErr) {
-    console.warn(`[backfill-userid] consolidate skipped (${consErr.message})`);
-  }
 } catch (err) {
   console.warn(`[backfill-userid] warning: ${err.message} — continuing build`);
 } finally {
