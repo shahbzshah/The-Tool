@@ -171,6 +171,41 @@
   .pill {
     @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-1 text-[11px] font-medium leading-none;
   }
+
+  /* Public share page document body — rendered markdown in editorial style. */
+  .share-doc-body {
+    @apply text-[0.9375rem] leading-relaxed text-foreground/90;
+  }
+  .share-doc-body p {
+    @apply mb-3;
+  }
+  .share-doc-body h2,
+  .share-doc-body h3,
+  .share-doc-body h4,
+  .share-doc-body h5 {
+    @apply mt-5 mb-2 font-serif text-lg text-foreground;
+  }
+  .share-doc-body ul {
+    @apply mb-3 list-disc space-y-1.5 pl-5;
+  }
+  .share-doc-body ol {
+    @apply mb-3 list-decimal space-y-1.5 pl-5;
+  }
+  .share-doc-body strong {
+    @apply font-semibold text-foreground;
+  }
+  .share-doc-body a {
+    @apply text-primary underline decoration-primary/40 underline-offset-2 hover:decoration-primary;
+  }
+  .share-doc-body code {
+    @apply rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] text-foreground;
+  }
+  .share-doc-body pre {
+    @apply mb-4 overflow-auto rounded-md border border-border bg-background/60 p-4;
+  }
+  .share-doc-body pre code {
+    @apply bg-transparent p-0 text-[0.8125rem] leading-relaxed;
+  }
 }
 
 /* Print stylesheet — clean document output from the docs reader.

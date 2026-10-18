@@ -10,5 +10,7 @@ import AppHeader from "./AppHeader";
  */
 export default function HeaderSwitch() {
   const pathname = usePathname();
+  // Public share pages render without auth and without the app chrome.
+  if (pathname.startsWith("/share")) return null;
   return <AppHeader className={pathname === "/" ? "hidden lg:block" : ""} />;
 }

@@ -143,6 +143,10 @@ export default function ExportPage() {
   const [done, setDone] = useState(false);
   const [writtenCount, setWrittenCount] = useState(0);
   const [preview, setPreview] = useState<PackPreview | null>(null);
+  const [shareToken, setShareToken] = useState<string | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [shareCopied, setShareCopied] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -204,6 +208,65 @@ export default function ExportPage() {
   }
 
   const tool = EXPORT_TOOLS.find((t) => t.id === selected)!;
+
+  const shareUrl =
+    shareToken && typeof window !== "undefined"
+      ? `${window.location.origin}/share/${shareToken}`
+      : null;
+
+  async function createShare() {
+    if (!idea) return;
+    setShareBusy(true);
+    setShareError(null);
+    setShareCopied(false);
+    try {
+      const res = await apiFetch("/api/share", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: idea.projectId }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Could not create the share link.");
+      setShareToken(data.token);
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : "Could not create the share link.");
+    } finally {
+      setShareBusy(false);
+    }
+  }
+
+  async function revokeShare() {
+    if (!shareToken) return;
+    setShareBusy(true);
+    setShareError(null);
+    try {
+      const res = await apiFetch("/api/share", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: shareToken }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Could not revoke the share link.");
+      }
+      setShareToken(null);
+      setShareCopied(false);
+    } catch (err) {
+      setShareError(err instanceof Error ? err.message : "Could not revoke the share link.");
+    } finally {
+      setShareBusy(false);
+    }
+  }
+
+  async function copyShareLink() {
+    if (!shareUrl) return;
+    try {
+      await navigator.clipboard.writeText(shareUrl);
+      setShareCopied(true);
+    } catch {
+      setShareError("Copy failed — select the link and copy it manually.");
+    }
+  }
 
   const staleDocs = preview ? preview.docs.filter((d) => d.present && d.stale) : [];
   const docsReady = docCount === DOC_KINDS.length;
@@ -489,6 +552,69 @@ export default function ExportPage() {
           {error && (
             <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
               {error}
+            </p>
+          )}
+        </section>
+
+        <section className="card-paper mt-6 p-4 md:p-6">
+          <h2 className="label-caps mb-1 text-muted-foreground">
+            4. Share a public link
+          </h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Create a read-only public link showing the approved idea and all
+            generated documents. Anyone with the link can view it — no sign-in
+            needed. Revoke it any time.
+          </p>
+          {!shareToken ? (
+            <button
+              onClick={createShare}
+              disabled={shareBusy}
+              className="btn-secondary min-h-[48px]"
+            >
+              <span className="material-symbols text-[20px]">link</span>
+              {shareBusy ? "Creating link…" : "Create share link"}
+            </button>
+          ) : (
+            <div className="space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  readOnly
+                  value={shareUrl ?? ""}
+                  onFocus={(e) => e.target.select()}
+                  className="input-paper flex-1 font-mono text-xs"
+                  aria-label="Public share link"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={copyShareLink}
+                    className="btn-secondary min-h-[44px] flex-1 px-4 sm:flex-none"
+                  >
+                    <span className="material-symbols text-[18px]">
+                      {shareCopied ? "check" : "content_copy"}
+                    </span>
+                    {shareCopied ? "Copied" : "Copy"}
+                  </button>
+                  <button
+                    onClick={revokeShare}
+                    disabled={shareBusy}
+                    className="btn-ghost min-h-[44px] flex-1 px-4 sm:flex-none"
+                  >
+                    <span className="material-symbols text-[18px]">
+                      link_off
+                    </span>
+                    {shareBusy ? "Revoking…" : "Revoke"}
+                  </button>
+                </div>
+              </div>
+              <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <span className="material-symbols text-[15px]">public</span>
+                Public — this link works for anyone, even without an account.
+              </p>
+            </div>
+          )}
+          {shareError && (
+            <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {shareError}
             </p>
           )}
         </section>
