@@ -15,6 +15,7 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   scanJobs     ScanJob[]
+  scoreHistories OpportunityScoreHistory[]
   projects     Project[]
   isAdmin      Boolean   @default(false)
 }
@@ -45,6 +46,7 @@ model Project {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   ideas        Idea[]
+  shareTokens  ShareToken[]
   stitchPrompt StitchPrompt?
   uploads      Upload[]
   userId       String?
@@ -69,6 +71,7 @@ model Idea {
   createdAt      DateTime      @default(now())
   updatedAt      DateTime      @updatedAt
   documents      Document[]
+  versions       IdeaVersion[]
 
   @@index([projectId])
 }
@@ -154,6 +157,7 @@ model ScanJob {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   opportunities Opportunity[]
+  scoreHistories OpportunityScoreHistory[]
 
   @@index([status])
   @@index([userId])
@@ -219,4 +223,47 @@ model AppSetting {
   key       String   @id // e.g. NVIDIA_API_KEY, NVIDIA_MODEL, CRON_SECRET
   value     String   // AES-256-GCM encrypted, base64
   updatedAt DateTime @updatedAt
+}
+
+// ---- Audit / history / share models (migration: add_audit_models) ----
+
+model OpportunityScoreHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  appId     String
+  score     Float
+  scanJobId String?
+  scanJob   ScanJob? @relation(fields: [scanJobId], references: [id], onDelete: SetNull)
+  scannedAt DateTime @default(now())
+
+  @@index([userId, appId])
+  @@index([appId])
+}
+
+model IdeaVersion {
+  id             String   @id @default(cuid())
+  ideaId         String
+  idea           Idea     @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  title          String
+  pitch          String
+  features       String   // JSON array of strings (snapshot before change)
+  targetAudience String
+  monetization   String?
+  note           String?  // e.g. "before AI update: added X"
+  createdAt      DateTime @default(now())
+
+  @@index([ideaId])
+}
+
+model ShareToken {
+  id        String    @id @default(cuid())
+  token     String    @unique @default(cuid())
+  projectId String?
+  project   Project?  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  ideaId    String?
+  createdAt DateTime  @default(now())
+  expiresAt DateTime?
+
+  @@index([token])
 }
