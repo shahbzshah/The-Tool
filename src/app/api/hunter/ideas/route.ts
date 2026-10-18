@@ -36,6 +36,7 @@ export async function GET(req: Request) {
   }
   const auth = await requireUser(req);
   if ("response" in auth) return auth.response;
+  const url = new URL(req.url);
 
   // Check for a fresh cached feed.
   let cached;
@@ -55,8 +56,9 @@ export async function GET(req: Request) {
   const newest = cached[0]?.createdAt?.getTime() ?? 0;
   const age = Date.now() - newest;
   const ttl = cached.length === 0 ? 5 * 60 * 1000 : CACHE_TTL_MS;
+  const forceFresh = url.searchParams.get("fresh") === "1";
 
-  if (cached.length > 0 && age < ttl) {
+  if (!forceFresh && cached.length > 0 && age < ttl) {
     return NextResponse.json({
       ideas: cached,
       cached: true,

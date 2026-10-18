@@ -649,10 +649,10 @@ export default function HunterPage() {
     [page, search, bookmarkedOnly, keywordFilter]
   );
 
-  const loadIdeas = useCallback(async () => {
+  const loadIdeas = useCallback(async (fresh = false) => {
     setIdeasLoading(true);
     try {
-      const res = await fetch("/api/hunter/ideas");
+      const res = await fetch(`/api/hunter/ideas${fresh ? "?fresh=1" : ""}`);
       const data = await res.json();
       setIdeas(data.ideas ?? []);
       setIdeasFailed(false);
@@ -1525,7 +1525,7 @@ export default function HunterPage() {
                 </div>
                 <div className="flex items-center gap-1">
                   <button
-                    onClick={loadIdeas}
+                    onClick={() => loadIdeas(true)}
                     title="Refresh radar stream"
                     aria-label="Refresh radar stream"
                     className="flex h-11 w-11 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"

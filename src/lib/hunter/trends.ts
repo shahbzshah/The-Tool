@@ -19,6 +19,9 @@ export interface TrendIdea {
 
 const HN_QUERIES = ["app idea", "mobile app idea", "side project app"];
 const REQUEST_TIMEOUT_MS = 20000;
+// Only fetch stories from the last 7 days so the radar shows what's
+// trending now, not evergreen archive posts.
+const RECENT_DAYS = 7;
 
 async function fetchWithTimeout(url: string, params: Record<string, string>): Promise<any> {
   const qs = new URLSearchParams(params).toString();
@@ -39,10 +42,12 @@ export async function hackernewsIdeas(limitPerQuery = 8): Promise<TrendIdea[]> {
   const seen = new Set<string>();
   for (const query of HN_QUERIES) {
     try {
+      const weekAgo = Math.floor(Date.now() / 1000) - RECENT_DAYS * 86400;
       const data = await fetchWithTimeout("https://hn.algolia.com/api/v1/search", {
         query,
         tags: "story",
         hitsPerPage: String(limitPerQuery),
+        numericFilters: `created_at_i>${weekAgo}`,
       });
       for (const h of data.hits ?? []) {
         const title = String(h.title ?? "").trim();
