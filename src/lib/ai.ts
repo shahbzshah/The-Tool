@@ -3,7 +3,7 @@
  */
 
 const BASE_URL = "https://integrate.api.nvidia.com/v1";
-const DEFAULT_MODEL = "nvidia/nemotron-3.5-super-vl-120b-a12b";
+const DEFAULT_MODEL = "meta/llama-3.2-11b-vision-instruct";
 
 /** API key: env var first, then encrypted DB setting (see lib/settings). */
 async function apiKey(): Promise<string> {

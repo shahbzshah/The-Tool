@@ -70,7 +70,7 @@ export const SETTING_DEFS = [
   {
     key: "NVIDIA_MODEL",
     label: "NVIDIA Model (optional)",
-    hint: "Defaults to nvidia/nemotron-3.5-super-vl-120b-a12b when empty.",
+    hint: "Defaults to meta/llama-3.2-11b-vision-instruct when empty.",
     secret: false,
     env: "NVIDIA_MODEL",
   },
