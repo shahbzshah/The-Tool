@@ -21,17 +21,17 @@ const { PrismaClient } = await import("@prisma/client");
 const prisma = new PrismaClient();
 
 try {
-  // Find (scanJobId, appId) pairs with more than one row.
-  const dupes = await prisma.$queryRaw`
-    SELECT "scanJobId", "appId", COUNT(*) as cnt
-    FROM "Opportunity"
-    WHERE "scanJobId" IS NOT NULL
-    GROUP BY "scanJobId", "appId"
-    HAVING COUNT(*) > 1
-  `;
+  // Find (scanJobId, appId) pairs with more than one row using groupBy
+  // (safer than raw SQL across environments).
+  const groups = await prisma.opportunity.groupBy({
+    by: ["scanJobId", "appId"],
+    where: { scanJobId: { not: null } },
+    _count: { _all: true },
+    having: { _all: { gt: 1 } },
+  });
 
   let removed = 0;
-  for (const d of dupes) {
+  for (const d of groups) {
     const rows = await prisma.opportunity.findMany({
       where: { scanJobId: d.scanJobId, appId: d.appId },
       orderBy: [
