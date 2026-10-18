@@ -67,6 +67,60 @@ function parseBreakdown(raw: string | null): Breakdown | null {
   return null;
 }
 
+type ScorePoint = {
+  id: string;
+  score: number;
+  scannedAt: string;
+};
+
+/** Compact editorial SVG sparkline of score over time. */
+function ScoreSparkline({ points }: { points: ScorePoint[] }) {
+  const W = 560;
+  const H = 72;
+  const PAD = 8;
+  const scores = points.map((p) => p.score);
+  const min = Math.min(...scores);
+  const max = Math.max(...scores);
+  const current = scores[scores.length - 1];
+  const span = max - min || 1;
+  const x = (i: number) =>
+    points.length === 1
+      ? W / 2
+      : PAD + (i * (W - PAD * 2)) / (points.length - 1);
+  const y = (v: number) => PAD + (1 - (v - min) / span) * (H - PAD * 2);
+  const path = points
+    .map((p, i) => `${i === 0 ? "M" : "L"}${x(i).toFixed(1)},${y(p.score).toFixed(1)}`)
+    .join(" ");
+
+  return (
+    <figure>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full"
+        role="img"
+        aria-label={`Score over time: high ${Math.round(max)}, low ${Math.round(min)}, current ${Math.round(current)}`}
+      >
+        <path d={path} fill="none" stroke="currentColor" strokeWidth="2" className="text-primary" />
+        {points.map((p, i) => (
+          <circle key={p.id} cx={x(i)} cy={y(p.score)} r="3" className="fill-primary" />
+        ))}
+      </svg>
+      <figcaption className="mt-2 flex items-center justify-between font-mono text-[13px] text-muted-foreground">
+        <span>
+          Low <span className="font-bold text-foreground">{Math.round(min)}</span>
+        </span>
+        <span>
+          High <span className="font-bold text-foreground">{Math.round(max)}</span>
+        </span>
+        <span>
+          Current{" "}
+          <span className="font-bold text-foreground">{Math.round(current)}</span>
+        </span>
+      </figcaption>
+    </figure>
+  );
+}
+
 function AnalysisCards({ content }: { content: string }) {
   let a: any = null;
   try {
@@ -313,6 +367,7 @@ export default function OpportunityDetailPage({
   const router = useRouter();
   const [opp, setOpp] = useState<Opportunity | null>(null);
   const [analyses, setAnalyses] = useState<Analysis[]>([]);
+  const [history, setHistory] = useState<ScorePoint[]>([]);
   const [error, setError] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState("");
@@ -360,6 +415,17 @@ export default function OpportunityDetailPage({
       setOpp(data.opportunity);
       const list: Analysis[] = data.opportunity.analyses ?? [];
       setAnalyses(list);
+      // Score history for the sparkline — best-effort, failure hides the
+      // section rather than the page.
+      try {
+        const hres = await apiFetch(`/api/hunter/opportunities/${params.id}/history`);
+        if (hres.ok) {
+          const hdata = await hres.json();
+          setHistory(hdata.history ?? []);
+        }
+      } catch {
+        // leave the history empty; the section simply won't render
+      }
       // AI analysis runs automatically on first visit — no button needed.
       if (list.length === 0 && !autoAnalyzed.current) {
         autoAnalyzed.current = true;
@@ -696,6 +762,21 @@ export default function OpportunityDetailPage({
             </div>
           </div>
         </section>
+
+        {/* Score history */}
+        {history.length > 0 && (
+          <section className="card-paper p-6">
+            <div className="mb-2 flex items-baseline justify-between">
+              <h2 className="font-serif text-lg font-medium text-foreground">
+                Score over time
+              </h2>
+              <span className="font-mono text-[13px] text-muted-foreground">
+                {history.length} {history.length === 1 ? "scan" : "scans"}
+              </span>
+            </div>
+            <ScoreSparkline points={history} />
+          </section>
+        )}
 
         {/* Why it scores */}
         {summaryParagraphs.length > 0 && (

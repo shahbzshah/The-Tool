@@ -134,6 +134,21 @@ export async function POST(req: Request) {
       for (const u of updates) {
         await prisma.opportunity.update({ where: { id: u.id }, data: u.data });
       }
+
+      // Score history for the sparkline: one row per app per scan.
+      // Best-effort — history recording must never break a scan.
+      try {
+        await prisma.opportunityScoreHistory.createMany({
+          data: uniqueRanked.map((s) => ({
+            userId: user.id,
+            appId: s.appId,
+            score: s.opportunity,
+            scanJobId: job.id,
+          })),
+        });
+      } catch (histErr) {
+        console.warn("score history recording failed:", histErr);
+      }
     }
 
     const done = await prisma.scanJob.update({
