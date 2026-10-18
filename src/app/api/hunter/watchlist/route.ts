@@ -8,10 +8,8 @@ import { sweepStaleJobs } from "@/lib/scan-jobs";
 import { getSetting, setSetting, normalizePublicKeyPem } from "@/lib/settings";
 import {
   timingSafeEqual,
-  createPublicKey,
-  createHash,
-  verify,
 } from "crypto";
+import { verifyCronAuth } from "@/lib/cron-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -34,71 +32,6 @@ function parseInstallsMin(installs: string | null): bigint | null {
   const digits = installs.replace(/[^\d]/g, "");
   if (!digits) return null;
   return BigInt(digits);
-}
-
-/** Length-safe wrapper around timingSafeEqual (length mismatch → false). */
-function bearerEquals(provided: string, expected: string): boolean {
-  const a = Buffer.from(provided, "utf8");
-  const b = Buffer.from(expected, "utf8");
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
-/**
- * Verify cron-job authentication. Two accepted paths:
- *  1. Bearer token — Settings → CRON_SECRET (backup path).
- *  2. Ed25519 signature — the job sends X-Cron-Timestamp (unix seconds) and
- *     X-Cron-Signature (base64). New (required) message format, bound to the
- *     request body:
- *
- *         timestamp + "\n" + method + "\n" + path + "\n" + sha256hex(rawBody)
- *
- *     e.g. "1728800000\nPOST\n/api/hunter/watchlist\n9f2c…"
- *     The public key lives in Settings → Cron Public Key, so no shared
- *     secret ever needs transmitting.
- *  3. LEGACY fallback: a signature over the timestamp alone. Kept only for
- *     backward compatibility while the cron migrates to the body-bound
- *     format — REMOVE THIS BRANCH once the migration is confirmed.
- */
-async function verifyCronAuth(
-  req: Request,
-  rawBody: string
-): Promise<boolean> {
-  const secret = await getSetting("CRON_SECRET");
-  const auth = req.headers.get("authorization") ?? "";
-  if (secret && bearerEquals(auth, `Bearer ${secret}`)) return true;
-
-  try {
-    const raw = await getSetting("CRON_PUBLIC_KEY");
-    if (!raw) return false;
-    const pem = normalizePublicKeyPem(raw);
-    const ts = req.headers.get("x-cron-timestamp");
-    const sigB64 = req.headers.get("x-cron-signature");
-    if (!ts || !sigB64) return false;
-    const now = Math.floor(Date.now() / 1000);
-    if (Math.abs(now - Number(ts)) > 300) return false; // 5 min freshness
-    const pub = createPublicKey(pem.trim());
-    const sig = Buffer.from(sigB64, "base64");
-    const bodyHash = createHash("sha256").update(rawBody, "utf8").digest("hex");
-    const message = [
-      ts,
-      req.method.toUpperCase(),
-      new URL(req.url).pathname,
-      bodyHash,
-    ].join("\n");
-    if (verify(null, Buffer.from(message, "utf8"), pub, sig)) return true;
-    // LEGACY fallback: timestamp-only message. TODO: remove after the
-    // cron job is confirmed to be sending the body-bound format.
-    if (verify(null, Buffer.from(ts, "utf8"), pub, sig)) {
-      console.warn(
-        "[watchlist] accepted legacy timestamp-only cron signature — fallback scheduled for removal"
-      );
-      return true;
-    }
-    return false;
-  } catch {
-    return false;
-  }
 }
 
 /** Record the outcome of a watchlist run so GET can report it. */

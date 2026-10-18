@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireUser, isAdminUser } from "@/lib/auth";
 import { setSetting } from "@/lib/settings";
 import { loadWatchlistKeywords } from "@/lib/hunter/watchlist-keywords";
+import { verifyCronAuth } from "@/lib/cron-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,6 +12,12 @@ const MAX_KEYWORD_LEN = 80;
 
 /** GET /api/hunter/watchlist/keywords — the effective watchlist keywords. */
 export async function GET(req: Request) {
+  // The daily cron job fetches this with its Ed25519 signature so it can
+  // scan the user's edited keyword list.
+  const rawBody = "";
+  if (await verifyCronAuth(req, rawBody)) {
+    return NextResponse.json({ ok: true, keywords: await loadWatchlistKeywords() });
+  }
   const auth = await requireUser(req);
   if ("response" in auth) return auth.response;
   return NextResponse.json({ ok: true, keywords: await loadWatchlistKeywords() });
