@@ -94,17 +94,35 @@ export async function POST(req: Request) {
       // Dedupe: re-scanning a keyword must not create duplicate rows for the
       // same app. Update the existing opportunity (fresh score, re-link to
       // this job) instead, preserving the user's bookmark.
+      // Dedupe ranked by appId first (scraper can return the same app twice).
+      const seen = new Set<string>();
+      const uniqueRanked = ranked.filter((s) => {
+        if (seen.has(s.appId)) return false;
+        seen.add(s.appId);
+        return true;
+      });
       const existing = await prisma.opportunity.findMany({
         where: {
-          appId: { in: ranked.map((s) => s.appId) },
+          appId: { in: uniqueRanked.map((s) => s.appId) },
           scanJob: { userId: user.id, keyword: kw },
         },
         select: { id: true, appId: true },
       });
-      const existingIds = new Map(existing.map((e) => [e.appId, e.id]));
+      // Collapse duplicate existing rows per appId (keep first, delete rest)
+      // to avoid P2002 on the @@unique([scanJobId, appId]) constraint.
+      const existingIds = new Map<string, string>();
+      const dupIds: string[] = [];
+      for (const e of existing) {
+        if (existingIds.has(e.appId)) dupIds.push(e.id);
+        else existingIds.set(e.appId, e.id);
+      }
+      if (dupIds.length > 0) {
+        await prisma.opportunityAnalysis.deleteMany({ where: { opportunityId: { in: dupIds } } });
+        await prisma.opportunity.deleteMany({ where: { id: { in: dupIds } } });
+      }
       const creates: ({ scanJobId: string } & ReturnType<typeof toRow>)[] = [];
       const updates: { id: string; data: { scanJobId: string } & ReturnType<typeof toRow> }[] = [];
-      for (const s of ranked) {
+      for (const s of uniqueRanked) {
         const data = { scanJobId: job.id, ...toRow(s) };
         const id = existingIds.get(s.appId);
         if (id) updates.push({ id, data });

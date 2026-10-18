@@ -198,16 +198,33 @@ export async function POST(req: Request) {
             url: `https://play.google.com/store/apps/details?id=${s.appId}`,
             breakdown: JSON.stringify(s.breakdown),
           });
+          // Dedupe ranked by appId first (scraper can return the same app twice).
+          const seenWl = new Set<string>();
+          const uniqueRankedWl = ranked.filter((s) => {
+            if (seenWl.has(s.appId)) return false;
+            seenWl.add(s.appId);
+            return true;
+          });
           const existing = await prisma.opportunity.findMany({
             where: {
-              appId: { in: ranked.map((s) => s.appId) },
+              appId: { in: uniqueRankedWl.map((s) => s.appId) },
               scanJob: { userId: user.id, keyword },
             },
             select: { id: true, appId: true },
           });
-          const existingIds = new Map(existing.map((e) => [e.appId, e.id]));
+          // Collapse duplicate existing rows per appId to avoid P2002.
+          const existingIds = new Map<string, string>();
+          const dupIdsWl: string[] = [];
+          for (const e of existing) {
+            if (existingIds.has(e.appId)) dupIdsWl.push(e.id);
+            else existingIds.set(e.appId, e.id);
+          }
+          if (dupIdsWl.length > 0) {
+            await prisma.opportunityAnalysis.deleteMany({ where: { opportunityId: { in: dupIdsWl } } });
+            await prisma.opportunity.deleteMany({ where: { id: { in: dupIdsWl } } });
+          }
           const creates: ({ scanJobId: string } & ReturnType<typeof toRow>)[] = [];
-          for (const s of ranked) {
+          for (const s of uniqueRankedWl) {
             const data = { scanJobId: job.id, ...toRow(s) };
             const id = existingIds.get(s.appId);
             if (id) {

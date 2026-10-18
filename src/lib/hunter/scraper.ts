@@ -79,11 +79,19 @@ export async function scanKeyword(
   maxDetails = 20
 ): Promise<AppDetail[]> {
   const results = await searchApps(keyword, nHits);
+  const ids = results.slice(0, maxDetails).map((r) => r.appId);
+  // Bounded-parallel detail fetching (concurrency 5) instead of sequential
+  // with 800ms sleeps — cuts ~16s of pure delay per keyword.
   const enriched: AppDetail[] = [];
-  for (const r of results.slice(0, maxDetails)) {
-    const d = await appDetails(r.appId);
-    if (d && !isGame(d)) enriched.push(d);
-    await sleep(DETAIL_DELAY_MS);
+  const CONCURRENCY = 5;
+  for (let i = 0; i < ids.length; i += CONCURRENCY) {
+    const batch = ids.slice(i, i + CONCURRENCY);
+    const details = await Promise.all(batch.map((id) => appDetails(id)));
+    for (const d of details) {
+      if (d && !isGame(d)) enriched.push(d);
+    }
+    // Small pause between waves to stay polite to Google.
+    if (i + CONCURRENCY < ids.length) await sleep(400);
   }
   return enriched;
 }

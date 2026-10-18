@@ -16,6 +16,7 @@ export async function GET(req: Request) {
   const url = new URL(req.url);
   const search = url.searchParams.get("search")?.trim() ?? "";
   const bookmarkedOnly = url.searchParams.get("bookmarked") === "1";
+  const keywordFilter = url.searchParams.get("keyword")?.trim() ?? "";
   const page = Math.max(1, parseInt(url.searchParams.get("page") ?? "1", 10) || 1);
   const perPage = Math.min(
     50,
@@ -25,6 +26,7 @@ export async function GET(req: Request) {
   const where: any = { scanJob: { userId: user.id } };
   if (bookmarkedOnly) where.isBookmarked = true;
   if (search) where.title = { contains: search, mode: "insensitive" };
+  if (keywordFilter) where.scanJob = { userId: user.id, keyword: keywordFilter };
 
   const [total, opportunities] = await Promise.all([
     prisma.opportunity.count({ where }),

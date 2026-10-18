@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "prisma generate && prisma db push && node prisma/backfill-userid.mjs && next build",
+    "build": "prisma generate && node prisma/dedupe-before-push.mjs && prisma db push && node prisma/backfill-userid.mjs && next build",
     "start": "next start",
     "db:push": "prisma db push",
     "postinstall": "prisma generate"

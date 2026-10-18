@@ -560,6 +560,7 @@ export default function HunterPage() {
   const [bookmarkedCount, setBookmarkedCount] = useState(0);
   const [search, setSearch] = useState("");
   const [bookmarkedOnly, setBookmarkedOnly] = useState(false);
+  const [keywordFilter, setKeywordFilter] = useState("");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [page, setPage] = useState(1);
 
@@ -622,13 +623,14 @@ export default function HunterPage() {
   }, []);
 
   const loadOpps = useCallback(
-    async (p = page, s = search, b = bookmarkedOnly) => {
+    async (p = page, s = search, b = bookmarkedOnly, kf = keywordFilter) => {
       try {
         const q = new URLSearchParams({
           page: String(p),
           perPage: "20",
           ...(s ? { search: s } : {}),
           ...(b ? { bookmarked: "1" } : {}),
+          ...(kf ? { keyword: kf } : {}),
         });
         const res = await fetch(`/api/hunter/opportunities?${q}`);
         if (res.status === 401) return;
@@ -644,7 +646,7 @@ export default function HunterPage() {
         setOppsFailed(true);
       }
     },
-    [page, search, bookmarkedOnly]
+    [page, search, bookmarkedOnly, keywordFilter]
   );
 
   const loadIdeas = useCallback(async () => {
@@ -754,12 +756,13 @@ export default function HunterPage() {
         setScanError(data.error ?? "Scan failed.");
         return;
       }
-      setKeyword("");
+      setKeyword(k);
       await loadScans();
       setPage(1);
       setSearch("");
       setBookmarkedOnly(false);
-      await loadOpps(1, "", false);
+      setKeywordFilter(k);
+      await loadOpps(1, "", false, k);
     } catch (err) {
       setScanError(
         err instanceof DOMException && err.name === "TimeoutError"
@@ -794,8 +797,9 @@ export default function HunterPage() {
   function applyFilters(s: string, b: boolean) {
     setSearch(s);
     setBookmarkedOnly(b);
+    setKeywordFilter("");
     setPage(1);
-    loadOpps(1, s, b);
+    loadOpps(1, s, b, "");
   }
 
   /** Watchlist keyword editor helpers (desktop). */
@@ -1942,6 +1946,17 @@ export default function HunterPage() {
             />
           </div>
           <div className="flex flex-wrap items-center gap-2 py-1">
+            {keywordFilter && (
+              <button
+                onClick={() => applyFilters("", false)}
+                className="flex min-h-[44px] shrink-0 items-center gap-1.5 border border-primary/50 bg-primary/10 px-3 font-mono text-[11px] font-medium uppercase tracking-wider text-primary transition-colors active:scale-95"
+                title="Clear keyword filter"
+              >
+                <span className="material-symbols text-[16px]">filter_alt</span>
+                <span>{keywordFilter}</span>
+                <span className="material-symbols text-[16px]">close</span>
+              </button>
+            )}
             <button
               onClick={() => applyFilters(search, !bookmarkedOnly)}
               aria-pressed={bookmarkedOnly}
