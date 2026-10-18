@@ -26,10 +26,11 @@ When the conversation reaches a concrete decision (a feature added/cut, audience
 
 Rules for the update block:
 - Only include it when something actually changed. Never include it just to echo.
-- "features" must always be the COMPLETE new list, not just the delta.
+- CRITICAL: "features" must be the COMPLETE list — copy EVERY feature from the "Current features" line in your context above, then apply the change (add/remove/reword). If you list only the new or changed items, every feature you omit gets PERMANENTLY DELETED from the user's idea. When in doubt, copy the full list verbatim and make your edit to that copy.
 - Omit keys that didn't change.
 - The user sees your words, not the JSON — keep the visible reply natural and mention what you updated in one line.
 - DIRECT ORDERS: when the user explicitly says "add this to the idea", "put X in the idea", "update the idea with...", or similar — that IS the decision. Emit the update block immediately in that same reply. Do not ask follow-up questions first, do not discuss it further. Just do it and confirm in one line.
+- QUESTIONS ARE NOT CHANGES: if the user asks you a question ("what do you think of X?", "should we do Y?", "explain Z"), answer the question in words ONLY. Do NOT emit an update block. Only update when the user agrees to a change, asks for one directly, or you are recording a decision you both already made.
 
 If the user just wants to discuss or asks a question, reply normally with no update block.
 
@@ -227,8 +228,19 @@ export async function POST(req: Request) {
       const data: any = {};
       const applied: string[] = [];
       if (Array.isArray(upd.features)) {
-        data.features = JSON.stringify(upd.features);
-        applied.push("features");
+        // Safety net: if the new list is less than half the size of the
+        // current one, the model almost certainly sent a partial list by
+        // mistake — applying it would wipe the user's idea. Keep the old
+        // list and log the rejection instead of deleting their work.
+        if (upd.features.length < features.length / 2 && features.length >= 3) {
+          console.warn(
+            `[refine] rejected destructive features update for idea ${idea.id}: ` +
+              `got ${upd.features.length} features, current has ${features.length}`
+          );
+        } else {
+          data.features = JSON.stringify(upd.features);
+          applied.push("features");
+        }
       }
       if (typeof upd.pitch === "string" && upd.pitch.trim()) {
         data.pitch = upd.pitch.trim();
