@@ -484,7 +484,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
       {/* Two-pane workspace */}
       <div className="grid grid-cols-1 items-start gap-6 pb-10 min-[900px]:grid-cols-12">
         {/* LEFT — chat */}
-        <section className="card-paper flex h-[64dvh] flex-col overflow-hidden md:h-[60vh] min-[900px]:col-span-7 min-[900px]:h-[760px]">
+        <section className="card-paper flex h-[70dvh] flex-col overflow-hidden md:h-[72dvh] min-[900px]:col-span-7 min-[900px]:h-[calc(100dvh-140px)] min-[900px]:min-h-[600px]">
           {/* Chat topbar */}
           <div className="flex items-center justify-between border-b border-border bg-card-elevated px-5 py-3.5">
             <div className="flex min-w-0 items-center gap-2.5">
