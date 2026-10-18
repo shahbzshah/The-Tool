@@ -53,6 +53,87 @@ function UsageCard() {
   );
 }
 
+function AdminPasswordReset() {
+  const [users, setUsers] = useState<{ id: string; email: string; isAdmin: boolean }[]>([]);
+  const [email, setEmail] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [status, setStatus] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/api/admin/reset-password")
+      .then((r) => r.json())
+      .then((d) => {
+        if (Array.isArray(d.users)) setUsers(d.users);
+      })
+      .catch(() => {});
+  }, []);
+
+  // Not an admin (or endpoint unavailable) — hide the section.
+  if (users.length === 0) return null;
+
+  async function reset() {
+    if (!email || newPassword.length < 8) {
+      setStatus("Select a user and enter a password (min 8 characters).");
+      return;
+    }
+    setSaving(true);
+    setStatus("");
+    try {
+      const r = await apiFetch("/api/admin/reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, newPassword }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setStatus(`Password reset for ${d.email}.`);
+        setNewPassword("");
+      } else {
+        setStatus(d.error || "Reset failed.");
+      }
+    } catch {
+      setStatus("Reset failed — try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="card-paper mt-6 p-5">
+      <h2 className="font-medium">Reset user password</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Admin only. Use this if someone (including you) is locked out — no email needed.
+      </p>
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+        <select
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="input-paper min-h-[44px] flex-1"
+        >
+          <option value="">Select user…</option>
+          {users.map((u) => (
+            <option key={u.id} value={u.email}>
+              {u.email}{u.isAdmin ? " (admin)" : ""}
+            </option>
+          ))}
+        </select>
+        <input
+          type="password"
+          value={newPassword}
+          onChange={(e) => setNewPassword(e.target.value)}
+          placeholder="New password (min 8 chars)"
+          className="input-paper min-h-[44px] flex-1"
+        />
+        <button onClick={reset} disabled={saving} className="btn-primary min-h-[44px] shrink-0">
+          {saving ? "Resetting…" : "Reset"}
+        </button>
+      </div>
+      {status && <p className="mt-3 text-sm text-muted-foreground">{status}</p>}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<SettingStatus[]>([]);
@@ -145,6 +226,8 @@ export default function SettingsPage() {
       </p>
 
       <UsageCard />
+
+      <AdminPasswordReset />
 
       <div className="mt-6">
         <button
