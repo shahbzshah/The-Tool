@@ -1,42 +1,45 @@
-# CodeZen Flow — MVP
+# The-Tool — Opportunity Hunter + Ideas App
 
-Mindfulness meets momentum — detect flow, reduce stress, and build zen streaks right inside your workflow.
+Find underrated Play Store opportunities, refine them with AI, design, document, and export a complete build pack.
 
-Implementation of the docs in `../codezen-flow-vscode-pack/docs` (MASTER_PROMPT architecture).
+## Pipeline
 
-## Structure
+**Hunter → Refine → Design → Docs → Export**
 
-- `backend/` — Express 4 + TypeScript + Prisma (SQLite dev DB) API on `:4000` (`GET /health`)
-- `frontend/` — React 18 + Vite + Tailwind v3 + Zustand + Recharts SPA on `:5173` (proxies `/api/*` -> `:4000`; falls back to mock data when the backend is offline)
+1. **Hunter** — Scan the Play Store by keyword. Apps are scored on rating, installs, and competition gap. Includes Idea Radar (trending HN stories) and a daily watchlist cron.
+2. **Refine** — Chat with AI to sharpen the idea. The Living Idea Specification updates live from the conversation.
+3. **Design** — Generate a Stitch prompt, upload Stitch exports, feature-coverage checklist.
+4. **Docs** — Generate 14 document kinds (PRD, BRD, Technical Spec, User Stories, Workflow, DB Schema, API Spec, Design System, UI inventory, Folder Structure, Rules, Master Prompt, Build Guide, Refined Brief).
+5. **Export** — Download a zip pack with all docs, plus an agent-skills bundle.
 
 ## Quickstart
 
 ```bash
-# Backend (two lines):
-cd backend && npm install && npx prisma db push && npm run db:seed && npm run dev
-
-# Frontend:
-cd frontend && npm install && npm run dev
+npm install
+# Required env:
+#   DATABASE_URL=postgresql://...
+#   NVIDIA_API_KEY=...
+# Optional:
+#   NVIDIA_MODEL=meta/llama-3.2-11b-vision-instruct
+#   AUTH_SECRET=...        # auto-generated and stored if unset
+#   ADMIN_EMAIL=...        # defaults to admin@gmail.com
+npx prisma generate && npx prisma db push
+npm run dev
 ```
 
-Open http://localhost:5173 — the demo user `dev@codezenflow.com` is seeded with 7 days of commits, issues, meditation sessions and weekly scores.
+Open http://localhost:3000 — register an account to start.
 
-## Auth
+## AI provider
 
-`POST /api/v1/auth/login` with `{ "provider": "github", "code": "demo" }` issues a demo JWT (Cler.k/PR OAuth2 swap-in point). All other `/api/v1` endpoints require `Authorization: Bearer <token>`.
+NVIDIA only (`https://integrate.api.nvidia.com/v1`). API key resolves from `NVIDIA_API_KEY` env var first, then the encrypted Settings store.
 
-## API (per docs/API_SPEC.md)
+## Daily watchlist
 
-`/health`, `/auth/login`, `/dashboard`, `/flow/tracker`, `/flow/triggers`, `/meditations`, `/meditations/:id/start`, `/streaks`, `/mood/checkins`, `/mood/sentiments`, `/score/weekly`, `/settings`, `/settings/integrations/:provider`, `/webhooks/github` (HMAC `X-Hub-Signature-256` verified when `GITHUB_WEBHOOK_SECRET` is set).
+`POST /api/hunter/watchlist` runs keyword scans. Authenticated via Ed25519 request signatures (public key in Settings → Cron Public Key). The cron job `thetool-daily-watchlist-scan` fires daily at 06:51 EAT.
 
-## Quality gates
+## Project structure
 
-```bash
-cd backend && npm test      # 16 Jest unit tests (flow detector, mood analyzer, streaks)
-cd backend && npm run build # tsc
-cd frontend && npm run build # tsc + vite build
-```
-
-## Next steps (out of scope for MVP)
-
-VS Code extension (`extensions/vscode-codezen-flow`), Socket.IO push, Clerk.dev auth, Redis/BullMQ jobs, real GitHub/GitLab OAuth, Postgres provider swap.
+- `src/app/` — Next.js 14 app router pages + API routes
+- `src/lib/` — AI client, auth, Hunter (scraper/scoring/trends), doc generation, settings
+- `src/components/` — UI components
+- `prisma/` — schema + backfill scripts
