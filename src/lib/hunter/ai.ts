@@ -118,7 +118,7 @@ export async function analyzeOpportunity(
   return {
     ...parsed,
     provider: "nvidia",
-    model: process.env.NVIDIA_MODEL || "meta/llama-3.2-11b-vision-instruct",
+    model: process.env.NVIDIA_MODEL || "nvidia/nemotron-3.5-super-vl-120b-a12b",
   };
 }
 function stripJsonFence(text: string): string {
@@ -147,6 +147,6 @@ export async function analyzeIdea(idea: TrendIdea): Promise<IdeaAnalysis> {
   return {
     ...parsed,
     provider: "nvidia",
-    model: process.env.NVIDIA_MODEL || "meta/llama-3.2-11b-vision-instruct",
+    model: process.env.NVIDIA_MODEL || "nvidia/nemotron-3.5-super-vl-120b-a12b",
   };
 }
