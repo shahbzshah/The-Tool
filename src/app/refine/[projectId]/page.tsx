@@ -9,6 +9,7 @@ import {
   locationKey,
 } from "@/lib/api";
 import { useEscapeClose } from "@/lib/shortcuts";
+import QuotaIndicator from "@/components/QuotaIndicator";
 
 type ChatMessage = {
   role: "user" | "assistant";
@@ -48,6 +49,14 @@ const STARTER_PROMPTS = [
 type Decision = {
   createdAt?: string | null;
   keys: string[];
+};
+
+// IdeaVersion rows from GET /api/ideas/[id]/versions (list view).
+type IdeaVersionRow = {
+  id: string;
+  title: string;
+  note: string | null;
+  createdAt: string;
 };
 
 // Decisions are built from each chat POST response's `appliedUpdates` —
@@ -104,6 +113,14 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   // assistant bubble and the user text to resend.
   const [failedAt, setFailedAt] = useState<number | null>(null);
   const [failedText, setFailedText] = useState<string | null>(null);
+  // History (IdeaVersion snapshots): collapsible panel in the Living Idea
+  // side panel. Versions load lazily on first open.
+  const [versionsOpen, setVersionsOpen] = useState(false);
+  const [versions, setVersions] = useState<IdeaVersionRow[] | null>(null);
+  const [versionsLoading, setVersionsLoading] = useState(false);
+  const [versionsError, setVersionsError] = useState("");
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const versionsLoadedRef = useRef(false);
   // Item 9: project-wide AI token usage, shown muted in the header.
   const [tokensUsed, setTokensUsed] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -352,6 +369,8 @@ export default function RefinePage({ params }: { params: { projectId: string } }
         // Flash the panel so the user sees the edit land live.
         setIdeaJustUpdated(true);
         setTimeout(() => setIdeaJustUpdated(false), 2500);
+        // The AI update created a new snapshot — refresh history if open.
+        if (versionsLoadedRef.current) loadVersions();
       }
       if (data.briefSaved) setBriefUpdatedAt(new Date().toISOString());
       // M21-client: build the decisions log from the response's
@@ -424,6 +443,67 @@ export default function RefinePage({ params }: { params: { projectId: string } }
     }
   }
 
+  // History: fetch IdeaVersion snapshots (newest first), lazily on first
+  // open of the panel.
+  async function loadVersions() {
+    if (!ideaId || versionsLoading) return;
+    setVersionsLoading(true);
+    setVersionsError("");
+    try {
+      const res = await apiFetch(`/api/ideas/${ideaId}/versions`);
+      if (res.status === 401) return; // redirect already fired
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not load history.");
+      setVersions(data.versions ?? []);
+      versionsLoadedRef.current = true;
+    } catch (err) {
+      setVersionsError(err instanceof Error ? err.message : "Could not load history.");
+    } finally {
+      setVersionsLoading(false);
+    }
+  }
+
+  function toggleVersions() {
+    const next = !versionsOpen;
+    setVersionsOpen(next);
+    if (next && !versionsLoadedRef.current) loadVersions();
+  }
+
+  // Restore a snapshot onto the idea. The server snapshots the current
+  // state first, so a restore is itself undoable.
+  async function restoreVersion(versionId: string) {
+    if (!ideaId || restoringId) return;
+    if (
+      !window.confirm(
+        "Restore this version? The current idea is saved to history first, so you can undo."
+      )
+    ) {
+      return;
+    }
+    setRestoringId(versionId);
+    setVersionsError("");
+    try {
+      const res = await apiFetch(
+        `/api/ideas/${ideaId}/versions/${versionId}/restore`,
+        { method: "POST" }
+      );
+      if (res.status === 401) return; // redirect already fired
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Restore failed.");
+      setIdea(data.idea);
+      setIdeaJustUpdated(true);
+      setTimeout(() => setIdeaJustUpdated(false), 2500);
+      // The restore created a new "before restore" snapshot — refresh the list.
+      versionsLoadedRef.current = false;
+      setVersions(null);
+      await loadVersions();
+    } catch (err) {
+      setVersionsError(err instanceof Error ? err.message : "Restore failed.");
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
   return (
     <main className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
       {/* M16: page-level load errors render inline — the workspace stays. */}
@@ -474,6 +554,8 @@ export default function RefinePage({ params }: { params: { projectId: string } }
                 </span>
               </>
             )}
+            {/* Daily AI quota pre-429 warning */}
+            <QuotaIndicator />
           </div>
           <h1 className="break-words font-serif text-2xl font-medium tracking-tight md:text-4xl">
             Refine Brief: {idea?.title ?? "Loading…"}
@@ -809,6 +891,66 @@ export default function RefinePage({ params }: { params: { projectId: string } }
                   No applied updates yet — agreed changes from the chat will appear here.
                 </p>
               ))}
+          </div>
+
+          {/* History — idea snapshots before each AI update, with restore */}
+          <div className="border-t border-border pt-4">
+            <button
+              onClick={toggleVersions}
+              className="flex w-full items-center justify-between"
+            >
+              <span className="label-caps text-muted-foreground">
+                History{versions && versions.length > 0 ? ` (${versions.length})` : ""}
+              </span>
+              <span className="material-symbols text-[16px] text-muted-foreground">
+                {versionsOpen ? "expand_less" : "expand_more"}
+              </span>
+            </button>
+            {versionsOpen && (
+              <div className="mt-2">
+                {versionsLoading ? (
+                  <p className="text-xs text-muted-foreground">Loading history…</p>
+                ) : versionsError ? (
+                  <div className="flex items-start justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs">
+                    <span>{versionsError}</span>
+                    <button
+                      onClick={() => loadVersions()}
+                      className="shrink-0 font-medium text-primary hover:underline"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : versions && versions.length > 0 ? (
+                  <ul className="space-y-1.5">
+                    {versions.map((v) => (
+                      <li
+                        key={v.id}
+                        className="flex items-center justify-between gap-2 rounded-md border border-border bg-background px-3 py-2"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-medium">{v.title}</p>
+                          <p className="truncate font-mono text-[11px] text-muted-foreground">
+                            {new Date(v.createdAt).toLocaleString()}
+                            {v.note ? ` · ${v.note}` : ""}
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => restoreVersion(v.id)}
+                          disabled={restoringId !== null}
+                          className="shrink-0 rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                        >
+                          {restoringId === v.id ? "Restoring…" : "Restore"}
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-xs text-muted-foreground">
+                    No earlier versions yet — a snapshot is saved here before every AI update.
+                  </p>
+                )}
+              </div>
+            )}
           </div>
 
           {/* Proceed CTA */}

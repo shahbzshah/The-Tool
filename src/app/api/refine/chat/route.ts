@@ -255,6 +255,36 @@ export async function POST(req: Request) {
         applied.push("monetization");
       }
       if (Object.keys(data).length > 0) {
+        // Snapshot the CURRENT idea fields before the AI update applies, so
+        // every AI change is undoable from the History panel. Only snapshot
+        // when at least one field will actually change — the model sometimes
+        // echoes unchanged values. A snapshot failure must never break chat.
+        const currentValues: Record<string, string | null> = {
+          features: idea.features,
+          pitch: idea.pitch,
+          targetAudience: idea.targetAudience,
+          monetization: idea.monetization,
+        };
+        const willChange = Object.keys(data).some(
+          (k) => String(data[k] ?? "") !== String(currentValues[k] ?? "")
+        );
+        if (willChange) {
+          try {
+            await prisma.ideaVersion.create({
+              data: {
+                ideaId: idea.id,
+                title: idea.title,
+                pitch: idea.pitch,
+                features: idea.features,
+                targetAudience: idea.targetAudience,
+                monetization: idea.monetization,
+                note: `before AI update: ${applied.join(", ")}`,
+              },
+            });
+          } catch (err) {
+            console.error("[refine/chat] failed to snapshot idea version:", err);
+          }
+        }
         updatedIdea = await prisma.idea.update({
           where: { id: idea.id },
           data,
