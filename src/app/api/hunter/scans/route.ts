@@ -176,7 +176,17 @@ export async function GET(req: Request) {
   const scans = await prisma.scanJob.findMany({
     where: { userId: user.id },
     orderBy: { createdAt: "desc" },
-    take: 20,
+    take: 50,
   });
-  return NextResponse.json({ scans });
+  // Dedupe by keyword — show each keyword once (most recent first).
+  // Repeated scans of the same keyword (manual re-runs, watchlist cron)
+  // otherwise flood the recent-scans row with identical chips.
+  const seen = new Set<string>();
+  const unique = scans.filter((s) => {
+    const key = s.keyword.toLowerCase().trim();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+  return NextResponse.json({ scans: unique.slice(0, 20) });
 }
