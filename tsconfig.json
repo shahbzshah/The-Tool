@@ -23,5 +23,5 @@
     "src/**/*.tsx",
     ".next/types/**/*.ts"
   ],
-  "exclude": ["node_modules", "backend", "frontend", ".kilo", "stitch-in", "stitch_ideas_app_documentation_generator", ".prisma-engines"]
+  "exclude": ["node_modules", "backend", "frontend", ".kilo", "stitch-in", "stitch_ideas_app_documentation_generator", ".prisma-engines", "**/*.test.ts"]
 }

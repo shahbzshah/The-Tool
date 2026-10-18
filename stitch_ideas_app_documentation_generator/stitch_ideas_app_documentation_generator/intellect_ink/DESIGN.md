@@ -1,3 +1,7 @@
+> **SUPERSEDED (Oct 10, 2026)** — This spec is for the old "Intellect & Ink" docs-generator mockups.
+> The current design authority is the **Crafted Editorial** system (Newsreader / Plus Jakarta Sans / Space Mono),
+> implemented Oct 12 from the Stitch redesign export. See commit cc94837.
+
 ---
 name: Intellect & Ink
 colors:
