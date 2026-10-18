@@ -183,7 +183,9 @@ model Opportunity {
 
   @@index([appId])
   @@index([scanJobId])
-  @@unique([scanJobId, appId])
+  // NOTE: @@unique([scanJobId, appId]) removed — it broke Vercel deploys
+  // (db push fails on pre-existing duplicates). Dedupe is enforced in
+  // application code (scan + watchlist routes) instead.
 }
 
 model OpportunityAnalysis {
