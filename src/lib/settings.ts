@@ -88,15 +88,17 @@ export type SettingKey = (typeof SETTING_DEFS)[number]["key"];
 
 /** Read a setting: env var first, then the encrypted DB value. */
 export async function getSetting(key: string): Promise<string | null> {
-  const def = SETTING_DEFS.find((d) => d.key === key);
-  if (def?.env && process.env[def.env]) return process.env[def.env]!;
+  // DB (Settings UI) takes precedence over env vars so the user can
+  // override without touching the Vercel dashboard.
   try {
     const row = await prisma.appSetting.findUnique({ where: { key } });
-    if (!row?.value) return null;
-    return await decryptValue(row.value);
+    if (row?.value) return await decryptValue(row.value);
   } catch {
-    return null;
+    // fall through to env
   }
+  const def = SETTING_DEFS.find((d) => d.key === key);
+  if (def?.env && process.env[def.env]) return process.env[def.env]!;
+  return null;
 }
 
 /** Write an encrypted setting (empty string deletes it). */

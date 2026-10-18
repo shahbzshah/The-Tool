@@ -185,9 +185,14 @@ export default function SettingsPage() {
               )}
             </div>
 
-            {!s.fromEnv && (
+            {(
               <div className="mt-4 flex gap-2">
                 <div className="relative flex-1">
+                  {s.fromEnv && !s.configured && (
+                    <p className="mb-2 text-xs text-muted-foreground">
+                      Currently from env var — save a value here to override it.
+                    </p>
+                  )}
                   {s.multiline ? (
                     <textarea
                       value={values[s.key] ?? ""}
@@ -253,9 +258,9 @@ export default function SettingsPage() {
                 )}
               </div>
             )}
-            {s.fromEnv && (
+            {s.fromEnv && !s.configured && (
               <p className="mt-3 font-mono text-xs text-muted-foreground">
-                Managed via environment variable — remove it there to use a stored value instead.
+                Managed via environment variable — save a value above to override it.
               </p>
             )}
           </section>
