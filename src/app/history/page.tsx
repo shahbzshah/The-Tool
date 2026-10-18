@@ -60,10 +60,14 @@ function scoreClass(avg: number): string {
 // type-to-confirm delete, and an expandable notes area ---
 function ProjectCard({
   project,
+  displayIdeas,
   onReload,
   onRemoved,
 }: {
   project: HistoryProject;
+  // Ideas to render in the list; defaults to all. Used by the search filter
+  // so pipeline progress still counts every idea in the project.
+  displayIdeas?: HistoryIdea[];
   onReload: () => void;
   onRemoved: (id: string) => void;
 }) {
@@ -72,6 +76,7 @@ function ProjectCard({
   // --- end foundation addition ---
 
   const archived = project.archivedAt !== null;
+  const ideas = displayIdeas ?? project.ideas;
 
   const [renaming, setRenaming] = useState(false);
   const [nameDraft, setNameDraft] = useState(project.name);
@@ -383,7 +388,7 @@ function ProjectCard({
       )}
 
       <ul className="divide-y divide-border/40">
-        {project.ideas.map((idea) => {
+        {ideas.map((idea) => {
           const scores = parseJsonField<IdeaScores>(idea.scores);
           const avg = averageScore(scores);
           const approved = idea.status === "approved";
@@ -454,32 +459,95 @@ export default function HistoryPage() {
   const [showArchived, setShowArchived] = useState(false);
   // --- end Worker F addition ---
   const [error, setError] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    // --- Worker F: archived filter query param ---
-    const url = showArchived ? "/api/projects?archived=1" : "/api/projects";
-    // --- end Worker F addition ---
-    try {
-      const res = await apiFetch(url);
-      if (res.status === 401) return; // redirect already fired
-      const data = await res.json();
-      setProjects(data.projects ?? []);
-    } catch {
-      setError("Failed to load projects.");
-    } finally {
-      setLoading(false);
-    }
-  }, [showArchived]);
+  // Text search + pagination.
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   useEffect(() => {
-    load();
-  }, [load]);
+    const t = window.setTimeout(() => setDebouncedQuery(query.trim()), 300);
+    return () => window.clearTimeout(t);
+  }, [query]);
+
+  const loadPage = useCallback(
+    async (p: number, append: boolean) => {
+      const params = new URLSearchParams();
+      // --- Worker F: archived filter query param ---
+      if (showArchived) params.set("archived", "1");
+      // --- end Worker F addition ---
+      if (debouncedQuery) params.set("q", debouncedQuery);
+      params.set("page", String(p));
+      params.set("limit", "30");
+      if (append) setLoadingMore(true);
+      else setLoading(true);
+      try {
+        const res = await apiFetch(`/api/projects?${params}`);
+        if (res.status === 401) return; // redirect already fired
+        const data = await res.json();
+        const fetched: HistoryProject[] = data.projects ?? [];
+        setProjects((prev) =>
+          append
+            ? [
+                ...prev,
+                ...fetched.filter((p) => !prev.some((x) => x.id === p.id)),
+              ]
+            : fetched
+        );
+        setHasMore(data.hasMore ?? false);
+        setPage(p);
+      } catch {
+        setError("Failed to load projects.");
+      } finally {
+        setLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [showArchived, debouncedQuery]
+  );
+
+  const reload = useCallback(() => {
+    void loadPage(1, false);
+  }, [loadPage]);
+
+  const loadMore = useCallback(() => {
+    if (!hasMore || loadingMore || loading) return;
+    void loadPage(page + 1, true);
+  }, [hasMore, loadingMore, loading, loadPage, page]);
+
+  // New search term or archived toggle resets to the first page.
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  // Client-side idea narrowing for a search: when the query only matched an
+  // idea's title/pitch, show just the matching ideas (name/category matches
+  // keep all ideas). Pipeline progress still counts every idea.
+  const queryLower = debouncedQuery.toLowerCase();
+  const byQuery = debouncedQuery
+    ? projects
+        .map((p) => ({
+          ...p,
+          ideas: p.ideas.filter(
+            (i) =>
+              i.title.toLowerCase().includes(queryLower) ||
+              i.pitch.toLowerCase().includes(queryLower)
+          ),
+        }))
+        .filter(
+          (p) =>
+            p.name.toLowerCase().includes(queryLower) ||
+            p.category.toLowerCase().includes(queryLower) ||
+            p.ideas.length > 0
+        )
+    : projects;
 
   const visible = favoritesOnly
-    ? projects
+    ? byQuery
         .map((p) => ({ ...p, ideas: p.ideas.filter((i) => i.favorite) }))
         .filter((p) => p.ideas.length > 0)
-    : projects;
+    : byQuery;
 
   const totalIdeas = projects.reduce((sum, p) => sum + p.ideas.length, 0);
 
@@ -492,7 +560,7 @@ export default function HistoryPage() {
         <p className="font-mono text-sm text-muted-foreground">
           {loading
             ? "Loading…"
-            : `${projects.length} generation run${projects.length === 1 ? "" : "s"} · ${totalIdeas} ideas`}
+            : `${projects.length} generation run${projects.length === 1 ? "" : "s"} · ${totalIdeas} idea${totalIdeas === 1 ? "" : "s"}${hasMore ? "+" : ""}`}
         </p>
       </header>
 
@@ -502,7 +570,34 @@ export default function HistoryPage() {
         </p>
       )}
 
-      {!loading && projects.length > 0 && (
+      {/* Text search across project name/category and idea title/pitch. */}
+      {!loading && (
+        <div className="mx-auto mb-6 max-w-xl">
+          <div className="relative">
+            <span className="material-symbols pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-muted-foreground">
+              search
+            </span>
+            <input
+              className="input-paper w-full !pl-10"
+              placeholder="Search projects and ideas…"
+              aria-label="Search projects and ideas"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {query && (
+              <button
+                onClick={() => setQuery("")}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground transition-colors hover:text-foreground"
+              >
+                <span className="material-symbols text-[20px]">close</span>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!loading && (projects.length > 0 || debouncedQuery) && (
         <div className="mb-6 flex items-center justify-center gap-2 text-center">
           <button
             onClick={() => setFavoritesOnly((v) => !v)}
@@ -544,7 +639,9 @@ export default function HistoryPage() {
             history
           </span>
           <p className="text-sm text-muted-foreground">
-            Nothing here yet — generate your first ideas on the home page.
+            {debouncedQuery
+              ? `No results for “${debouncedQuery}”. Try a different search.`
+              : "Nothing here yet — generate your first ideas on the home page."}
           </p>
         </div>
       )}
@@ -553,8 +650,9 @@ export default function HistoryPage() {
         {visible.map((project) => (
           <ProjectCard
             key={project.id}
-            project={project}
-            onReload={load}
+            project={projects.find((p) => p.id === project.id) ?? project}
+            displayIdeas={project.ideas}
+            onReload={reload}
             onRemoved={(id) =>
               setProjects((prev) => prev.filter((p) => p.id !== id))
             }
@@ -562,6 +660,18 @@ export default function HistoryPage() {
         ))}
         {/* --- end Worker F addition --- */}
       </div>
+
+      {hasMore && !loading && (
+        <div className="mx-auto mt-10 max-w-4xl text-center">
+          <button
+            className="btn-ghost !px-5 !py-2 !text-sm"
+            disabled={loadingMore}
+            onClick={loadMore}
+          >
+            {loadingMore ? "Loading…" : "Load more"}
+          </button>
+        </div>
+      )}
     </main>
   );
 }
