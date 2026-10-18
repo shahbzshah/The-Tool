@@ -14,6 +14,7 @@ import {
   locationKey,
 } from "@/lib/api";
 import { useEscapeClose } from "@/lib/shortcuts";
+import QuotaIndicator from "@/components/QuotaIndicator";
 
 type Idea = {
   id: string;
@@ -696,6 +697,8 @@ export default function DocsPage() {
               <span className="h-1.5 w-1.5 rounded-full bg-score-high" />
               Pipeline Operational
             </span>
+            {/* Daily AI quota pre-429 warning */}
+            <QuotaIndicator />
           </div>
           <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground md:text-4xl">
             Technical Documentation Generator
