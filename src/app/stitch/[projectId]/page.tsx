@@ -1002,7 +1002,7 @@ function PreviewViewer({
             className="rounded-full p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
             aria-label="Close preview"
           >
-            <span className="material-symbols text-[22px]">close</span>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
           <span className="truncate font-mono text-sm text-white/80">
             {current?.filename ?? "No screens"}
@@ -1048,7 +1048,7 @@ function PreviewViewer({
             className="shrink-0 rounded-full bg-white/10 p-2.5 text-white transition-colors hover:bg-white/20 disabled:opacity-30"
             aria-label="Previous screen"
           >
-            <span className="material-symbols text-[24px]">chevron_left</span>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
           </button>
         )}
 
@@ -1066,7 +1066,7 @@ function PreviewViewer({
               <iframe
                 title={current.filename}
                 srcDoc={html}
-                sandbox="allow-same-origin"
+                sandbox="allow-same-origin allow-scripts"
                 className="min-h-0 w-full flex-1 bg-white"
               />
             </div>
@@ -1083,7 +1083,7 @@ function PreviewViewer({
               <iframe
                 title={current.filename}
                 srcDoc={html}
-                sandbox="allow-same-origin"
+                sandbox="allow-same-origin allow-scripts"
                 className="min-h-0 w-full flex-1 bg-white"
               />
             </div>
@@ -1098,7 +1098,7 @@ function PreviewViewer({
             className="shrink-0 rounded-full bg-white/10 p-2.5 text-white transition-colors hover:bg-white/20 disabled:opacity-30"
             aria-label="Next screen"
           >
-            <span className="material-symbols text-[24px]">chevron_right</span>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
           </button>
         )}
       </div>
