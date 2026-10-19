@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { requireUser, isAdminUser, hashPassword } from "@/lib/auth";
+import { requireUser, isAdminUser, hashPassword, validatePassword } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,11 +21,12 @@ export async function POST(req: Request) {
   if (!email || typeof email !== "string") {
     return NextResponse.json({ error: "Email is required." }, { status: 400 });
   }
-  if (!newPassword || typeof newPassword !== "string" || newPassword.length < 8) {
-    return NextResponse.json(
-      { error: "New password must be at least 8 characters." },
-      { status: 400 }
-    );
+  if (!newPassword || typeof newPassword !== "string") {
+    return NextResponse.json({ error: "New password is required." }, { status: 400 });
+  }
+  const pwError = validatePassword(newPassword);
+  if (pwError) {
+    return NextResponse.json({ error: pwError }, { status: 400 });
   }
 
   const user = await prisma.user.findFirst({

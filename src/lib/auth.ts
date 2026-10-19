@@ -17,7 +17,37 @@ export interface SessionUser {
 }
 
 export async function hashPassword(password: string): Promise<string> {
-  return bcrypt.hash(password, 10);
+  return bcrypt.hash(password, 12);
+}
+
+/** Minimum password length enforced everywhere (signup, reset, admin reset). */
+export const MIN_PASSWORD_LENGTH = 10;
+
+/** Common/weak passwords that are never accepted. */
+const COMMON_PASSWORDS = new Set([
+  "password", "password1", "password123", "12345678", "123456789", "1234567890",
+  "qwerty", "qwerty123", "abc123", "letmein", "welcome", "welcome123",
+  "admin", "admin123", "administrator", "123456", "1234567", "11111111",
+  "iloveyou", "monkey", "dragon", "master", "sunshine", "princess",
+  "thetool", "hunter", "opportunity",
+]);
+
+/**
+ * Validate a password. Returns an error message, or null if acceptable.
+ * Rule: 10+ characters, not a common password, not all digits.
+ */
+export function validatePassword(password: string): string | null {
+  if (!password || password.length < MIN_PASSWORD_LENGTH) {
+    return `Password must be at least ${MIN_PASSWORD_LENGTH} characters.`;
+  }
+  const lower = password.toLowerCase().trim();
+  if (COMMON_PASSWORDS.has(lower)) {
+    return "That password is too common — pick something harder to guess.";
+  }
+  if (/^\d+$/.test(password)) {
+    return "Password can't be all numbers.";
+  }
+  return null;
 }
 
 export async function verifyPassword(

@@ -79,7 +79,7 @@ export default function ResetPasswordPage() {
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              placeholder="New password (min 8 characters)"
+              placeholder="New password (min 10 characters)"
               className="input-paper min-h-[44px] w-full"
             />
             <input

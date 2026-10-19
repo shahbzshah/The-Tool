@@ -74,7 +74,7 @@ function AdminPasswordReset() {
 
   async function reset() {
     if (!email || newPassword.length < 8) {
-      setStatus("Select a user and enter a password (min 8 characters).");
+      setStatus("Select a user and enter a password (min 10 characters).");
       return;
     }
     setSaving(true);
@@ -122,7 +122,7 @@ function AdminPasswordReset() {
           type="password"
           value={newPassword}
           onChange={(e) => setNewPassword(e.target.value)}
-          placeholder="New password (min 8 chars)"
+          placeholder="New password (min 10 chars)"
           className="input-paper min-h-[44px] flex-1"
         />
         <button onClick={reset} disabled={saving} className="btn-primary min-h-[44px] shrink-0">

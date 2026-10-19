@@ -4,21 +4,20 @@ import {
   hashPassword,
   createSessionToken,
   sessionCookie,
+  validatePassword,
 } from "@/lib/auth";
 
 export async function POST(req: Request) {
   const { email, password, name } = await req.json().catch(() => ({}));
-  if (
-    !email ||
-    typeof email !== "string" ||
-    !password ||
-    typeof password !== "string" ||
-    password.length < 6
-  ) {
+  if (!email || typeof email !== "string" || !password || typeof password !== "string") {
     return NextResponse.json(
-      { error: "Email and a password of at least 6 characters are required." },
+      { error: "Email and password are required." },
       { status: 400 }
     );
+  }
+  const pwError = validatePassword(password);
+  if (pwError) {
+    return NextResponse.json({ error: pwError }, { status: 400 });
   }
 
   const normalized = email.trim().toLowerCase();

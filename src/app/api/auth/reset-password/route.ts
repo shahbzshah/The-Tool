@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
-import { hashPassword } from "@/lib/auth";
+import { hashPassword, validatePassword } from "@/lib/auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -14,11 +14,12 @@ export async function POST(req: Request) {
   if (!token || typeof token !== "string") {
     return NextResponse.json({ error: "Invalid reset link." }, { status: 400 });
   }
-  if (!newPassword || typeof newPassword !== "string" || newPassword.length < 8) {
-    return NextResponse.json(
-      { error: "Password must be at least 8 characters." },
-      { status: 400 }
-    );
+  if (!newPassword || typeof newPassword !== "string") {
+    return NextResponse.json({ error: "New password is required." }, { status: 400 });
+  }
+  const pwError = validatePassword(newPassword);
+  if (pwError) {
+    return NextResponse.json({ error: pwError }, { status: 400 });
   }
 
   const resetToken = await prisma.passwordResetToken.findUnique({
