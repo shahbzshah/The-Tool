@@ -124,10 +124,16 @@ Respond with ONLY a JSON array, one object per feature, in the same order:
 No other text.`;
 
   try {
-    const results = await chatJson<{ covered: boolean; matchedFile: string | null; reason: string }[]>(
+    // Race the AI call against a 45s timeout — Vercel's gateway times out at
+    // 60s, so we fail fast with a clear message instead of a bare 504.
+    const aiPromise = chatJson<{ covered: boolean; matchedFile: string | null; reason: string }[]>(
       [{ role: "user", content: prompt }],
       { temperature: 0.1, maxTokens: 4000 }
     );
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("AI analysis timed out after 45 seconds. Try again — it may work on retry.")), 45_000)
+    );
+    const results = await Promise.race([aiPromise, timeoutPromise]);
 
     if (!Array.isArray(results) || results.length !== features.length) {
       throw new Error("AI returned an unexpected shape.");
