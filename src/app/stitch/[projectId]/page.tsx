@@ -380,7 +380,7 @@ export default function StitchPromptPage() {
    * with <style>…</style> using the uploaded CSS contents.
    */
   function inlineCss(html: string, cssByName: Record<string, string>): string {
-    return html.replace(
+    let out = html.replace(
       /<link[^>]+rel=["']stylesheet["'][^>]*>/gi,
       (tag) => {
         const m = tag.match(/href=["']([^"']+)["']/i);
@@ -390,6 +390,21 @@ export default function StitchPromptPage() {
         return css ? `<style>${css}</style>` : "";
       }
     );
+    // If the HTML uses Tailwind utility classes but has no Tailwind script,
+    // inject the Play CDN so the design actually renders styled.
+    const usesTailwindClasses = /\b(flex|grid|rounded|bg-|text-|p-\d|m-\d|gap-|items-|justify-)\b/.test(out);
+    const hasTailwind = /cdn\.tailwindcss\.com|tailwind/i.test(out);
+    if (usesTailwindClasses && !hasTailwind) {
+      out = out.replace(
+        /<\/head>/i,
+        `<script src="https://cdn.tailwindcss.com"></script></head>`
+      );
+      // If there was no <head>, prepend it.
+      if (out === html.replace(/<link[^>]+rel=["']stylesheet["'][^>]*>/gi, "")) {
+        out = `<script src="https://cdn.tailwindcss.com"></script>` + out;
+      }
+    }
+    return out;
   }
 
   function closePreview() {
