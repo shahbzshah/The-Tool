@@ -7,7 +7,7 @@ import { logAiUsage, estimateTokens } from "@/lib/usage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 120;
+export const maxDuration = 60;
 
 /**
  * POST /api/design/analyze-coverage — AI analyzes uploaded Stitch screens
@@ -37,7 +37,7 @@ export async function POST(req: Request) {
       },
       uploads: {
         orderBy: { createdAt: "desc" },
-        take: 50,
+        take: 20,
         select: { filename: true, type: true, content: true },
       },
     },
@@ -94,7 +94,7 @@ export async function POST(req: Request) {
       .replace(/&quot;/g, '"')
       .replace(/\s+/g, " ")
       .trim()
-      .slice(0, 3000);
+      .slice(0, 1500);
   }
 
   const screensSummary = uploads
