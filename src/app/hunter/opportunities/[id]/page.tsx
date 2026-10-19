@@ -774,7 +774,13 @@ export default function OpportunityDetailPage({
                 {history.length} {history.length === 1 ? "scan" : "scans"}
               </span>
             </div>
-            <ScoreSparkline points={history} />
+            {history.length < 2 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                Only one scan so far — the trend line appears after the next scan.
+              </p>
+            ) : (
+              <ScoreSparkline points={history} />
+            )}
           </section>
         )}
 
