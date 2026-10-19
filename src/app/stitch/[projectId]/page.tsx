@@ -103,6 +103,35 @@ export default function StitchPromptPage() {
   const [uploading, setUploading] = useState(false);
   const [features, setFeatures] = useState<string[]>([]);
   const [overrides, setOverrides] = useState<Record<number, boolean>>({});
+  const [aiResults, setAiResults] = useState<Record<number, { covered: boolean; matchedFile: string | null; reason: string }>>({});
+  const [analyzing, setAnalyzing] = useState(false);
+  const [analyzeError, setAnalyzeError] = useState("");
+
+  async function analyzeWithAi() {
+    if (analyzing) return;
+    setAnalyzing(true);
+    setAnalyzeError("");
+    try {
+      const r = await apiFetch("/api/design/analyze-coverage", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error || "Analysis failed");
+      const next: Record<number, { covered: boolean; matchedFile: string | null; reason: string }> = {};
+      d.results.forEach((res: { covered: boolean; matchedFile: string | null; reason: string }, i: number) => {
+        next[i] = res;
+      });
+      setAiResults(next);
+      // Clear manual overrides so AI results show; user can re-override after.
+      setOverrides({});
+    } catch (err) {
+      setAnalyzeError(err instanceof Error ? err.message : "Analysis failed");
+    } finally {
+      setAnalyzing(false);
+    }
+  }
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   // Item 9: project-wide AI token usage, shown muted in the header.
@@ -268,7 +297,10 @@ export default function StitchPromptPage() {
   const coverage = useMemo(
     () =>
       features.map((feature, i) => {
-        const auto = heuristicCoverage(feature, visibleUploads);
+        const ai = aiResults[i];
+        const auto = ai
+          ? { covered: ai.covered, matched: ai.matchedFile }
+          : heuristicCoverage(feature, visibleUploads);
         const manual = overrides[i];
         return {
           feature,
@@ -276,9 +308,11 @@ export default function StitchPromptPage() {
           auto: auto.covered,
           overridden: manual !== undefined,
           matched: auto.matched,
+          aiReason: ai?.reason || null,
+          fromAi: !!ai,
         };
       }),
-    [features, visibleUploads, overrides]
+    [features, visibleUploads, overrides, aiResults]
   );
   const coveredCount = coverage.filter((c) => c.covered).length;
   const readyForDocs = features.length > 0 && coveredCount === features.length;
@@ -573,6 +607,25 @@ export default function StitchPromptPage() {
                 toggle on each row lets you correct the automatic guess, and
                 Docs stays open either way.
               </p>
+              {features.length > 0 && uploads.length > 0 && (
+                <div className="mb-4">
+                  <button
+                    onClick={analyzeWithAi}
+                    disabled={analyzing}
+                    className="btn-primary min-h-[44px]"
+                  >
+                    {analyzing ? "Analyzing with AI…" : "Analyze with AI"}
+                  </button>
+                  {analyzeError && (
+                    <p className="mt-2 text-sm text-destructive">{analyzeError}</p>
+                  )}
+                  {Object.keys(aiResults).length > 0 && !analyzing && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      AI analysis complete — review the results below. Toggle any row to correct it.
+                    </p>
+                  )}
+                </div>
+              )}
               {features.length === 0 ? (
                 <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
                   No approved idea features found — approve an idea in Refine to
@@ -612,6 +665,11 @@ export default function StitchPromptPage() {
                             {c.matched && !c.overridden && (
                               <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
                                 matched: {c.matched}
+                              </span>
+                            )}
+                            {c.aiReason && c.fromAi && !c.overridden && (
+                              <span className="mt-0.5 block text-xs text-muted-foreground">
+                                AI: {c.aiReason}
                               </span>
                             )}
                             {c.overridden && (
