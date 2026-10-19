@@ -134,6 +134,61 @@ function AdminPasswordReset() {
   );
 }
 
+function EmailTest() {
+  const [to, setTo] = useState("");
+  const [status, setStatus] = useState("");
+  const [sending, setSending] = useState(false);
+
+  async function send() {
+    if (!to.trim()) {
+      setStatus("Enter an email address.");
+      return;
+    }
+    setSending(true);
+    setStatus("");
+    try {
+      const r = await apiFetch("/api/admin/test-email", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: to.trim() }),
+      });
+      const d = await r.json();
+      if (d.ok) {
+        setStatus("Test email sent — check the inbox (and spam).");
+      } else {
+        setStatus(`Failed: ${d.error || "unknown error"}`);
+      }
+    } catch {
+      setStatus("Failed — try again.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="card-paper mt-6 p-5">
+      <h2 className="font-medium">Test email delivery</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Verify your Resend setup. Note: the default sender only delivers to your
+        Resend account&apos;s own email — use a verified domain for anything else.
+      </p>
+      <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+        <input
+          type="email"
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          placeholder="you@example.com"
+          className="input-paper min-h-[44px] flex-1"
+        />
+        <button onClick={send} disabled={sending} className="btn-primary min-h-[44px] shrink-0">
+          {sending ? "Sending…" : "Send test"}
+        </button>
+      </div>
+      {status && <p className="mt-3 text-sm text-muted-foreground">{status}</p>}
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   const router = useRouter();
   const [settings, setSettings] = useState<SettingStatus[]>([]);
@@ -228,6 +283,8 @@ export default function SettingsPage() {
       <UsageCard />
 
       <AdminPasswordReset />
+
+      <EmailTest />
 
       <div className="mt-6">
         <button
