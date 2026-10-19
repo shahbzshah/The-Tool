@@ -1083,7 +1083,7 @@ function PreviewViewer({
         <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center">
           {loading || !html ? (
             <p className="text-sm text-white/60">
-              {loading ? "Loading screens…" : "Could not load this screen."}
+              {loading ? "Loading screens…" : isScreenshot ? "Screenshot not saved — re-upload your Stitch export to enable previews." : "Could not load this screen."}
             </p>
           ) : isScreenshot ? (
             <div className="flex h-full max-h-full min-h-0 items-center justify-center">
