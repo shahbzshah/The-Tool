@@ -141,6 +141,20 @@ async function extractZip(
         throw new ZipRejectedError("Zip decompresses to more than 50 MB.");
       }
       content = buf.toString("utf8").slice(0, MAX_CONTENT_CHARS);
+    } else if (type === "screenshot") {
+      // Store screenshots as base64 data URLs so the preview viewer can show them.
+      // Cap at 2MB per image to keep the DB reasonable.
+      const buf = await zip.files[path].async("nodebuffer");
+      bytes = buf.byteLength;
+      extractedTotal += bytes;
+      if (extractedTotal > MAX_ZIP_UNCOMPRESSED_BYTES) {
+        throw new ZipRejectedError("Zip decompresses to more than 50 MB.");
+      }
+      if (bytes <= 2 * 1024 * 1024) {
+        const ext = filename.toLowerCase().split(".").pop();
+        const mime = ext === "png" ? "image/png" : ext === "gif" ? "image/gif" : ext === "webp" ? "image/webp" : "image/jpeg";
+        content = `data:${mime};base64,${buf.toString("base64")}`;
+      }
     } else {
       // Don't hold screenshots in memory; count declared size against the budget.
       const { uncompressed } = entrySizes(zip.files[path]);

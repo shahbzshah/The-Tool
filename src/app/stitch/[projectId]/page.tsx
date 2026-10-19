@@ -112,6 +112,7 @@ export default function StitchPromptPage() {
   const [previewIndex, setPreviewIndex] = useState(0);
   const [previewMode, setPreviewMode] = useState<"phone" | "desktop">("phone");
   const [previewContents, setPreviewContents] = useState<Record<string, string>>({});
+  const [previewItems, setPreviewItems] = useState<(DesignUpload & { isScreenshot: boolean })[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
 
   async function analyzeWithAi() {
@@ -326,28 +327,19 @@ export default function StitchPromptPage() {
 
   // Preview: fetch HTML content for the visible uploads and open the viewer.
   async function openPreview(startIndex: number) {
-    setPreviewIndex(startIndex);
+    setPreviewIndex(0);
     setPreviewOpen(true);
     setPreviewLoading(true);
     try {
+      const screenshotUploads = visibleUploads.filter((u) => u.type === "screenshot");
       const htmlUploads = visibleUploads.filter((u) => u.type === "html");
-      const cssUploads = visibleUploads.filter((u) => u.type === "css");
+      // Prefer screenshots — they're pixel-perfect. Fall back to HTML.
+      const useScreenshots = screenshotUploads.length > 0;
+      const items = useScreenshots ? screenshotUploads : htmlUploads;
+
       const contents: Record<string, string> = {};
-      // Fetch CSS contents too, so we can inline them into the HTML.
-      const cssByName: Record<string, string> = {};
       await Promise.all(
-        cssUploads.map(async (u) => {
-          const r = await apiFetch(`/api/uploads/${u.id}`);
-          const d = await r.json();
-          if (d.upload?.content) {
-            const base = u.filename.split("/").pop() || u.filename;
-            cssByName[base.toLowerCase()] = d.upload.content;
-            cssByName[u.filename.toLowerCase()] = d.upload.content;
-          }
-        })
-      );
-      await Promise.all(
-        htmlUploads.map(async (u) => {
+        items.map(async (u) => {
           if (previewContents[u.id]) {
             contents[u.id] = previewContents[u.id];
             return;
@@ -355,24 +347,48 @@ export default function StitchPromptPage() {
           const r = await apiFetch(`/api/uploads/${u.id}`);
           const d = await r.json();
           if (d.upload?.content) {
-            contents[u.id] = inlineCss(d.upload.content, cssByName);
+            contents[u.id] = useScreenshots
+              ? d.upload.content
+              : inlineCss(d.upload.content, await fetchCssMap());
           }
         })
       );
       setPreviewContents((prev) => ({ ...prev, ...contents }));
-      // Auto-detect phone vs desktop from the first screen's HTML.
-      const first = htmlUploads[startIndex] || htmlUploads[0];
-      const html = contents[first?.id] || "";
-      const looksMobile =
-        /viewport[^>]*width\s*=\s*device-width/i.test(html) ||
-        /max-width\s*:\s*(3\d\d|4\d\d)px/i.test(html) ||
-        /iPhone|Android|mobile/i.test(html);
-      setPreviewMode(looksMobile ? "phone" : "desktop");
+      setPreviewItems(items.map((u) => ({ ...u, isScreenshot: useScreenshots })));
+      // Auto-detect phone vs desktop (screenshots are usually phone-sized).
+      if (useScreenshots) {
+        setPreviewMode("phone");
+      } else {
+        const first = htmlUploads[startIndex] || htmlUploads[0];
+        const html = contents[first?.id] || "";
+        const looksMobile =
+          /viewport[^>]*width\s*=\s*device-width/i.test(html) ||
+          /max-width\s*:\s*(3\d\d|4\d\d)px/i.test(html) ||
+          /iPhone|Android|mobile/i.test(html);
+        setPreviewMode(looksMobile ? "phone" : "desktop");
+      }
     } catch {
       // Leave viewer open; missing screens show a fallback.
     } finally {
       setPreviewLoading(false);
     }
+  }
+
+  async function fetchCssMap(): Promise<Record<string, string>> {
+    const cssUploads = visibleUploads.filter((u) => u.type === "css");
+    const cssByName: Record<string, string> = {};
+    await Promise.all(
+      cssUploads.map(async (u) => {
+        const r = await apiFetch(`/api/uploads/${u.id}`);
+        const d = await r.json();
+        if (d.upload?.content) {
+          const base = u.filename.split("/").pop() || u.filename;
+          cssByName[base.toLowerCase()] = d.upload.content;
+          cssByName[u.filename.toLowerCase()] = d.upload.content;
+        }
+      })
+    );
+    return cssByName;
   }
 
   /**
@@ -670,12 +686,7 @@ export default function StitchPromptPage() {
                         <span className="truncate font-medium">{u.filename}</span>
                       </span>
                       <button
-                        onClick={() => {
-                          const htmlIdx = visibleUploads
-                            .filter((x) => x.type === "html")
-                            .findIndex((x) => x.id === u.id);
-                          if (htmlIdx >= 0) openPreview(htmlIdx);
-                        }}
+                        onClick={() => openPreview(0)}
                         title="Preview design"
                         className="ml-2 shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
                       >
@@ -943,7 +954,7 @@ export default function StitchPromptPage() {
       {/* Stitch UI preview viewer */}
       {previewOpen && (
         <PreviewViewer
-          uploads={visibleUploads.filter((u) => u.type === "html")}
+          uploads={previewItems}
           contents={previewContents}
           index={previewIndex}
           setIndex={setPreviewIndex}
@@ -972,7 +983,7 @@ function PreviewViewer({
   loading,
   onClose,
 }: {
-  uploads: DesignUpload[];
+  uploads: (DesignUpload & { isScreenshot: boolean })[];
   contents: Record<string, string>;
   index: number;
   setIndex: (i: number) => void;
@@ -982,6 +993,7 @@ function PreviewViewer({
   onClose: () => void;
 }) {
   const current = uploads[index];
+  const isScreenshot = current?.isScreenshot;
   const html = current ? contents[current.id] : null;
   const count = uploads.length;
 
@@ -1073,6 +1085,15 @@ function PreviewViewer({
             <p className="text-sm text-white/60">
               {loading ? "Loading screens…" : "Could not load this screen."}
             </p>
+          ) : isScreenshot ? (
+            <div className="flex h-full max-h-full min-h-0 items-center justify-center">
+              <img
+                src={html}
+                alt={current.filename}
+                className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+                style={mode === "phone" ? { width: 375, maxWidth: "92vw" } : {}}
+              />
+            </div>
           ) : mode === "phone" ? (
             <div className="flex h-full max-h-full min-h-0 flex-col overflow-hidden rounded-[2.5rem] border-[10px] border-neutral-800 bg-neutral-800 shadow-2xl" style={{ width: 375, maxWidth: "92vw", aspectRatio: "9 / 18.5" }}>
               <div className="relative z-10 flex h-7 shrink-0 items-center justify-center bg-neutral-800">
