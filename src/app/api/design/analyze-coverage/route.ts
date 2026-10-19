@@ -79,11 +79,28 @@ export async function POST(req: Request) {
     );
   }
 
-  // Build a compact summary of each upload: filename + first 2000 chars.
+  // Build a compact summary of each upload: filename + extracted visible text.
+  // Strip HTML tags, scripts, and styles — the AI needs to see what the UI
+  // SAYS (buttons, headings, labels), not the markup.
+  function extractVisibleText(html: string): string {
+    return html
+      .replace(/<script[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style[\s\S]*?<\/style>/gi, " ")
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 3000);
+  }
+
   const screensSummary = uploads
     .map((u, i) => {
-      const snippet = (u.content || "").slice(0, 2000).replace(/\s+/g, " ").trim();
-      return `--- Screen ${i + 1}: ${u.filename} (${u.type}) ---\n${snippet}`;
+      const text = extractVisibleText(u.content || "");
+      return `--- Screen ${i + 1}: ${u.filename} ---\n${text || "(no readable text in this file)"}`;
     })
     .join("\n\n");
 
@@ -97,7 +114,9 @@ ${features.map((f, i) => `${i + 1}. ${f}`).join("\n")}
 UPLOADED SCREENS:
 ${screensSummary}
 
-For EACH feature above, determine whether the uploaded UI screens actually implement it. A feature is "covered" if any screen shows UI for it — buttons, forms, lists, charts, settings, etc. that would let a user accomplish that feature. Be generous with semantic matching (e.g. a "hydration tracker with goal slider" covers "customizable daily water intake goals") but honest — don't mark covered if there's no real UI for it.
+For EACH feature above, determine whether the uploaded UI screens actually implement it. A feature is "covered" if any screen shows UI for it — buttons, forms, lists, charts, settings, headings, or labels that would let a user accomplish that feature. The screen filenames also hint at their purpose (e.g. "water-tracking.html" is about water tracking).
+
+Be generous with semantic matching: if a screen's text mentions the concept (e.g. "daily goal", "hydration", "ml"), it covers "customizable daily water intake goals". Only mark NOT covered if no screen has any related UI or text at all.
 
 Respond with ONLY a JSON array, one object per feature, in the same order:
 [{"covered": true/false, "matchedFile": "filename or null", "reason": "one sentence explaining why"}]
@@ -107,7 +126,7 @@ No other text.`;
   try {
     const results = await chatJson<{ covered: boolean; matchedFile: string | null; reason: string }[]>(
       [{ role: "user", content: prompt }],
-      { temperature: 0.3, maxTokens: 4000 }
+      { temperature: 0.1, maxTokens: 4000 }
     );
 
     if (!Array.isArray(results) || results.length !== features.length) {
