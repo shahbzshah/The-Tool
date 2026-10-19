@@ -118,7 +118,7 @@ export async function requireUser(
  * Override with the ADMIN_EMAIL env var.
  */
 export function isOwnerEmail(email: string): boolean {
-  const owner = (process.env.ADMIN_EMAIL || "admin@gmail.com").toLowerCase();
+  const owner = (process.env.ADMIN_EMAIL || "megahent8@gmail.com").toLowerCase();
   return email.toLowerCase() === owner;
 }
 
