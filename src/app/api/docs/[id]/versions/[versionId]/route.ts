@@ -21,7 +21,15 @@ export async function GET(
 
   const { id, versionId } = await params;
   const version = await prisma.documentVersion.findFirst({
-    where: { id: versionId, documentId: id },
+    where: {
+      id: versionId,
+      documentId: id,
+      document: {
+        idea: {
+          project: { userId: auth.user.id },
+        },
+      },
+    },
     select: { id: true, version: true, content: true, createdAt: true },
   });
   if (!version) {

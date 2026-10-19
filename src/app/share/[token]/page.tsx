@@ -18,7 +18,9 @@ function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function renderInline(s: string): string {
@@ -26,9 +28,14 @@ function renderInline(s: string): string {
   out = out.replace(/`([^`]+)`/g, "<code>$1</code>");
   out = out.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   out = out.replace(/\*([^*]+)\*/g, "<em>$1</em>");
+  // Links: URL is already HTML-escaped above; validate scheme to block
+  // javascript: and data: URIs that survived escaping.
   out = out.replace(
     /\[([^\]]+)\]\((https?:[^)\s]+)\)/g,
-    '<a href="$2" target="_blank" rel="noopener noreferrer">$1</a>'
+    (m, text, url) => {
+      if (!/^https?:\/\//i.test(url)) return text;
+      return `<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+    }
   );
   return out;
 }

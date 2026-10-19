@@ -81,7 +81,14 @@ function rateLimitResponse(): NextResponse {
 }
 
 function isRateLimitedRoute(pathname: string): { key: string; max: number } | null {
-  if (pathname.startsWith("/api/auth/")) {
+  // Strict bucket only for credential-bearing routes. /api/auth/me is called
+  // on every page load — rate-limiting it logs real users out (audit #5).
+  if (
+    pathname === "/api/auth/login" ||
+    pathname === "/api/auth/register" ||
+    pathname === "/api/auth/forgot-password" ||
+    pathname === "/api/auth/reset-password"
+  ) {
     return { key: "auth", max: AUTH_LIMIT };
   }
   const ai = AI_RATE_LIMITED.some(
