@@ -107,6 +107,13 @@ export default function StitchPromptPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState("");
 
+  // Preview viewer state.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewIndex, setPreviewIndex] = useState(0);
+  const [previewMode, setPreviewMode] = useState<"phone" | "desktop">("phone");
+  const [previewContents, setPreviewContents] = useState<Record<string, string>>({});
+  const [previewLoading, setPreviewLoading] = useState(false);
+
   async function analyzeWithAi() {
     if (analyzing) return;
     setAnalyzing(true);
@@ -132,6 +139,8 @@ export default function StitchPromptPage() {
       setAnalyzing(false);
     }
   }
+
+
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   // Item 9: project-wide AI token usage, shown muted in the header.
@@ -314,6 +323,59 @@ export default function StitchPromptPage() {
       }),
     [features, visibleUploads, overrides, aiResults]
   );
+
+  // Preview: fetch HTML content for the visible uploads and open the viewer.
+  async function openPreview(startIndex: number) {
+    setPreviewIndex(startIndex);
+    setPreviewOpen(true);
+    setPreviewLoading(true);
+    try {
+      const htmlUploads = visibleUploads.filter((u) => u.type === "html");
+      const contents: Record<string, string> = {};
+      await Promise.all(
+        htmlUploads.map(async (u) => {
+          if (previewContents[u.id]) {
+            contents[u.id] = previewContents[u.id];
+            return;
+          }
+          const r = await apiFetch(`/api/uploads/${u.id}`);
+          const d = await r.json();
+          if (d.upload?.content) contents[u.id] = d.upload.content;
+        })
+      );
+      setPreviewContents((prev) => ({ ...prev, ...contents }));
+      // Auto-detect phone vs desktop from the first screen's HTML.
+      const first = htmlUploads[startIndex] || htmlUploads[0];
+      const html = contents[first?.id] || "";
+      const looksMobile =
+        /viewport[^>]*width\s*=\s*device-width/i.test(html) ||
+        /max-width\s*:\s*(3\d\d|4\d\d)px/i.test(html) ||
+        /iPhone|Android|mobile/i.test(html);
+      setPreviewMode(looksMobile ? "phone" : "desktop");
+    } catch {
+      // Leave viewer open; missing screens show a fallback.
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
+
+  function closePreview() {
+    setPreviewOpen(false);
+  }
+
+  // Keyboard navigation for the preview viewer.
+  useEffect(() => {
+    if (!previewOpen) return;
+    function onKey(e: KeyboardEvent) {
+      const htmlScreens = visibleUploads.filter((u) => u.type === "html");
+      if (e.key === "Escape") closePreview();
+      if (e.key === "ArrowRight")
+        setPreviewIndex((i) => Math.min(i + 1, htmlScreens.length - 1));
+      if (e.key === "ArrowLeft") setPreviewIndex((i) => Math.max(i - 1, 0));
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [previewOpen, visibleUploads]);
   const coveredCount = coverage.filter((c) => c.covered).length;
   const readyForDocs = features.length > 0 && coveredCount === features.length;
 
@@ -560,9 +622,21 @@ export default function StitchPromptPage() {
                         <span className="truncate font-medium">{u.filename}</span>
                       </span>
                       <button
+                        onClick={() => {
+                          const htmlIdx = visibleUploads
+                            .filter((x) => x.type === "html")
+                            .findIndex((x) => x.id === u.id);
+                          if (htmlIdx >= 0) openPreview(htmlIdx);
+                        }}
+                        title="Preview design"
+                        className="ml-2 shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                      >
+                        <span className="material-symbols text-[18px]">visibility</span>
+                      </button>
+                      <button
                         onClick={() => deleteUpload(u.id)}
                         title="Delete upload"
-                        className="ml-2 shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
+                        className="ml-1 shrink-0 rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
                       >
                         <span className="material-symbols text-[18px]">delete</span>
                       </button>
@@ -717,8 +791,9 @@ export default function StitchPromptPage() {
                 </h2>
                 <button
                   onClick={runReview}
-                  disabled={reviewing}
-                  className="btn-secondary !px-4 !py-1.5 !text-sm"
+                  disabled={reviewing || uploads.length === 0}
+                  title={uploads.length === 0 ? "Upload a Stitch export first" : undefined}
+                  className="btn-secondary !px-4 !py-1.5 !text-sm disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   {reviewing
                     ? "Reviewing…"
@@ -728,8 +803,13 @@ export default function StitchPromptPage() {
                 </button>
               </div>
               <p className="mb-4 text-sm text-muted-foreground">
-                Compares your idea&apos;s features against the Stitch prompt and any
-                uploaded design exports — flags gaps and suggests fixes.
+                Compares your idea&apos;s features against your uploaded Stitch
+                design exports — flags gaps and suggests fixes.
+                {uploads.length === 0 && (
+                  <span className="mt-1 block font-medium text-foreground">
+                    Upload a Stitch export above to enable the review.
+                  </span>
+                )}
               </p>
 
               {review && (
@@ -811,6 +891,204 @@ export default function StitchPromptPage() {
           </div>
         )}
       </div>
+
+      {/* Stitch UI preview viewer */}
+      {previewOpen && (
+        <PreviewViewer
+          uploads={visibleUploads.filter((u) => u.type === "html")}
+          contents={previewContents}
+          index={previewIndex}
+          setIndex={setPreviewIndex}
+          mode={previewMode}
+          setMode={setPreviewMode}
+          loading={previewLoading}
+          onClose={closePreview}
+        />
+      )}
     </main>
+  );
+}
+
+/**
+ * Full-screen viewer for Stitch HTML exports. Phone frame or desktop
+ * browser frame, swipe/arrow/keyboard navigation, thumbnail strip.
+ * HTML renders in a sandboxed iframe — export scripts can't touch the app.
+ */
+function PreviewViewer({
+  uploads,
+  contents,
+  index,
+  setIndex,
+  mode,
+  setMode,
+  loading,
+  onClose,
+}: {
+  uploads: DesignUpload[];
+  contents: Record<string, string>;
+  index: number;
+  setIndex: (i: number) => void;
+  mode: "phone" | "desktop";
+  setMode: (m: "phone" | "desktop") => void;
+  loading: boolean;
+  onClose: () => void;
+}) {
+  const current = uploads[index];
+  const html = current ? contents[current.id] : null;
+  const count = uploads.length;
+
+  // Touch swipe support.
+  const touchX = useRef<number | null>(null);
+  function onTouchStart(e: React.TouchEvent) {
+    touchX.current = e.touches[0].clientX;
+  }
+  function onTouchEnd(e: React.TouchEvent) {
+    if (touchX.current === null) return;
+    const dx = e.changedTouches[0].clientX - touchX.current;
+    if (dx < -40) setIndex(Math.min(index + 1, count - 1));
+    if (dx > 40) setIndex(Math.max(index - 1, 0));
+    touchX.current = null;
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-sm"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Design preview"
+    >
+      {/* Top bar */}
+      <div
+        className="flex shrink-0 items-center justify-between gap-3 px-4 py-3"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex min-w-0 items-center gap-3">
+          <button
+            onClick={onClose}
+            className="rounded-full p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            aria-label="Close preview"
+          >
+            <span className="material-symbols text-[22px]">close</span>
+          </button>
+          <span className="truncate font-mono text-sm text-white/80">
+            {current?.filename ?? "No screens"}
+          </span>
+          {count > 1 && (
+            <span className="shrink-0 font-mono text-xs text-white/50">
+              {index + 1} of {count}
+            </span>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1 rounded-full bg-white/10 p-1">
+          <button
+            onClick={() => setMode("phone")}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              mode === "phone" ? "bg-white text-black" : "text-white/70 hover:text-white"
+            }`}
+          >
+            Phone
+          </button>
+          <button
+            onClick={() => setMode("desktop")}
+            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
+              mode === "desktop" ? "bg-white text-black" : "text-white/70 hover:text-white"
+            }`}
+          >
+            Desktop
+          </button>
+        </div>
+      </div>
+
+      {/* Stage */}
+      <div
+        className="flex min-h-0 flex-1 items-center justify-center gap-2 px-2 pb-2 sm:gap-4 sm:px-6"
+        onClick={(e) => e.stopPropagation()}
+        onTouchStart={onTouchStart}
+        onTouchEnd={onTouchEnd}
+      >
+        {/* Prev */}
+        {count > 1 && (
+          <button
+            onClick={() => setIndex(Math.max(index - 1, 0))}
+            disabled={index === 0}
+            className="shrink-0 rounded-full bg-white/10 p-2.5 text-white transition-colors hover:bg-white/20 disabled:opacity-30"
+            aria-label="Previous screen"
+          >
+            <span className="material-symbols text-[24px]">chevron_left</span>
+          </button>
+        )}
+
+        {/* Frame */}
+        <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center">
+          {loading || !html ? (
+            <p className="text-sm text-white/60">
+              {loading ? "Loading screens…" : "Could not load this screen."}
+            </p>
+          ) : mode === "phone" ? (
+            <div className="flex h-full max-h-full min-h-0 flex-col overflow-hidden rounded-[2.5rem] border-[10px] border-neutral-800 bg-neutral-800 shadow-2xl" style={{ width: 375, maxWidth: "92vw", aspectRatio: "9 / 18.5" }}>
+              <div className="relative z-10 flex h-7 shrink-0 items-center justify-center bg-neutral-800">
+                <div className="h-5 w-28 rounded-full bg-black" />
+              </div>
+              <iframe
+                title={current.filename}
+                srcDoc={html}
+                sandbox="allow-same-origin"
+                className="min-h-0 w-full flex-1 bg-white"
+              />
+            </div>
+          ) : (
+            <div className="flex h-full max-h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-white/15 bg-neutral-900 shadow-2xl">
+              <div className="flex h-10 shrink-0 items-center gap-2 bg-neutral-800 px-4">
+                <span className="h-3 w-3 rounded-full bg-red-500/80" />
+                <span className="h-3 w-3 rounded-full bg-yellow-500/80" />
+                <span className="h-3 w-3 rounded-full bg-green-500/80" />
+                <span className="ml-3 truncate rounded-md bg-black/40 px-3 py-1 font-mono text-xs text-white/60">
+                  {current.filename}
+                </span>
+              </div>
+              <iframe
+                title={current.filename}
+                srcDoc={html}
+                sandbox="allow-same-origin"
+                className="min-h-0 w-full flex-1 bg-white"
+              />
+            </div>
+          )}
+        </div>
+
+        {/* Next */}
+        {count > 1 && (
+          <button
+            onClick={() => setIndex(Math.min(index + 1, count - 1))}
+            disabled={index === count - 1}
+            className="shrink-0 rounded-full bg-white/10 p-2.5 text-white transition-colors hover:bg-white/20 disabled:opacity-30"
+            aria-label="Next screen"
+          >
+            <span className="material-symbols text-[24px]">chevron_right</span>
+          </button>
+        )}
+      </div>
+
+      {/* Thumbnails + dots */}
+      {count > 1 && (
+        <div
+          className="flex shrink-0 items-center justify-center gap-2 overflow-x-auto px-4 pb-4"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {uploads.map((u, i) => (
+            <button
+              key={u.id}
+              onClick={() => setIndex(i)}
+              title={u.filename}
+              className={`h-2.5 rounded-full transition-all ${
+                i === index ? "w-8 bg-white" : "w-2.5 bg-white/30 hover:bg-white/60"
+              }`}
+              aria-label={`Go to screen ${i + 1}: ${u.filename}`}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }

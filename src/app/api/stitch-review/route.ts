@@ -66,9 +66,14 @@ export async function POST(req: Request) {
       })
       .join("\n\n");
 
-    const designContext = uploadSummaries
-      ? `Uploaded design exports:\n${uploadSummaries}`
-      : "No design export uploaded yet — review the Stitch prompt against the idea alone and note that no export was provided.";
+    if (!uploadSummaries.trim()) {
+      return NextResponse.json(
+        { error: "Upload a Stitch design export first — the review needs actual screens to compare against your idea." },
+        { status: 400 }
+      );
+    }
+
+    const designContext = `Uploaded design exports:\n${uploadSummaries}`;
 
     const system =
       "You are a meticulous product designer reviewing whether a UI design matches the product it was designed for. You respond ONLY with valid JSON — no markdown fences, no commentary.";
