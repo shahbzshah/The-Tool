@@ -331,7 +331,21 @@ export default function StitchPromptPage() {
     setPreviewLoading(true);
     try {
       const htmlUploads = visibleUploads.filter((u) => u.type === "html");
+      const cssUploads = visibleUploads.filter((u) => u.type === "css");
       const contents: Record<string, string> = {};
+      // Fetch CSS contents too, so we can inline them into the HTML.
+      const cssByName: Record<string, string> = {};
+      await Promise.all(
+        cssUploads.map(async (u) => {
+          const r = await apiFetch(`/api/uploads/${u.id}`);
+          const d = await r.json();
+          if (d.upload?.content) {
+            const base = u.filename.split("/").pop() || u.filename;
+            cssByName[base.toLowerCase()] = d.upload.content;
+            cssByName[u.filename.toLowerCase()] = d.upload.content;
+          }
+        })
+      );
       await Promise.all(
         htmlUploads.map(async (u) => {
           if (previewContents[u.id]) {
@@ -340,7 +354,9 @@ export default function StitchPromptPage() {
           }
           const r = await apiFetch(`/api/uploads/${u.id}`);
           const d = await r.json();
-          if (d.upload?.content) contents[u.id] = d.upload.content;
+          if (d.upload?.content) {
+            contents[u.id] = inlineCss(d.upload.content, cssByName);
+          }
         })
       );
       setPreviewContents((prev) => ({ ...prev, ...contents }));
@@ -357,6 +373,23 @@ export default function StitchPromptPage() {
     } finally {
       setPreviewLoading(false);
     }
+  }
+
+  /**
+   * Inline external CSS: replace <link rel="stylesheet" href="x.css">
+   * with <style>…</style> using the uploaded CSS contents.
+   */
+  function inlineCss(html: string, cssByName: Record<string, string>): string {
+    return html.replace(
+      /<link[^>]+rel=["']stylesheet["'][^>]*>/gi,
+      (tag) => {
+        const m = tag.match(/href=["']([^"']+)["']/i);
+        if (!m) return "";
+        const href = m[1].split("/").pop() || m[1];
+        const css = cssByName[href.toLowerCase()] || cssByName[m[1].toLowerCase()];
+        return css ? `<style>${css}</style>` : "";
+      }
+    );
   }
 
   function closePreview() {

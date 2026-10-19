@@ -31,13 +31,16 @@ function entrySizes(entry: JSZip.JSZipObject): {
   return { uncompressed: d?.uncompressedSize, compressed: d?.compressedSize };
 }
 
-function classify(filename: string, mime: string): "design_md" | "html" | "screenshot" | null {
+function classify(filename: string, mime: string): "design_md" | "html" | "css" | "screenshot" | null {
   const lower = filename.toLowerCase();
   if (lower.endsWith(".md") || lower.endsWith(".markdown") || lower.endsWith(".txt")) {
     return "design_md";
   }
   if (lower.endsWith(".html") || lower.endsWith(".htm")) {
     return "html";
+  }
+  if (lower.endsWith(".css")) {
+    return "css";
   }
   if (
     lower.endsWith(".png") ||
@@ -113,7 +116,7 @@ async function extractZip(
   }
 
   // Validate + extract in memory; live byte counter runs during extraction.
-  type Prepared = { filename: string; type: "design_md" | "html" | "screenshot"; content: string | null; bytes: number };
+  type Prepared = { filename: string; type: "design_md" | "html" | "css" | "screenshot"; content: string | null; bytes: number };
   const prepared: Prepared[] = [];
   let extractedTotal = 0;
   for (const path of paths) {
@@ -130,7 +133,7 @@ async function extractZip(
 
     let content: string | null = null;
     let bytes = 0;
-    if (type === "design_md" || type === "html") {
+    if (type === "design_md" || type === "html" || type === "css") {
       const buf = await zip.files[path].async("nodebuffer");
       bytes = buf.byteLength;
       extractedTotal += bytes;
@@ -261,7 +264,7 @@ export async function POST(req: Request) {
     }
 
     let content: string | null = null;
-    if (type === "design_md" || type === "html") {
+    if (type === "design_md" || type === "html" || type === "css") {
       const text = await file.text();
       content = text.slice(0, MAX_CONTENT_CHARS);
     }
