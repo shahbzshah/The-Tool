@@ -39,6 +39,7 @@ export async function POST(req: Request) {
         orderBy: { createdAt: "desc" },
         take: 20,
         select: { filename: true, type: true, content: true },
+        where: { type: "html" },
       },
     },
   });
