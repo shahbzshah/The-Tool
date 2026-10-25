@@ -56,9 +56,95 @@ export async function appDetails(appId: string): Promise<AppDetail | null> {
       installs_num: parseInstalls(d.installs),
       genre: d.genre,
       genreId: d.genreId,
+      offersIAP: d.offersIAP ?? null,
+      IAPRange: d.IAPRange ?? null,
+      adSupported: d.adSupported ?? null,
+      price: d.price ?? null,
+      priceText: d.priceText ?? null,
+      description: typeof d.description === "string" ? d.description : null,
+      released: d.released ?? null,
+      version: d.version ?? null,
     };
   } catch (err) {
     console.warn(`detail fetch failed for ${appId}:`, err);
+    return null;
+  }
+}
+
+/** One written review, stripped of everything personal. userName is never
+ * stored or displayed anywhere in the app (Play ToS: no harvesting of
+ * account names). */
+export interface PlayReview {
+  id: string;
+  date: string;
+  score: number;
+  text: string;
+  version: string | null;
+  thumbsUp: number;
+  replyText: string | null;
+}
+
+/** Fetch newest reviews for one app. Capped, best-effort: returns [] on
+ * any failure (including 429) — callers must degrade to cached data, never
+ * retry aggressively through a block. */
+export async function fetchReviews(
+  appId: string,
+  num = 100
+): Promise<PlayReview[]> {
+  try {
+    const res: any = await gplay.reviews({
+      appId,
+      sort: (gplay as any).sort?.NEWEST ?? 2,
+      num: Math.min(num, 200),
+      lang: LANG,
+      country: COUNTRY,
+    });
+    const data: any[] = Array.isArray(res?.data) ? res.data : [];
+    return data
+      .filter((r) => typeof r?.text === "string" && r.text.trim())
+      .map((r) => ({
+        id: String(r.id ?? ""),
+        date: String(r.date ?? ""),
+        score: Number(r.score ?? 0),
+        text: String(r.text),
+        version: r.version ? String(r.version) : null,
+        thumbsUp: Number(r.thumbsUp ?? 0),
+        replyText: r.replyText ? String(r.replyText) : null,
+      }));
+  } catch (err) {
+    // 429/blocks included: log once, degrade, never hammer.
+    console.warn(`reviews fetch failed for ${appId}:`, err);
+    return [];
+  }
+}
+
+/**
+ * Best-effort category top-free chart: returns a map appId -> 1-based rank
+ * for apps found in the chart, or null when the chart can't be fetched.
+ * One call per category per scan at most; callers cache the result.
+ */
+export async function fetchCategoryRanks(
+  genreId: string | null | undefined,
+  num = 200
+): Promise<Map<string, number> | null> {
+  if (!genreId) return null;
+  try {
+    const list: any = await gplay.list({
+      collection: (gplay as any).collection?.TOP_FREE ?? "TOP_FREE",
+      // genreId values ("PRODUCTIVITY", ...) are the lib's category enum
+      // members; cast because the lib types the field as its enum.
+      category: genreId as any,
+      num: Math.min(num, 500),
+      lang: LANG,
+      country: COUNTRY,
+    });
+    const ranks = new Map<string, number>();
+    (Array.isArray(list) ? list : []).forEach((item: any, i: number) => {
+      if (item?.appId) ranks.set(String(item.appId), i + 1);
+    });
+    return ranks;
+  } catch (err) {
+    console.warn(`category chart fetch failed for ${genreId}:`, err);
     return null;
   }
 }

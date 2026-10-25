@@ -20,11 +20,22 @@ export interface AppDetail {
   title: string;
   score?: number | null;
   reviews?: number | null;
-  updated?: string | null;
+  updated?: string | number | null;
   installs?: string | null;
   installs_num?: number | null;
   genre?: string | null;
   genreId?: string | null;
+  // Power & Accuracy plan: monetisation + freshness fields from the Play
+  // payload. `updated` may arrive as a timestamp (this lib) or a date
+  // string; parse with lib/hunter/dates, never with a year regex.
+  offersIAP?: boolean | null;
+  IAPRange?: string | null;
+  adSupported?: boolean | null;
+  price?: number | null;
+  priceText?: string | null;
+  description?: string | null;
+  released?: string | null;
+  version?: string | null;
 }
 
 export interface ScoredApp {
@@ -44,20 +55,23 @@ export interface ScoredApp {
   };
 }
 
+import { daysSince, parsePlayDate } from "./dates";
+
 /** 0-100. Rating weight 70, review volume 20, recency 10. */
 export function qualityScore(detail: AppDetail): number {
   const rating = Number(detail.score ?? 0);
   const reviews = Number(detail.reviews ?? 0);
   let q = (rating / 5.0) * 70.0;
   q += clamp(reviews / 5000.0, 0.0, 1.0) * 20.0;
-  q += updatedRecently(String(detail.updated ?? "")) ? 10.0 : 4.0;
+  q += updatedRecently(detail.updated) ? 10.0 : 4.0;
   return clamp(q, 0.0, 100.0);
 }
 
-function updatedRecently(updated: string): boolean {
-  // "updated" looks like "Mar 12, 2024". Cheap check: year >= 2024.
-  const m = updated.match(/(19|20)\d{2}/);
-  return !!m && parseInt(m[0], 10) >= 2024;
+function updatedRecently(updated: string | number | null | undefined): boolean {
+  // Play `updated` arrives as a timestamp or a date string; parse it
+  // properly instead of regexing a year out of the raw value.
+  const days = daysSince(parsePlayDate(updated));
+  return days != null && days <= 365;
 }
 
 /** 1-5. High rating + low installs => big gap (hidden gem). */

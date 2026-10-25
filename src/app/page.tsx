@@ -58,6 +58,9 @@ type Opportunity = {
   isBookmarked: boolean;
   summary: string | null;
   scanJob?: { keyword: string; createdAt: string } | null;
+  velocityPerDay?: number | null;
+  deltaRatings30?: number | null;
+  isRising?: boolean;
 };
 
 /** Score tiers. */
@@ -330,6 +333,17 @@ function OpportunityCard({
               </span>
               <span>·</span>
               <span>{opp.installs ? `${opp.installs} installs` : "—"}</span>
+              {opp.velocityPerDay != null && (
+                <>
+                  <span>·</span>
+                  <span>{opp.velocityPerDay.toFixed(1)} ratings/day</span>
+                </>
+              )}
+              {opp.isRising && (
+                <span className="rounded border border-score-high/30 bg-score-high/10 px-1.5 py-0.5 text-[10px] font-semibold text-score-high">
+                  ▲ RISING
+                </span>
+              )}
               <span className="hidden md:inline">·</span>
               <span className="hidden max-w-[190px] truncate md:inline">{opp.appId}</span>
               {opp.scanJob && (
@@ -404,6 +418,16 @@ function OpportunityCard({
         <span className="text-muted-foreground">
           {opp.installs ? `${opp.installs} installs` : "—"}
         </span>
+        {opp.velocityPerDay != null && (
+          <span className="text-muted-foreground">
+            {opp.velocityPerDay.toFixed(1)} ratings/day
+          </span>
+        )}
+        {opp.isRising && (
+          <span className="rounded border border-score-high/30 bg-score-high/10 px-2 py-0.5 text-[10px] font-semibold text-score-high">
+            ▲ RISING
+          </span>
+        )}
         <span className="max-w-[160px] truncate text-muted-foreground/70">{opp.appId}</span>
         {opp.scanJob && (
           <span className="text-muted-foreground/70">kw: &quot;{opp.scanJob.keyword}&quot;</span>

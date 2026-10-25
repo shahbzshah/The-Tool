@@ -1,7 +1,13 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { scanKeyword } from "@/lib/hunter/scraper";
-import { rankApps, whyItScores } from "@/lib/hunter/scoring";
+import {
+  rankScan,
+  recordSnapshots,
+  playUpdatedString,
+  type RankedOpportunity,
+} from "@/lib/hunter/persistScan";
+import { COMPOSITE_WEIGHTS } from "@/lib/hunter/composite";
 import { loadWatchlistKeywords } from "@/lib/hunter/watchlist-keywords";
 import { requireUser } from "@/lib/auth";
 import { sweepStaleJobs } from "@/lib/scan-jobs";
@@ -27,7 +33,7 @@ export const maxDuration = 300;
  * "5,000,000+" (→ 5000000n). The "+" means "at least", so the parsed
  * number is the floor. Returns null when there is no parseable number.
  */
-function parseInstallsMin(installs: string | null): bigint | null {
+function parseInstallsMin(installs: string | null | undefined): bigint | null {
   if (!installs) return null;
   const digits = installs.replace(/[^\d]/g, "");
   if (!digits) return null;
@@ -114,33 +120,54 @@ export async function POST(req: Request) {
 
         try {
           const details = await scanKeyword(keyword, 30, 20);
-          const ranked = rankApps(details);
+          const ranked = await rankScan(keyword, details);
           // Dedupe: re-scanning a keyword must not create duplicate rows for
           // the same app. Update the existing opportunity (fresh score,
           // re-link to this job) instead, preserving the user's bookmark.
-          const toRow = (s: (typeof ranked)[number]) => ({
-            appId: s.appId,
-            title: s.title,
-            rating: s.rating,
-            installs: s.installs,
-            installsMin: parseInstallsMin(s.installs),
-            reviewsCount: BigInt(s.reviews),
-            score: s.opportunity,
-            category: s.genre,
-            summary: whyItScores(s),
-            url: `https://play.google.com/store/apps/details?id=${s.appId}`,
-            breakdown: JSON.stringify(s.breakdown),
+          const toRow = (s: RankedOpportunity) => ({
+            appId: s.detail.appId,
+            title: s.detail.title,
+            rating: s.detail.score != null ? Number(s.detail.score) : null,
+            installs: s.detail.installs ?? null,
+            installsMin: parseInstallsMin(s.detail.installs),
+            reviewsCount: BigInt(Number(s.detail.reviews ?? 0)),
+            score: s.composite.score,
+            category: s.detail.genre ?? null,
+            summary: s.summary,
+            url: `https://play.google.com/store/apps/details?id=${s.detail.appId}`,
+            breakdown: JSON.stringify({
+              legacy: { ...s.legacy.breakdown, opportunity: s.legacy.opportunity },
+              legacyGapScore: s.legacy.opportunity,
+              composite: {
+                score: s.composite.score,
+                components: s.composite.components,
+                weights: COMPOSITE_WEIGHTS,
+                confidence: s.composite.confidence,
+                confidenceNote: s.composite.confidenceNote,
+                missing: s.composite.missing,
+              },
+              wedge: s.wedge,
+              velocity: s.velocity,
+              isRising: s.isRising,
+            }),
+            offersIap: s.detail.offersIAP ?? null,
+            containsAds: s.detail.adSupported ?? null,
+            priceText: s.detail.priceText ?? null,
+            playUpdated: playUpdatedString(s.detail),
+            velocityPerDay: s.velocity.perDay,
+            deltaRatings30: s.velocity.delta30,
+            isRising: s.isRising,
           });
           // Dedupe ranked by appId first (scraper can return the same app twice).
           const seenWl = new Set<string>();
           const uniqueRankedWl = ranked.filter((s) => {
-            if (seenWl.has(s.appId)) return false;
-            seenWl.add(s.appId);
+            if (seenWl.has(s.detail.appId)) return false;
+            seenWl.add(s.detail.appId);
             return true;
           });
           const existing = await prisma.opportunity.findMany({
             where: {
-              appId: { in: uniqueRankedWl.map((s) => s.appId) },
+              appId: { in: uniqueRankedWl.map((s) => s.detail.appId) },
               scanJob: { userId: user.id, keyword },
             },
             select: { id: true, appId: true },
@@ -159,7 +186,7 @@ export async function POST(req: Request) {
           const creates: ({ scanJobId: string } & ReturnType<typeof toRow>)[] = [];
           for (const s of uniqueRankedWl) {
             const data = { scanJobId: job.id, ...toRow(s) };
-            const id = existingIds.get(s.appId);
+            const id = existingIds.get(s.detail.appId);
             if (id) {
               await prisma.opportunity.update({ where: { id }, data });
             } else {
@@ -169,14 +196,15 @@ export async function POST(req: Request) {
           if (creates.length > 0) {
             await prisma.opportunity.createMany({ data: creates });
           }
-          // Score history for the sparkline: one row per app per scan.
+          // Today's snapshot + score history for the sparkline.
           // Best-effort — history recording must never break a scan.
+          await recordSnapshots(uniqueRankedWl, keyword);
           try {
             await prisma.opportunityScoreHistory.createMany({
               data: uniqueRankedWl.map((s) => ({
                 userId: user.id,
-                appId: s.appId,
-                score: s.opportunity,
+                appId: s.detail.appId,
+                score: s.composite.score,
                 scanJobId: job.id,
               })),
             });

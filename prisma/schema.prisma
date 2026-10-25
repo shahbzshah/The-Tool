@@ -182,15 +182,64 @@ model Opportunity {
   url          String?
   isBookmarked Boolean  @default(false)
   breakdown    String? // JSON: { quality, gap, market, competition }
+  // Power & Accuracy plan fields (stored at scan time from Play payload +
+  // snapshot history; recomputed on every scan):
+  offersIap      Boolean? // Play offersIAP flag
+  containsAds    Boolean? // Play adSupported flag
+  priceText      String?  // e.g. "Free", "$2.99"
+  playUpdated    String?  // Play last-update date as returned by the scraper
+  velocityPerDay Float?   // new ratings/day from snapshot history (null = collecting history)
+  deltaRatings30 Int?     // ratings-count change over the last ~30 days
+  isRising       Boolean  @default(false) // young + accelerating (see lib/hunter/composite)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   analyses     OpportunityAnalysis[]
+  evidence     NicheEvidence?
 
   @@index([appId])
   @@index([scanJobId])
   // NOTE: @@unique([scanJobId, appId]) removed — it broke Vercel deploys
   // (db push fails on pre-existing duplicates). Dedupe is enforced in
   // application code (scan + watchlist routes) instead.
+}
+
+// ---- Power & Accuracy plan models ----
+//
+// One row per app per UTC day. The snapshot store is the foundation of
+// every time-based signal in the plan: rating velocity, acceleration,
+// install-bracket crossings, first-seen age, and category-rank moves.
+// Written by every hunter scan and every watchlist scan (upsert on
+// [appId, day] so repeated scans on one day don't duplicate rows).
+model AppSnapshot {
+  id           String   @id @default(cuid())
+  appId        String
+  day          String   // YYYY-MM-DD (UTC)
+  ratingsCount BigInt?
+  score        Float?
+  installs     String?
+  installsMin  BigInt?
+  playUpdated  String?
+  categoryRank Int?     // position in its category top-free chart, when seen
+  keyword      String?  // scan keyword that produced this snapshot
+  createdAt    DateTime @default(now())
+
+  @@unique([appId, day])
+  @@index([appId, day])
+}
+
+// Cached computed evidence packet for one opportunity (wedge audit,
+// velocity, review themes with code-verified quotes, monetisation strip,
+// freshness, trend slope, range estimate). Recomputed at most every 7
+// days, or on forced re-analysis. The LLM scorecard is built ONLY from
+// this packet — never from raw metadata.
+model NicheEvidence {
+  id            String      @id @default(cuid())
+  opportunityId String      @unique
+  opportunity   Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  packet        String      @db.Text // JSON evidence packet (see lib/hunter/evidence)
+  computedAt    DateTime    @default(now())
+
+  @@index([opportunityId])
 }
 
 model OpportunityAnalysis {

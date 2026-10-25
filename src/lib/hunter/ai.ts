@@ -4,7 +4,7 @@
  * Uses the shared NVIDIA-backed `chat()` adapter from `@/lib/ai`.
  */
 
-import { chat } from "@/lib/ai";
+import { chat, getModel } from "@/lib/ai";
 import type { TrendIdea } from "./trends";
 
 const IDEA_PROMPT = `You are a mobile-app market analyst. Someone spotted this app idea trending
@@ -37,88 +37,89 @@ export interface IdeaAnalysis {
   model: string;
 }
 
-export interface OpportunityInput {
-  title: string;
-  rating?: number | null;
-  installs?: string | null;
-  reviewsCount?: number | null;
-  score?: number | null;
-  category?: string | null;
-  breakdown?: string | null;
-  url?: string | null;
-}
+/**
+ * Grounded scorecard prompt (plan item 8). The LLM receives ONLY the
+ * computed evidence packet — never raw metadata to riff on — and must
+ * return a JSON scorecard. Numbers it returns are validated in code
+ * (see lib/hunter/scorecard): anything not traceable to the packet is
+ * demoted to Unknown, and quotes must match packet quotes verbatim.
+ * Temperature is kept low (0.1) so the output stays an interpretation,
+ * not an invention.
+ */
+const SCORECARD_PROMPT = `You are a senior mobile-app market analyst. Interpret ONLY the evidence packet below — do not invent numbers, quotes, or facts that are not in it. If a criterion has no evidence in the packet, score it "Unknown", never 0 and never a guess.
 
-const OPPORTUNITY_PROMPT = `You are a senior mobile-app market analyst doing a deep competitive teardown. Someone found this underrated app on the Google Play Store and wants a detailed breakdown before building a better competing version. Be specific and concrete — name real things, avoid generic advice like "conduct market research" or "build a user-friendly interface".
-
-App: {title}
-Rating: {rating} stars
-Installs: {installs}
-Reviews: {reviews}
-Opportunity score: {score}/100 (high rating, low installs = hidden gem)
-Category: {category}
-Play Store: {url}
+EVIDENCE PACKET (computed from Google Play data, snapshot history, and Hacker News counts):
+{packet}
 
 Reply in exactly this JSON shape (no markdown, no extra text):
 {
-  "summary": "3-4 sentences: what the app does, who uses it, and its position in the niche",
-  "strengths": ["4-5 specific things this app does well"],
-  "weaknesses": ["4-5 specific weaknesses, missing features, or likely user frustrations a competitor could exploit"],
-  "user_pain_points": ["3-4 pain points users of this kind of app typically complain about in reviews"],
-  "competition": "2-3 sentences on the competitive landscape: who else serves this niche and where they are weak",
-  "differentiation": ["3-4 concrete ways a new competing app could clearly stand out"],
-  "opportunity": "3-4 sentences on the market opening this app reveals, with specifics",
-  "mvp_scope": {
-    "must_have": ["4-6 features the v1 must ship with"],
-    "later": ["3-4 features to deliberately postpone after launch"]
-  },
-  "build_plan": ["5-7 concrete ordered build steps, specific to this app idea"],
-  "monetization": "2-3 sentences: the primary revenue model plus one secondary",
-  "risks": ["2-3 honest risks of building this"],
-  "go_to_market": "2-3 sentences on how to get the first 1,000 users"
+  "summary": "3-4 sentences interpreting the packet: what the opening is, in plain words",
+  "demand": { "value": 0-100 or "Unknown", "evidence": "which packet fields support this, in one sentence", "confidence": "High|Medium|Low" },
+  "competition": { "value": 0-100 or "Unknown", "evidence": "one sentence", "confidence": "High|Medium|Low" },
+  "vulnerability": { "value": 0-100 or "Unknown", "evidence": "one sentence, naming the top complaint themes", "confidence": "High|Medium|Low" },
+  "monetisation": { "value": 0-100 or "Unknown", "evidence": "one sentence", "confidence": "High|Medium|Low" },
+  "wedge_keyword": { "keyword": "the audited keyword or one of its suggested wedges", "value": 0-100 or "Unknown", "evidence": "one sentence", "confidence": "High|Medium|Low" },
+  "verdict": "GO|CONDITIONAL|NO-GO",
+  "kill_criteria": ["concrete facts that would kill this idea, from the packet"],
+  "unknowns": ["what the packet cannot answer — retention, DAU/MAU, CAC/LTV, real revenue"],
+  "verified_quotes": ["copy at most 3 quotes EXACTLY as they appear in the packet's themes, or leave empty"]
 }`;
 
 export interface OpportunityAnalysis {
   summary: string;
-  strengths: string[];
-  weaknesses: string[];
-  user_pain_points: string[];
-  competition: string;
-  differentiation: string[];
-  opportunity: string;
-  mvp_scope: { must_have: string[]; later: string[] };
-  build_plan: string[];
-  monetization: string;
-  risks: string[];
-  go_to_market: string;
+  scorecard: import("./scorecard").Scorecard;
+  /** Small echo of the packet facts the scorecard rests on. */
+  packetFacts: {
+    keyword: string;
+    wedgeScore: number;
+    velocityPerDay: number | null;
+    delta30: number | null;
+    topThemes: { label: string; reviewCount: number }[];
+    monetisationLine: string;
+    rangeLine: string | null;
+    compositeScore: number;
+    confidence: string;
+    asOf: string;
+  };
   provider: string;
   model: string;
 }
 
 /**
- * Deep-dive AI analysis of a scanned Play Store opportunity — the same
- * breakdown the old Hunter detail page showed: what the app does well,
- * where it's weak, and how to beat it.
+ * Grounded AI analysis of a scanned Play Store opportunity. The LLM only
+ * interprets the computed evidence packet and returns a structured
+ * go/no-go scorecard; code validates the output before it is stored.
  */
 export async function analyzeOpportunity(
-  opp: OpportunityInput
+  packet: import("./evidence").EvidencePacket
 ): Promise<OpportunityAnalysis> {
-  const prompt = OPPORTUNITY_PROMPT.replace("{title}", opp.title)
-    .replace("{rating}", String(opp.rating ?? "unknown"))
-    .replace("{installs}", opp.installs ?? "unknown")
-    .replace("{reviews}", String(opp.reviewsCount ?? "unknown"))
-    .replace("{score}", String(opp.score ?? "unknown"))
-    .replace("{category}", opp.category ?? "unknown")
-    .replace("{url}", opp.url ?? "unknown");
-
+  const prompt = SCORECARD_PROMPT.replace("{packet}", JSON.stringify(packet));
   const text = await chat(
     [{ role: "user", content: prompt }],
-    { temperature: 0.4, maxTokens: 2048 }
+    { temperature: 0.1, maxTokens: 2048 }
   );
   const parsed = JSON.parse(stripJsonFence(text));
+  const { validateScorecard } = await import("./scorecard");
+  const scorecard = validateScorecard(parsed, packet);
   return {
-    ...parsed,
+    summary: scorecard.summary,
+    scorecard,
+    packetFacts: {
+      keyword: packet.keyword,
+      wedgeScore: packet.wedge.wedgeScore,
+      velocityPerDay: packet.velocity.perDay,
+      delta30: packet.velocity.delta30,
+      topThemes: (packet.mining?.themes ?? [])
+        .slice(0, 3)
+        .map((t) => ({ label: t.label, reviewCount: t.reviewCount })),
+      monetisationLine: packet.monetisation.line,
+      rangeLine: packet.range ? packet.range.line : null,
+      compositeScore: packet.composite.score,
+      confidence: packet.composite.confidence,
+      asOf: packet.asOf,
+    },
     provider: "nvidia",
-    model: process.env.NVIDIA_MODEL || "meta/llama-3.2-11b-vision-instruct",
+    model: await getModel(),
   };
 }
 function stripJsonFence(text: string): string {
