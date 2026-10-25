@@ -32,6 +32,7 @@ export const metadata: Metadata = {
   title: "Ideas App — Idea to App Pipeline",
   description:
     "Generate app ideas with AI + trends, create Stitch prompts, and export full documentation for AI coding tools.",
+  icons: { icon: "/icon.svg" },
 };
 
 export default function RootLayout({
