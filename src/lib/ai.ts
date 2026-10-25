@@ -23,19 +23,42 @@ export async function getModel(): Promise<string> {
   return (await getSetting("NVIDIA_MODEL")) || DEFAULT_MODEL;
 }
 
+/**
+ * Vision model for the upload front door (plan §4): the VISION_MODEL
+ * override when set, otherwise the same model the analysis already uses.
+ * Switching models is a Settings change, never a code change.
+ */
+export async function getVisionModel(): Promise<string> {
+  const { getSetting } = await import("@/lib/settings");
+  return (await getSetting("VISION_MODEL")) || (await getModel());
+}
+
+export type ChatContentPart =
+  | { type: "text"; text: string }
+  | { type: "image_url"; image_url: { url: string } };
+
 export type ChatMessage = {
   role: "system" | "user" | "assistant";
-  content: string;
+  // String for text-only calls (existing behaviour); parts for vision
+  // calls, where image parts carry data-URL frames.
+  content: string | ChatContentPart[];
 };
 
 export class AIConfigError extends Error {}
 
 export async function chat(
   messages: ChatMessage[],
-  opts: { temperature?: number; maxTokens?: number } = {}
+  opts: {
+    temperature?: number;
+    maxTokens?: number;
+    /** Override the model for this call (vision calls use getVisionModel). */
+    model?: string;
+    /** Abort timeout in ms (vision calls use a 20s cap per plan §4). */
+    timeoutMs?: number;
+  } = {}
 ): Promise<string> {
   const key = await apiKey();
-  const mdl = await getModel();
+  const mdl = opts.model ?? (await getModel());
 
   const res = await fetch(`${BASE_URL}/chat/completions`, {
     method: "POST",
@@ -50,7 +73,7 @@ export async function chat(
       max_tokens: opts.maxTokens ?? 2000,
       stream: false,
     }),
-    signal: AbortSignal.timeout(120_000),
+    signal: AbortSignal.timeout(opts.timeoutMs ?? 120_000),
   });
 
   if (!res.ok) {

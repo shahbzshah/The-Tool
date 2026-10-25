@@ -140,6 +140,42 @@ export async function buildEvidencePacket(opp: OppRow): Promise<EvidencePacket> 
     console.warn("[evidence] peer lookup failed:", err);
   }
 
+  // Intake rows (upload / link / own-idea) have no same-scan peers: their
+  // research run stored the ranked top-10 competitors in the breakdown
+  // as intakePeers. Use those so the wedge audit, mining and monetisation
+  // strip run on real competitors instead of degrading to empty.
+  if (peers.length < 2) {
+    try {
+      const b = JSON.parse(opp.breakdown ?? "") as {
+        intakePeers?: {
+          appId: string;
+          title: string;
+          rating: number | null;
+          reviewsCount: number | null;
+          installsMin: number | null;
+        }[];
+      };
+      if (Array.isArray(b.intakePeers) && b.intakePeers.length) {
+        peers = b.intakePeers.map((p) => ({
+          id: p.appId,
+          appId: p.appId,
+          title: p.title,
+          rating: p.rating,
+          installs: null,
+          installsMin: p.installsMin != null ? BigInt(p.installsMin) : null,
+          reviewsCount: p.reviewsCount != null ? BigInt(p.reviewsCount) : null,
+          score: 0,
+          category: null,
+          playUpdated: null,
+          breakdown: null,
+          scanJob: { keyword },
+        }));
+      }
+    } catch {
+      // ignore — packet degrades to the no-peer path below
+    }
+  }
+
   // Snapshots -> velocity.
   let snapRows: { day: string; ratingsCount: bigint | null; installsMin: bigint | null; categoryRank: number | null; score: number | null }[] = [];
   try {
@@ -273,7 +309,12 @@ export async function buildEvidencePacket(opp: OppRow): Promise<EvidencePacket> 
       ratingsCount: s.ratingsCount != null ? Number(s.ratingsCount) : null,
     })),
     crossChecks: {
-      appBrainUrl: `https://www.appbrain.com/app/${slugifyTitle(opp.title)}/${opp.appId}`,
+      // Intake rows are ideas, not Play apps: an AppBrain app page would
+      // 404 on the synthetic appId, so link the Play search for the
+      // keyword instead — a real page the user can check by hand.
+      appBrainUrl: opp.appId.startsWith("intake:")
+        ? `https://play.google.com/store/search?q=${encodeURIComponent(keyword)}&c=apps`
+        : `https://www.appbrain.com/app/${slugifyTitle(opp.title)}/${opp.appId}`,
       // AppTrendKit is iOS-focused; link its free keyword difficulty
       // checker as a manual keyword sense-check, not an app page.
       appTrendKitUrl: "https://www.apptrendkit.com/tools/keyword-difficulty-checker",

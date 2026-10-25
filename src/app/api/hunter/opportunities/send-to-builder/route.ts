@@ -32,6 +32,21 @@ export async function POST(req: Request) {
     // ignore
   }
 
+  // Intake rows (upload / link / own-idea) are ideas, not Play apps:
+  // their pitch must not cite a rating/installs they don't have. The
+  // Hunter path below is untouched.
+  const isIntake = !!opp.source && opp.source !== "hunter";
+  const intakeDraft = (breakdown as Record<string, any>).draft as
+    | { topic?: string; app_concept?: string | null; audience?: string | null }
+    | undefined;
+  const sourceLabel = isIntake
+    ? opp.source === "own-idea"
+      ? "your own idea"
+      : opp.source === "link"
+        ? "a pasted link"
+        : "an upload"
+    : "Play Store scan";
+
   // The analyzed doc travels with the project so the builder has the full
   // breakdown: summary, strengths, weaknesses, opportunity, build plan.
   let analysisText = "";
@@ -65,12 +80,14 @@ export async function POST(req: Request) {
     data: {
       userId: auth.user.id,
       name: opp.title,
-      category: "from-play-store-scan",
+      category: isIntake ? "from-intake" : "from-play-store-scan",
       platform: "mobile", // Play Store opportunity → Android + iOS native app, web optional
       preferences: [
-        `Source: Play Store scan (opportunity score ${opp.score}/100)`,
-        opp.url ? `Play Store: ${opp.url}` : "",
-        `Rating: ${opp.rating ?? "n/a"} · Installs: ${opp.installs ?? "n/a"} · Reviews: ${opp.reviewsCount?.toString() ?? "n/a"}`,
+        `Source: ${sourceLabel} (opportunity score ${opp.score}/100)`,
+        opp.url ? `Original link: ${opp.url}` : "",
+        isIntake
+          ? ""
+          : `Rating: ${opp.rating ?? "n/a"} · Installs: ${opp.installs ?? "n/a"} · Reviews: ${opp.reviewsCount?.toString() ?? "n/a"}`,
         breakdown.quality !== undefined
           ? `Score breakdown — quality ${breakdown.quality}, gap ${breakdown.gap}, market ${breakdown.market}, competition ${breakdown.competition}`
           : "",
@@ -81,9 +98,13 @@ export async function POST(req: Request) {
       ideas: {
         create: {
           title: opp.title,
-          pitch: `${opp.title} — rated ${opp.rating ?? "n/a"}★ with ${opp.installs ?? "unknown"} installs. Opportunity score ${opp.score}/100: high quality, low distribution. Build a better version capturing this underserved niche.`,
+          pitch: isIntake
+            ? `${opp.title} — ${opp.summary ?? "Researched app idea"}. Opportunity score ${opp.score}/100 from ${sourceLabel} research.`
+            : `${opp.title} — rated ${opp.rating ?? "n/a"}★ with ${opp.installs ?? "unknown"} installs. Opportunity score ${opp.score}/100: high quality, low distribution. Build a better version capturing this underserved niche.`,
           features: JSON.stringify([]),
-          targetAudience: `Users searching for "${opp.category ?? "this niche"}" apps on the Play Store`,
+          targetAudience: isIntake
+            ? (intakeDraft?.audience ?? `Users interested in "${opp.title}"`)
+            : `Users searching for "${opp.category ?? "this niche"}" apps on the Play Store`,
           monetization: null,
           status: "approved",
         },

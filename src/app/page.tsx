@@ -6,6 +6,7 @@ import Link from "next/link";
 import { timeAgo } from "@/lib/hunter/ui";
 import { useEscapeClose } from "@/lib/shortcuts";
 import NewBadge from "@/components/NewBadge";
+import IntakePanel from "@/components/IntakePanel";
 
 /**
  * Watchlist keyword count shown in the dashboard stat cards when the live
@@ -62,6 +63,10 @@ type Opportunity = {
   velocityPerDay?: number | null;
   deltaRatings30?: number | null;
   isRising?: boolean;
+  /** Intake front door: "hunter" for scans, else upload | link | own-idea. */
+  source?: string | null;
+  /** Thumbnail data URL (or remote icon/thumbnail URL) for intake rows. */
+  thumbnail?: string | null;
 };
 
 /** Score tiers. */
@@ -314,6 +319,13 @@ function OpportunityCard({
           <span className="w-6 shrink-0 text-right font-mono text-sm font-bold text-muted-foreground">
             {String(rank).padStart(2, "0")}
           </span>
+          {opp.thumbnail && (
+            <img
+              src={opp.thumbnail}
+              alt=""
+              className="h-9 w-9 shrink-0 rounded border border-border object-cover"
+            />
+          )}
           <div className="flex min-w-0 flex-col">
             <div className="flex items-center gap-2">
               <Link
@@ -347,12 +359,19 @@ function OpportunityCard({
                 </span>
               )}
               <span className="hidden md:inline">·</span>
-              <span className="hidden max-w-[190px] truncate md:inline">{opp.appId}</span>
+              {(!opp.source || opp.source === "hunter") && (
+                <span className="hidden max-w-[190px] truncate md:inline">{opp.appId}</span>
+              )}
               {opp.scanJob && (
                 <>
                   <span className="hidden md:inline">·</span>
                   <span className="hidden md:inline">kw: &quot;{opp.scanJob.keyword}&quot;</span>
                 </>
+              )}
+              {opp.source && opp.source !== "hunter" && (
+                <span className="rounded border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-semibold text-primary">
+                  {opp.source === "own-idea" ? "IDEA" : opp.source.toUpperCase()}
+                </span>
               )}
             </div>
           </div>
@@ -395,6 +414,13 @@ function OpportunityCard({
           <span className="shrink-0 font-mono text-sm font-bold text-muted-foreground">
             #{String(rank).padStart(2, "0")}
           </span>
+          {opp.thumbnail && (
+            <img
+              src={opp.thumbnail}
+              alt=""
+              className="h-8 w-8 shrink-0 rounded border border-border object-cover"
+            />
+          )}
           <h3 className="truncate font-serif text-lg font-medium text-foreground">
             {opp.title}
           </h3>
@@ -433,9 +459,16 @@ function OpportunityCard({
             ▲ RISING
           </span>
         )}
-        <span className="max-w-[160px] truncate text-muted-foreground/70">{opp.appId}</span>
+        {(!opp.source || opp.source === "hunter") && (
+          <span className="max-w-[160px] truncate text-muted-foreground/70">{opp.appId}</span>
+        )}
         {opp.scanJob && (
           <span className="text-muted-foreground/70">kw: &quot;{opp.scanJob.keyword}&quot;</span>
+        )}
+        {opp.source && opp.source !== "hunter" && (
+          <span className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+            {opp.source === "own-idea" ? "IDEA" : opp.source.toUpperCase()}
+          </span>
         )}
         <span className={`ml-auto rounded border px-2 py-0.5 text-[10px] font-semibold ${tier.pill}`}>
           {tier.label.toUpperCase()}
@@ -1208,6 +1241,9 @@ export default function HunterPage() {
             )}
           </section>
 
+          {/* 3a. Intake front door: upload / link / typed idea. */}
+          <IntakePanel />
+
           {/* 3b. Watchlist keywords editor */}
           <section className="card-elevated p-5" aria-label="Watchlist keywords">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3">
@@ -1903,6 +1939,9 @@ export default function HunterPage() {
             </div>
           )}
         </section>
+
+        {/* Intake front door (mobile): upload / link / typed idea. */}
+        <IntakePanel />
 
         {/* 3. Editor's pick */}
         {pick && pickTier && (

@@ -37,6 +37,10 @@ type Opportunity = {
   containsAds: boolean | null;
   priceText: string | null;
   playUpdated: string | null;
+  /** Intake front door: "hunter" for scans, else upload | link | own-idea. */
+  source?: string | null;
+  /** Thumbnail data URL (or remote icon/thumbnail URL) for intake rows. */
+  thumbnail?: string | null;
 };
 
 function Icon({ name, className = "text-[20px]" }: { name: string; className?: string }) {
@@ -1259,6 +1263,27 @@ export default function OpportunityDetailPage({
                     </span>
                   </button>
                 </div>
+                {opp.source && opp.source !== "hunter" && (
+                  <div className="flex items-center gap-3 pt-1">
+                    {opp.thumbnail && (
+                      <img
+                        src={opp.thumbnail}
+                        alt="Original media or imported thumbnail"
+                        className="h-14 w-14 rounded border border-border object-cover"
+                      />
+                    )}
+                    <span className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[11px] font-semibold text-primary">
+                      {opp.source === "own-idea"
+                        ? "FROM YOUR OWN IDEA"
+                        : opp.source === "link"
+                          ? "FROM A LINK"
+                          : "FROM AN UPLOAD"}
+                    </span>
+                    <span className="font-mono text-[12px] text-muted-foreground">
+                      Researched from what you brought in — not a Play Store scan.
+                    </span>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-1 font-mono text-[13px] text-muted-foreground">
                   <span className="inline-flex items-center gap-1 font-medium text-foreground">
                     <Icon name="star" className="text-score-medium text-[16px]" />
@@ -1284,18 +1309,22 @@ export default function OpportunityDetailPage({
                       ▲ NEW &amp; RISING
                     </span>
                   )}
-                  <span className="text-border">|</span>
-                  <span className="inline-flex items-center gap-1.5 rounded border border-border bg-card px-2 py-0.5 text-[12px]">
-                    <span className="text-muted-foreground">package:</span>
-                    <span className="font-bold text-foreground">{opp.appId}</span>
-                    <button
-                      onClick={copyPackageId}
-                      aria-label="Copy package ID"
-                      className="text-muted-foreground transition-colors hover:text-primary"
-                    >
-                      <Icon name={copied ? "check" : "content_copy"} className="text-[15px]" />
-                    </button>
-                  </span>
+                  {(!opp.source || opp.source === "hunter") && (
+                    <>
+                      <span className="text-border">|</span>
+                      <span className="inline-flex items-center gap-1.5 rounded border border-border bg-card px-2 py-0.5 text-[12px]">
+                        <span className="text-muted-foreground">package:</span>
+                        <span className="font-bold text-foreground">{opp.appId}</span>
+                        <button
+                          onClick={copyPackageId}
+                          aria-label="Copy package ID"
+                          className="text-muted-foreground transition-colors hover:text-primary"
+                        >
+                          <Icon name={copied ? "check" : "content_copy"} className="text-[15px]" />
+                        </button>
+                      </span>
+                    </>
+                  )}
                   {opp.url && (
                     <>
                       <span className="text-border">|</span>
@@ -1305,7 +1334,7 @@ export default function OpportunityDetailPage({
                         rel="noopener noreferrer"
                         className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
                       >
-                        Play Store Link
+                        {opp.source === "link" ? "Original link" : "Play Store Link"}
                         <Icon name="open_in_new" className="text-[15px]" />
                       </a>
                     </>
@@ -1481,12 +1510,8 @@ export default function OpportunityDetailPage({
               <div key={a.id} className="space-y-4">
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded border border-input bg-secondary px-2.5 py-1 font-mono text-[12px] text-foreground">
-                      <span className="h-2 w-2 rounded-full bg-score-medium" />
-                      {a.provider}
-                    </span>
                     <span className="font-mono text-[13px] text-muted-foreground">
-                      · Analyzed {timeAgo(a.createdAt)}
+                      Analyzed {timeAgo(a.createdAt)}
                     </span>
                   </div>
                   <button

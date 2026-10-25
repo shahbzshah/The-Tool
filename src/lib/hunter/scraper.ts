@@ -64,6 +64,7 @@ export async function appDetails(appId: string): Promise<AppDetail | null> {
       description: typeof d.description === "string" ? d.description : null,
       released: d.released ?? null,
       version: d.version ?? null,
+      icon: typeof d.icon === "string" ? d.icon : null,
     };
   } catch (err) {
     console.warn(`detail fetch failed for ${appId}:`, err);

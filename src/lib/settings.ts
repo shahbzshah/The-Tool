@@ -75,6 +75,13 @@ export const SETTING_DEFS = [
     env: "NVIDIA_MODEL",
   },
   {
+    key: "VISION_MODEL",
+    label: "Vision Model (optional)",
+    hint: "Model used to read uploaded images and video frames. Empty means the NVIDIA Model above (which itself defaults to meta/llama-3.2-11b-vision-instruct).",
+    secret: false,
+    env: "VISION_MODEL",
+  },
+  {
     key: "CRON_PUBLIC_KEY",
     label: "Cron Public Key",
     hint: "Ed25519 public key (PEM). The daily watchlist job signs its requests with the matching private key — paste the public key here and the job authenticates without any shared secret.",

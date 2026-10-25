@@ -36,6 +36,7 @@ export interface AppDetail {
   description?: string | null;
   released?: string | null;
   version?: string | null;
+  icon?: string | null;
 }
 
 export interface ScoredApp {

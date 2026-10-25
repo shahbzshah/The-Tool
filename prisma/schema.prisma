@@ -15,6 +15,7 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   scanJobs     ScanJob[]
+  intakeJobs   IntakeJob[]
   scoreHistories OpportunityScoreHistory[]
   projects     Project[]
   isAdmin      Boolean   @default(false)
@@ -182,6 +183,12 @@ model Opportunity {
   url          String?
   isBookmarked Boolean  @default(false)
   breakdown    String? // JSON: { quality, gap, market, competition }
+  // Intake front door (Phases 0-2): Hunter rows keep "hunter". Rows made
+  // from an upload, a pasted link, or a typed idea carry their source here,
+  // plus the thumbnail (uploaded image / video contact sheet / app icon)
+  // shown beside the score so the idea record stays self-explanatory.
+  source       String  @default("hunter") // hunter | upload | link | own-idea
+  thumbnail    String? @db.Text // data URL, small (downscaled image / contact sheet)
   // Power & Accuracy plan fields (stored at scan time from Play payload +
   // snapshot history; recomputed on every scan):
   offersIap      Boolean? // Play offersIAP flag
@@ -201,6 +208,33 @@ model Opportunity {
   // NOTE: @@unique([scanJobId, appId]) removed — it broke Vercel deploys
   // (db push fails on pre-existing duplicates). Dedupe is enforced in
   // application code (scan + watchlist routes) instead.
+}
+
+model IntakeJob {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  source        String // upload | link | own-idea
+  status        String   @default("awaiting_confirm") // queued | preparing | understanding | awaiting_confirm | researching | done | failed
+  originalName  String?
+  mimeType      String?
+  sizeBytes     Int?
+  linkUrl       String?
+  caption       String?  @db.Text
+  // Derived media only — the uploaded file itself is never stored. For an
+  // image: the downscaled image. For video: contact sheet + sharpest
+  // frames. Purged (set null) when research completes; the thumbnail then
+  // lives on the Opportunity row only.
+  mediaJson     String?  @db.Text // { thumbnail: string, frames: string[] }
+  draftJson     String   @db.Text // validated §5 draft (see lib/hunter/understanding)
+  opportunityId String?
+  scanJobId     String?
+  error         String?  @db.Text // plain-language failure, if any
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([userId])
+  @@index([status])
 }
 
 // ---- Power & Accuracy plan models ----
