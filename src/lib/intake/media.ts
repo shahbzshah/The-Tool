@@ -156,6 +156,12 @@ export async function sampleVideo(
   video.muted = true;
   video.playsInline = true;
   video.preload = "metadata";
+  // Attach to the DOM (1px, invisible — never display:none, which suspends
+  // loading in some browsers). Detached video elements fail to load metadata
+  // in stricter browser builds, which surfaced as a decode error.
+  video.style.cssText =
+    "position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none;";
+  document.body.appendChild(video);
   try {
     await new Promise<void>((resolve, reject) => {
       video.onloadedmetadata = () => resolve();
@@ -166,6 +172,7 @@ export async function sampleVideo(
           )
         );
       video.src = url;
+      video.load();
     });
     const duration = video.duration;
     if (!Number.isFinite(duration) || duration <= 0) {
@@ -231,6 +238,7 @@ export async function sampleVideo(
       durationSec: Math.round(duration),
     };
   } finally {
+    video.remove();
     URL.revokeObjectURL(url);
   }
 }
