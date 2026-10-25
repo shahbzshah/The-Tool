@@ -761,8 +761,9 @@ export default function StitchPromptPage() {
               )}
               {features.length === 0 ? (
                 <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
-                  No approved idea features found — approve an idea in Refine to
-                  track coverage here.
+                  No features to check yet — draft them in Refine with
+                  “Draft idea from analysis”, then upload your Stitch export
+                  here to check coverage.
                 </p>
               ) : uploads.length === 0 ? (
                 <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">

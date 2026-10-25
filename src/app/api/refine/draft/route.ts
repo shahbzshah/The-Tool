@@ -121,14 +121,34 @@ export async function POST(req: Request) {
     }
   }
 
+  // Preservation rule (the fix for the 2026-10-25 overwrite bug): the brief
+  // fields wired by send-to-builder — Hunter thesis pitch, keyword audience,
+  // evidence monetisation — must survive drafting. The draft fills the
+  // FEATURES list and may fill a brief field only when that field is
+  // currently empty. This route is the single layer where draft results are
+  // applied, so no code path can overwrite a wired value with draft text.
+  const isBlank = (v: unknown) =>
+    v == null || (typeof v === "string" && !v.trim());
   const data: any = {};
   if (Array.isArray(upd.features) && upd.features.length > 0)
     data.features = JSON.stringify(upd.features.map(String));
-  if (typeof upd.pitch === "string" && upd.pitch.trim())
+  if (
+    typeof upd.pitch === "string" &&
+    upd.pitch.trim() &&
+    isBlank(idea.pitch)
+  )
     data.pitch = upd.pitch.trim();
-  if (typeof upd.targetAudience === "string" && upd.targetAudience.trim())
+  if (
+    typeof upd.targetAudience === "string" &&
+    upd.targetAudience.trim() &&
+    isBlank(idea.targetAudience)
+  )
     data.targetAudience = upd.targetAudience.trim();
-  if (typeof upd.monetization === "string" && upd.monetization.trim())
+  if (
+    typeof upd.monetization === "string" &&
+    upd.monetization.trim() &&
+    isBlank(idea.monetization)
+  )
     data.monetization = upd.monetization.trim();
 
   if (!data.features) {
@@ -150,10 +170,20 @@ export async function POST(req: Request) {
     // ignore
   }
 
-  // Record the draft in the conversation history.
+  // Record the draft in the conversation history. The summary must say what
+  // actually happened: features are always set by a draft, but pitch /
+  // audience / monetization are only filled where they were blank — wired
+  // values are kept, never overwritten.
+  const filled: string[] = [];
+  if (data.pitch) filled.push("pitch");
+  if (data.targetAudience) filled.push("audience");
+  if (data.monetization) filled.push("monetization");
   const summary =
     `I've drafted the first version of "${updated.title}" from the market analysis — ` +
-    `${newFeatures.length} features, pitch, audience, and monetization are set. ` +
+    `${newFeatures.length} features are set. ` +
+    (filled.length > 0
+      ? `Filled in ${filled.join(", ")} where blank. `
+      : `Pitch, audience, and monetization were kept as they were. `) +
     `Take a look at "The idea so far" and tell me what to change: add features, cut scope, or sharpen anything.`;
   await prisma.refineMessage.create({
     data: { projectId, ideaId, role: "assistant", content: summary },
