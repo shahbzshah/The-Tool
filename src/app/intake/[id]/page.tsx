@@ -72,7 +72,7 @@ export default function IntakeJobPage({ params }: { params: { id: string } }) {
     if (!dirty) {
       setTopic(j.draft.topic);
       setAppConcept(j.draft.app_concept ?? "");
-      setAudience(j.draft.audience ?? "");
+      setAudience(j.draft.audience && j.draft.audience.toLowerCase() !== "null" ? j.draft.audience : "");
       setKeywordsText(j.draft.keywords.join(", "));
     }
     if (j.status === "researching") setResearching(true);

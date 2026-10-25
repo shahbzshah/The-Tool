@@ -103,7 +103,9 @@ export async function POST(req: Request) {
             : `${opp.title} — rated ${opp.rating ?? "n/a"}★ with ${opp.installs ?? "unknown"} installs. Opportunity score ${opp.score}/100: high quality, low distribution. Build a better version capturing this underserved niche.`,
           features: JSON.stringify([]),
           targetAudience: isIntake
-            ? (intakeDraft?.audience ?? `Users interested in "${opp.title}"`)
+            ? (intakeDraft?.audience && intakeDraft.audience.toLowerCase() !== "null"
+                ? intakeDraft.audience
+                : `Users interested in "${opp.title}"`)
             : `Users searching for "${opp.category ?? "this niche"}" apps on the Play Store`,
           monetization: null,
           status: "approved",

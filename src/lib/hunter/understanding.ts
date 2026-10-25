@@ -75,12 +75,19 @@ function stripJsonFence(text: string): string {
 }
 
 function asString(v: unknown): string | null {
-  return typeof v === "string" && v.trim() ? v.trim() : null;
+  if (typeof v !== "string") return null;
+  const t = v.trim();
+  // Vision models often emit the literal string "null" when they mean no
+  // value; treat it as missing instead of displaying the word "null".
+  if (!t || t.toLowerCase() === "null") return null;
+  return t;
 }
 
 function asStringArray(v: unknown): string[] {
   if (!Array.isArray(v)) return [];
-  return v.filter((x): x is string => typeof x === "string" && !!x.trim()).map((x) => x.trim());
+  return v
+    .filter((x): x is string => typeof x === "string" && !!x.trim() && x.trim().toLowerCase() !== "null")
+    .map((x) => x.trim());
 }
 
 /**
