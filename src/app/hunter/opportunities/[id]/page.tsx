@@ -6,6 +6,7 @@ import Link from "next/link";
 import { scoreTier, timeAgo } from "@/lib/hunter/ui";
 import { apiFetch } from "@/lib/api";
 import NewBadge from "@/components/NewBadge";
+import ConfirmDialog from "@/components/ConfirmDialog";
 
 type Analysis = {
   id: string;
@@ -923,6 +924,7 @@ export default function OpportunityDetailPage({
   const [actionError, setActionError] = useState("");
   const [copied, setCopied] = useState(false);
   const [sending, setSending] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const autoAnalyzed = useRef(false);
 
   const runAnalysis = useCallback(async (id: string, refresh = false) => {
@@ -1036,7 +1038,7 @@ export default function OpportunityDetailPage({
   }
 
   async function deleteOpp() {
-    if (!opp || !window.confirm(`Delete “${opp.title}”?`)) return;
+    if (!opp) return;
     setActionError("");
     try {
       const res = await apiFetch(`/api/hunter/opportunities/${opp.id}`, {
@@ -1313,7 +1315,7 @@ export default function OpportunityDetailPage({
             </div>
             {/* Delete (ghost, never filled) */}
             <div className="self-end pt-1 lg:self-start">
-              <button onClick={deleteOpp} className="btn-ghost">
+              <button onClick={() => setConfirmDelete(true)} className="btn-ghost">
                 <Icon name="delete" className="text-[18px]" />
                 Delete Opportunity
               </button>
@@ -1548,6 +1550,18 @@ export default function OpportunityDetailPage({
           </button>
         </div>
       </aside>
+      {confirmDelete && opp && (
+        <ConfirmDialog
+          title="Delete opportunity?"
+          message={`“${opp.title}” will be permanently removed from your opportunities. This can't be undone.`}
+          confirmLabel="Delete"
+          onCancel={() => setConfirmDelete(false)}
+          onConfirm={() => {
+            setConfirmDelete(false);
+            deleteOpp();
+          }}
+        />
+      )}
     </>
   );
 }
