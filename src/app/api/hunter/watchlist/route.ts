@@ -134,6 +134,7 @@ export async function POST(req: Request) {
             score: s.composite.score,
             category: s.detail.genre ?? null,
             summary: s.summary,
+            thumbnail: s.detail.icon ?? null,
             url: `https://play.google.com/store/apps/details?id=${s.detail.appId}`,
             breakdown: JSON.stringify({
               legacy: { ...s.legacy.breakdown, opportunity: s.legacy.opportunity },
