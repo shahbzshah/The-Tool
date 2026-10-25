@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { scoreTier, timeAgo } from "@/lib/hunter/ui";
 import { apiFetch } from "@/lib/api";
+import NewBadge from "@/components/NewBadge";
 
 type Analysis = {
   id: string;
@@ -401,7 +402,7 @@ function ScorecardCards({ content }: { content: string }) {
   return (
     <div className="space-y-6">
       <div className={`rounded-md border px-4 py-3 ${verdictCls}`}>
-        <p className="font-serif text-xl font-semibold">Verdict: {verdict}</p>
+        <p className="font-serif text-xl font-semibold">Verdict: {verdict} <NewBadge /></p>
         {a.summary && <p className="mt-1 text-sm leading-relaxed opacity-90">{a.summary}</p>}
         <p className="mt-2 font-mono text-[12px] opacity-80">
           Every criterion below is scored from the computed evidence packet. A criterion with no
@@ -561,7 +562,7 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       <section className="card-paper p-6 md:p-8">
         <span className="label-caps text-muted-foreground">Score anatomy</span>
         <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          How this score works
+          How this score works <NewBadge />
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           {comp.confidenceNote ?? "Confidence note unavailable."} Components with no evidence are
@@ -601,7 +602,7 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       <section className="card-paper p-6 md:p-8">
         <span className="label-caps text-muted-foreground">Momentum &amp; range</span>
         <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Is it moving?
+          Is it moving? <NewBadge />
         </h2>
         {!v.hasHistory || v.perDay == null ? (
           <p className="mt-2 text-sm text-muted-foreground">
@@ -698,7 +699,7 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       <section className="card-paper p-6 md:p-8">
         <span className="label-caps text-muted-foreground">Keyword wedge audit</span>
         <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Can a new app enter “{wedge.keyword ?? evidence.keyword}”?
+          Can a new app enter “{wedge.keyword ?? evidence.keyword}”? <NewBadge />
         </h2>
         <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
           <div>
@@ -750,7 +751,7 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       <section className="card-paper p-6 md:p-8">
         <span className="label-caps text-muted-foreground">Monetisation signals</span>
         <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Does anyone pay here?
+          Does anyone pay here? <NewBadge />
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{mon.line ?? "Unknown."}</p>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[13px] text-muted-foreground">
@@ -768,7 +769,7 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       <section className="card-paper p-6 md:p-8">
         <span className="label-caps text-muted-foreground">Freshness</span>
         <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Is the incumbent still alive?
+          Is the incumbent still alive? <NewBadge />
         </h2>
         <div className="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
           <div>
@@ -807,7 +808,7 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       <section className="card-paper p-6 md:p-8">
         <span className="label-caps text-muted-foreground">What users actually complain about</span>
         <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Complaint themes, from real 1–3★ reviews
+          Complaint themes, from real 1–3★ reviews <NewBadge />
         </h2>
         {evidence.miningNote && (
           <p className="mt-2 text-sm text-muted-foreground">{evidence.miningNote}</p>
@@ -853,7 +854,7 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       <section className="card-paper p-6 md:p-8">
         <span className="label-caps text-muted-foreground">90-day trend</span>
         <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Fad or sustained demand?
+          Fad or sustained demand? <NewBadge />
         </h2>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           Direction: <span className="font-mono font-bold text-foreground">{trend.direction ?? "unknown"}</span>
@@ -870,7 +871,7 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       <section className="card-paper p-6 md:p-8">
         <span className="label-caps text-muted-foreground">Manual cross-checks</span>
         <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Verify it yourself
+          Verify it yourself <NewBadge />
         </h2>
         <p className="mt-2 text-sm text-muted-foreground">
           These are plain links for spot-checking — The-Tool does not scrape these sites.
@@ -1273,6 +1274,7 @@ export default function OpportunityDetailPage({
                         <Icon name="trending_up" className="text-[16px]" />
                         {opp.velocityPerDay.toFixed(1)} ratings/day
                       </span>
+                      <NewBadge />
                     </>
                   )}
                   {opp.isRising && (

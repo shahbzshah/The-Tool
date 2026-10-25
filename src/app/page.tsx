@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { timeAgo } from "@/lib/hunter/ui";
 import { useEscapeClose } from "@/lib/shortcuts";
+import NewBadge from "@/components/NewBadge";
 
 /**
  * Watchlist keyword count shown in the dashboard stat cards when the live
@@ -337,6 +338,7 @@ function OpportunityCard({
                 <>
                   <span>·</span>
                   <span>{opp.velocityPerDay.toFixed(1)} ratings/day</span>
+                  <NewBadge />
                 </>
               )}
               {opp.isRising && (
@@ -419,9 +421,12 @@ function OpportunityCard({
           {opp.installs ? `${opp.installs} installs` : "—"}
         </span>
         {opp.velocityPerDay != null && (
-          <span className="text-muted-foreground">
-            {opp.velocityPerDay.toFixed(1)} ratings/day
-          </span>
+          <>
+            <span className="text-muted-foreground">
+              {opp.velocityPerDay.toFixed(1)} ratings/day
+            </span>
+            <NewBadge />
+          </>
         )}
         {opp.isRising && (
           <span className="rounded border border-score-high/30 bg-score-high/10 px-2 py-0.5 text-[10px] font-semibold text-score-high">
