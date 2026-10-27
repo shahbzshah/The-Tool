@@ -117,7 +117,8 @@ export default function StitchPromptPage() {
   const [uploads, setUploads] = useState<DesignUpload[]>([]);
   const [uploading, setUploading] = useState(false);
   const [features, setFeatures] = useState<string[]>([]);
-  const [overrides, setOverrides] = useState<Record<number, boolean>>({});
+  const [overrides, setOverrides] = useState<Record<string, boolean>>({});
+  const [loadedStorageKey, setLoadedStorageKey] = useState<string | null>(null);
   const [aiResults, setAiResults] = useState<Record<number, { covered: boolean; matchedFile: string | null; reason: string }>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState("");
@@ -326,6 +327,38 @@ export default function StitchPromptPage() {
     null;
   const visibleUploads = currentVersion?.uploads ?? [];
 
+  // Manual coverage overrides are persisted per project AND per design version.
+  const versionKey = currentVersion?.key ?? "unversioned";
+  const storageKey = `stitch-coverage-overrides:${projectId}:${versionKey}`;
+
+  // Load persisted overrides whenever the project or version changes.
+  useEffect(() => {
+    let parsed: Record<string, boolean> = {};
+    try {
+      const raw = window.localStorage.getItem(storageKey);
+      if (raw) {
+        const value: unknown = JSON.parse(raw);
+        if (value && typeof value === "object" && !Array.isArray(value)) {
+          parsed = value as Record<string, boolean>;
+        }
+      }
+    } catch {
+      parsed = {};
+    }
+    setOverrides(parsed);
+    setLoadedStorageKey(storageKey);
+  }, [projectId, versionKey, storageKey]);
+
+  // Save overrides only after the matching key has been loaded.
+  useEffect(() => {
+    if (loadedStorageKey !== storageKey) return;
+    try {
+      window.localStorage.setItem(storageKey, JSON.stringify(overrides));
+    } catch {
+      // ignore storage failures (private mode, quota, etc.)
+    }
+  }, [overrides, loadedStorageKey, storageKey]);
+
   // Feature coverage against the currently shown version's screens.
   // Advisory only — Docs stays accessible regardless.
   const coverage = useMemo(
@@ -335,7 +368,7 @@ export default function StitchPromptPage() {
         const auto = ai
           ? { covered: ai.covered, matched: ai.matchedFile }
           : heuristicCoverage(feature, visibleUploads);
-        const manual = overrides[i];
+        const manual = overrides[feature];
         return {
           feature,
           covered: manual ?? auto.covered,
@@ -468,16 +501,18 @@ export default function StitchPromptPage() {
   const readyForDocs = features.length > 0 && coveredCount === features.length;
 
   function toggleOverride(i: number) {
+    const feature = features[i];
     setOverrides((prev) => ({
       ...prev,
-      [i]: !(prev[i] ?? coverage[i].covered),
+      [feature]: !(prev[feature] ?? coverage[i].covered),
     }));
   }
 
   function clearOverride(i: number) {
+    const feature = features[i];
     setOverrides((prev) => {
       const next = { ...prev };
-      delete next[i];
+      delete next[feature];
       return next;
     });
   }
