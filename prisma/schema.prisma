@@ -41,6 +41,7 @@ model Project {
   platform     String? // "mobile" (Android + iOS, web optional) | "web" | null (AI decides)
   preferences  String?
   stackLock    String? // canonical tech stack — injected into all doc generation
+  techDecisions String? // JSON object of locked technical decisions {database, frontend, backend, auth, speech, sync, hosting} — injected into all doc generation; one decision, propagated everywhere
   status       String         @default("refine") // hunter | refine | design | docs | export — current pipeline stage
   archivedAt   DateTime?      // set when the project is archived
   notes        String?        @db.Text

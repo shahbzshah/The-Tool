@@ -9,6 +9,7 @@ import { requireUser } from "@/lib/auth";
 import { checkAiQuota } from "@/lib/ai-quota";
 import { estimateTokens, logAiUsage } from "@/lib/usage";
 import { AIConfigError, chatStream } from "@/lib/ai";
+import { DOC_KINDS } from "@/lib/constants";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,6 +48,38 @@ export async function POST(req: Request) {
         userId: auth.user.id,
       });
       return NextResponse.json({ doc });
+    }
+
+    // Deterministic kinds render from project data — no AI call. Stream the
+    // rendered doc as a single token so the client's SSE loop works unchanged.
+    const kindDef = DOC_KINDS.find((d) => d.kind === kind);
+    if (kindDef?.deterministic) {
+      const doc = await generateDocForIdea(ideaId, kind, {
+        userId: auth.user.id,
+      });
+      const detEncoder = new TextEncoder();
+      const detReadable = new ReadableStream({
+        start(controller) {
+          controller.enqueue(
+            detEncoder.encode(
+              `data: ${JSON.stringify({ token: doc.content })}\n\n`
+            )
+          );
+          controller.enqueue(
+            detEncoder.encode(
+              `data: ${JSON.stringify({ done: true, docId: doc.id, durationMs: doc.durationMs })}\n\n`
+            )
+          );
+          controller.close();
+        },
+      });
+      return new Response(detReadable, {
+        headers: {
+          "Content-Type": "text/event-stream",
+          "Cache-Control": "no-cache, no-transform",
+          Connection: "keep-alive",
+        },
+      });
     }
 
     // Streaming mode: Server-Sent Events, one {token} per chunk,

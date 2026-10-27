@@ -19,9 +19,13 @@ const TOOL_ICONS: Record<ExportToolId, string> = {
 };
 
 type PreviewDoc = { kind: string; label: string; present: boolean; stale: boolean };
+type ConsistencyIssueLike = { type: string; severity: string; message: string; docs: string[] };
 type PackPreview = {
   platform: string | null;
   docs: PreviewDoc[];
+  applicableKinds?: string[];
+  consistency?: { ok: boolean; issues: ConsistencyIssueLike[]; missingKinds: string[] };
+  scaffoldFiles?: string[];
   refinedBrief: boolean;
   uploads: { total: number; includable: number };
   skills: { names: string[]; status: "cached" | "will-download"; cachedCount: number };
@@ -54,12 +58,26 @@ function ChecklistRow({
 }
 
 function PackChecklist({ preview }: { preview: PackPreview }) {
-  const docsPresent = preview.docs.filter((d) => d.present);
-  const docsMissing = preview.docs.filter((d) => !d.present);
+  const applicableSet = preview.applicableKinds
+    ? new Set(preview.applicableKinds)
+    : null;
+  const applicableDocs = preview.docs.filter(
+    (d) => !applicableSet || applicableSet.has(d.kind)
+  );
+  const docsPresent = applicableDocs.filter((d) => d.present);
+  const docsMissing = applicableDocs.filter((d) => !d.present);
   const docsOk = docsMissing.length === 0;
+  const applicableTotal = applicableSet
+    ? applicableSet.size
+    : DOC_KINDS.length;
   const uploads = preview.uploads;
   const uploadsOk = uploads.includable > 0;
   const skillsOk = preview.skills.status === "cached";
+  const consistency = preview.consistency;
+  const consistencyOk = consistency ? consistency.ok : true;
+  const blockingIssues = consistency
+    ? consistency.issues.filter((i) => i.severity === "blocking")
+    : [];
 
   return (
     <ul className="divide-y divide-border">
@@ -67,13 +85,35 @@ function PackChecklist({ preview }: { preview: PackPreview }) {
         ok={docsOk}
         title={
           docsOk
-            ? `All ${DOC_KINDS.length} documents in the pack`
-            : `${docsPresent.length}/${DOC_KINDS.length} documents in the pack`
+            ? `All ${applicableTotal} documents in the pack`
+            : `${docsPresent.length}/${applicableTotal} documents in the pack`
         }
         detail={
           docsOk
-            ? "Every doc kind is generated."
+            ? "Every required doc kind is generated."
             : `Missing: ${docsMissing.map((d) => d.label).join(", ")}`
+        }
+      />
+      <ChecklistRow
+        ok={consistencyOk}
+        title={
+          consistencyOk
+            ? "Documents agree with each other"
+            : `${blockingIssues.length} contradiction(s) across documents`
+        }
+        detail={
+          consistencyOk
+            ? "No conflicting database, endpoint, table, or locked-decision claims found."
+            : blockingIssues.map((i) => i.message).join(" ")
+        }
+      />
+      <ChecklistRow
+        ok
+        title="Scaffold files included"
+        detail={
+          preview.scaffoldFiles
+            ? `${preview.scaffoldFiles.join(", ")} are generated from the pack's own documents — no AI call, no download.`
+            : ".env.example and .gitignore are generated from the pack's own documents."
         }
       />
       <ChecklistRow
@@ -269,7 +309,20 @@ export default function ExportPage() {
   }
 
   const staleDocs = preview ? preview.docs.filter((d) => d.present && d.stale) : [];
-  const docsReady = docCount === DOC_KINDS.length;
+  const applicableSet = preview?.applicableKinds
+    ? new Set(preview.applicableKinds)
+    : null;
+  const applicableTotal = applicableSet
+    ? applicableSet.size
+    : DOC_KINDS.length;
+  const applicablePresent = preview
+    ? preview.docs.filter(
+        (d) => d.present && (!applicableSet || applicableSet.has(d.kind))
+      ).length
+    : docCount;
+  const docsReady = preview
+    ? applicablePresent === applicableTotal
+    : docCount === DOC_KINDS.length;
 
   async function saveToFolder() {
     const picker = (window as unknown as {
@@ -375,12 +428,12 @@ export default function ExportPage() {
           <h1 className="mb-3 font-serif text-3xl tracking-tight text-foreground md:text-4xl">
             {docsReady
               ? "Your build pack is ready"
-              : `${docCount} of ${DOC_KINDS.length} docs generated`}
+              : `${applicablePresent} of ${applicableTotal} docs generated`}
           </h1>
           <p className="text-muted-foreground">
             Pack for <span className="text-foreground">{idea.title}</span> —{" "}
             <span className="font-mono text-sm">
-              {docCount}/{DOC_KINDS.length} docs
+              {applicablePresent}/{applicableTotal} docs
             </span>{" "}
             included
           </p>
@@ -411,7 +464,7 @@ export default function ExportPage() {
             </span>
             <p className="label-caps text-muted-foreground">Documents</p>
             <p className="mt-1 font-mono text-lg text-foreground">
-              {docCount}/{DOC_KINDS.length}
+              {applicablePresent}/{applicableTotal}
             </p>
           </div>
           <div className="card-paper p-4 text-center">

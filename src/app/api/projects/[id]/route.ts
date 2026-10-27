@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 async function ownedProject(userId: string, id: string) {
   return prisma.project.findFirst({
     where: { id, userId },
-    select: { id: true, name: true, stackLock: true, decisions: true },
+    select: { id: true, name: true, stackLock: true, decisions: true, techDecisions: true },
   });
 }
 
@@ -37,6 +37,8 @@ export async function GET(
  *   { archived: boolean }           — true sets archivedAt, false clears it
  *   { decisions: string | null }     — JSON array string of applied refine
  *                                     decisions (null clears the log)
+ *   { techDecisions: string | null } — JSON object string of locked technical
+ *                                     decisions (null clears the lock)
  */
 export async function PATCH(
   req: Request,
@@ -53,6 +55,7 @@ export async function PATCH(
       notes?: string | null;
       archivedAt?: Date | null;
       decisions?: string | null;
+      techDecisions?: string | null;
     } = {};
 
     // --- Worker F: extended PATCH fields (rename / notes / archive) ---
@@ -113,9 +116,51 @@ export async function PATCH(
       }
     }
 
+    // Locked technical decisions — JSON object string, known keys only.
+    // Stored verbatim after validation; the Docs page renders/edits it.
+    if ("techDecisions" in body) {
+      const raw = body.techDecisions;
+      if (raw === null) {
+        data.techDecisions = null;
+      } else {
+        const str = String(raw);
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(str);
+        } catch {
+          return NextResponse.json(
+            { error: "techDecisions must be a JSON object string." },
+            { status: 400 }
+          );
+        }
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          return NextResponse.json(
+            { error: "techDecisions must be a JSON object string." },
+            { status: 400 }
+          );
+        }
+        const known = new Set([
+          "database",
+          "frontend",
+          "backend",
+          "auth",
+          "speech",
+          "sync",
+          "hosting",
+        ]);
+        const cleaned: Record<string, string> = {};
+        for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
+          if (known.has(k) && typeof v === "string" && v.trim()) {
+            cleaned[k] = v.trim().slice(0, 200);
+          }
+        }
+        data.techDecisions = JSON.stringify(cleaned);
+      }
+    }
+
     if (Object.keys(data).length === 0) {
       return NextResponse.json(
-        { error: "No updatable field provided (name, notes, archived, stackLock, decisions)." },
+        { error: "No updatable field provided (name, notes, archived, stackLock, decisions, techDecisions)." },
         { status: 400 }
       );
     }
@@ -136,6 +181,7 @@ export async function PATCH(
         archivedAt: true,
         stackLock: true,
         decisions: true,
+        techDecisions: true,
       },
     });
     return NextResponse.json({ project });

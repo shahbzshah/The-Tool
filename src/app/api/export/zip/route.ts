@@ -3,8 +3,10 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import JSZip from "jszip";
 import { findTool } from "@/lib/exporters";
-import { DOC_KINDS } from "@/lib/constants";
+import { DOC_KINDS, applicableKinds } from "@/lib/constants";
 import { buildSkillsBundle } from "@/lib/skills";
+import { checkConsistency } from "@/lib/consistency";
+import { collectEnvVars, buildEnvExample, buildGitignore } from "@/lib/packfiles";
 
 export const runtime = "nodejs";
 
@@ -28,7 +30,16 @@ export async function POST(req: Request) {
     // C5: user-scoped lookup — cross-user exports 404.
     const idea = await prisma.idea.findFirst({
       where: { id: ideaId, project: { userId: auth.user.id } },
-      include: { project: { select: { category: true, platform: true } } },
+      include: {
+        project: {
+          select: {
+            category: true,
+            platform: true,
+            stackLock: true,
+            techDecisions: true,
+          },
+        },
+      },
     });
     if (!idea) {
       return NextResponse.json({ error: "Idea not found." }, { status: 404 });
@@ -64,6 +75,45 @@ export async function POST(req: Request) {
     // the pack still builds when GitHub is unreachable).
     const skillsBundle = await buildSkillsBundle(idea.project.platform);
     Object.assign(files, skillsBundle.files);
+
+    // Deterministic scaffold files — generated from the pack's own
+    // documents, so every pack ships with them, no AI call, no download.
+    files[".env.example"] = buildEnvExample(collectEnvVars(docs));
+    const stackText = [
+      idea.project.stackLock ?? "",
+      idea.project.techDecisions ?? "",
+    ].join(" ");
+    files[".gitignore"] = buildGitignore(stackText);
+
+    // Deterministic consistency report for the README: contradictions must
+    // be visible in the pack, never silently shipped.
+    let features: string[] = [];
+    try {
+      const parsed = JSON.parse(idea.features);
+      if (Array.isArray(parsed)) features = parsed.map(String);
+    } catch {
+      // leave empty
+    }
+    const consistency = checkConsistency({
+      docs: documents.map((d) => ({ kind: d.kind, content: d.content })),
+      idea: {
+        title: idea.title,
+        pitch: idea.pitch,
+        features,
+        category: idea.project.category,
+      },
+      techDecisionsRaw: idea.project.techDecisions,
+    });
+    const applicableKindList = applicableKinds({
+      title: idea.title,
+      pitch: idea.pitch,
+      features,
+      category: idea.project.category,
+    }).map((d) => d.label);
+    const consistencySection =
+      consistency.issues.length === 0
+        ? "No contradictions detected across documents and locked decisions."
+        : consistency.issues.map((i) => `- ${i.message}`).join("\n");
 
     // Design uploads with stored content (text exports: md/html). Screenshots
     // carry no stored bytes, so they are counted as skipped, not included.
@@ -137,6 +187,12 @@ ${skillsLine}
 
 DESIGN UPLOADS:
 ${uploadsLine}
+
+DOC CONSISTENCY (checked from the documents themselves):
+${consistencySection}
+
+REQUIRED DOCUMENTS FOR THIS PROJECT:
+${applicableKindList.map((l) => `  - ${l}`).join("\n")}
 
 CONTENTS:
 ${Object.keys(files)

@@ -47,6 +47,7 @@ export async function POST(
         platform: src.platform,
         preferences: src.preferences,
         stackLock: src.stackLock,
+        techDecisions: src.techDecisions,
         status: src.status,
         notes: src.notes,
       },

@@ -3,6 +3,10 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { chatJson, AIConfigError } from "@/lib/ai";
 import { estimateTokens, logAiUsage } from "@/lib/usage";
+import {
+  parseStoryTitles,
+  requiredScreensFromStories,
+} from "@/lib/story-screens";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -89,6 +93,21 @@ export async function POST(req: Request) {
 
     const features = parseFeatures(approvedIdea.features);
 
+    // User stories define the flows — and flows are what need screens.
+    // Without them, designs ship without sign-up, login, or edit screens.
+    const storiesDoc = await prisma.document.findUnique({
+      where: { ideaId_kind: { ideaId: approvedIdea.id, kind: "USER_STORIES" } },
+      select: { content: true },
+    });
+    const storyTitles = storiesDoc
+      ? parseStoryTitles(storiesDoc.content)
+      : [];
+    const requiredScreens = requiredScreensFromStories(storyTitles);
+    const storyList =
+      storyTitles.length > 0
+        ? storyTitles.map((t, i) => `${i + 1}. ${t}`).join("\n")
+        : "n/a — no USER_STORIES document yet; generate it from the Docs page for a complete screen list.";
+
     const system =
       "You are a UI/UX designer who writes expert prompts for Google Stitch (Google's AI UI design tool). You respond ONLY with valid JSON — no markdown fences, no commentary.";
 
@@ -103,6 +122,15 @@ export async function POST(req: Request) {
         ? '- "platform": MUST be "mobile (Android + iOS native app)". This is a Play Store opportunity — a mobile app, not a website.\n'
         : '- "platform": mobile or web recommendation that best fits the idea.\n';
 
+    const requiredScreensBlock =
+      requiredScreens.length > 0
+        ? `REQUIRED SCREENS — derived from the user stories below. Every screen listed here MUST appear in "screens" and in "promptText". These are not optional: auth screens, create/edit forms, and settings screens come from the stories, not from the feature list:
+${requiredScreens.map((s, i) => `${i + 1}. ${s}`).join("\n")}
+
+USER STORIES — every story must have a corresponding screen:
+${storyList}`
+        : "";
+
     const user = `Create a copy-paste-ready prompt for Google Stitch based on this approved app idea.
 
 App: ${approvedIdea.title}
@@ -112,14 +140,16 @@ Target audience: ${approvedIdea.targetAudience}
 COMPLETE FEATURE LIST — every feature below MUST be reflected in the screens and components you design. Do not drop any:
 ${featureList}
 
+${requiredScreensBlock}
+
 Design direction: ${project.preferences || "none specified — choose a clean, modern direction that fits the app type and audience"}
 
 Requirements:
-- "screens": 5-7 concrete screen names for this app (e.g. "Dashboard", "Settings"). Cover ALL features above across these screens.
+- "screens": ${requiredScreens.length > 0 ? "7-10" : "5-7"} concrete screen names for this app (e.g. "Dashboard", "Settings"). Cover ALL features above across these screens.${requiredScreens.length > 0 ? " The \"screens\" array MUST include every REQUIRED SCREEN listed above." : ""}
 - "colorScheme": specific palette direction (name actual colors/mood, e.g. "dark mode with emerald green accents").
 - "style": visual style direction (e.g. "minimal, clean, card-based layout with generous whitespace").
 - "components": 5-8 key UI components (e.g. "bottom nav bar", "line charts", "FAB button") needed to implement the features.
-${platformRequirement}- "promptText": the full Stitch prompt as ONE detailed paragraph (120-250 words) that weaves together the app type, all screens, the color scheme, style, components, and platform. It must be ready to paste directly into Stitch and produce a consistent, beautiful multi-screen design.
+${platformRequirement}- "promptText": the full Stitch prompt as ONE detailed paragraph (120-250 words) that weaves together the app type, all screens, the color scheme, style, components, and platform. It must be ready to paste directly into Stitch and produce a consistent, beautiful multi-screen design.${requiredScreens.length > 0 ? " The paragraph MUST name every REQUIRED SCREEN." : ""}
 
 Respond with JSON:
 {"appType": string, "screens": string[], "colorScheme": string, "style": string, "components": string[], "platform": string, "promptText": string}`;
@@ -156,13 +186,22 @@ Respond with JSON:
     const asStringArr = (v: unknown) =>
       Array.isArray(v) ? v.map(String) : [];
 
+    // Enforce the required screens even if the AI drops one: the recorded
+    // screen list is what coverage checks against.
+    const screens = asStringArr(data.screens);
+    for (const required of requiredScreens) {
+      if (!screens.some((s) => s.toLowerCase() === required.toLowerCase())) {
+        screens.push(required);
+      }
+    }
+
     const prompt = await prisma.stitchPrompt.upsert({
       where: { projectId },
       create: {
         projectId,
         promptText: String(data.promptText),
         appType: String(data.appType ?? ""),
-        screens: JSON.stringify(asStringArr(data.screens)),
+        screens: JSON.stringify(screens),
         colorScheme: String(data.colorScheme ?? ""),
         style: String(data.style ?? ""),
         components: JSON.stringify(asStringArr(data.components)),
@@ -171,7 +210,7 @@ Respond with JSON:
       update: {
         promptText: String(data.promptText),
         appType: String(data.appType ?? ""),
-        screens: JSON.stringify(asStringArr(data.screens)),
+        screens: JSON.stringify(screens),
         colorScheme: String(data.colorScheme ?? ""),
         style: String(data.style ?? ""),
         components: JSON.stringify(asStringArr(data.components)),

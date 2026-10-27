@@ -6,7 +6,14 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import UploadPanel, { type UploadItem } from "@/components/UploadPanel";
 import StackLockPanel from "@/components/StackLockPanel";
+import DecisionsPanel from "@/components/DecisionsPanel";
 import { DOC_KINDS, type DocKindDef } from "@/lib/constants";
+import {
+  parseTechDecisions,
+  type DetectedDecision,
+  type TechDecisions,
+} from "@/lib/decisions";
+import type { ConsistencyIssue } from "@/lib/consistency";
 import { timeAgo } from "@/lib/hunter/ui";
 import {
   apiFetch,
@@ -253,6 +260,16 @@ export default function DocsPage() {
   const [docIds, setDocIds] = useState<Record<string, string>>({});
   // Canonical tech stack injected into generated docs (StackLockPanel).
   const [stackLock, setStackLock] = useState<string | null>(null);
+  // Locked technical decisions + consistency report (DecisionsPanel).
+  const [techDecisions, setTechDecisions] = useState<TechDecisions>({});
+  const [detected, setDetected] = useState<DetectedDecision[]>([]);
+  const [consistencyIssues, setConsistencyIssues] = useState<
+    ConsistencyIssue[]
+  >([]);
+  const [consistencyOk, setConsistencyOk] = useState<boolean | null>(null);
+  const [applicableKindSet, setApplicableKindSet] = useState<Set<string> | null>(
+    null
+  );
   // Find-within-doc state (isolated feature: client-side search in the open doc).
   const [findQuery, setFindQuery] = useState("");
   const [findIndex, setFindIndex] = useState(0);
@@ -269,6 +286,34 @@ export default function DocsPage() {
   stateRef.current = { activeKind, filter };
   // Mobile: the document index collapses into a toggleable drawer.
   const [indexOpen, setIndexOpen] = useState(false);
+
+  // Doc kinds required for this idea: core kinds plus conditional kinds that
+  // apply (voice/sync). Until the consistency check loads, assume all kinds.
+  const applicableDefs = applicableKindSet
+    ? DOC_KINDS.filter((d) => applicableKindSet.has(d.kind))
+    : DOC_KINDS;
+
+  // Deterministic consistency check (no AI): which docs disagree, which
+  // required docs are missing, and what the docs collectively claim.
+  const loadConsistency = useCallback(async () => {
+    try {
+      const res = await apiFetch(
+        `/api/docs/consistency?ideaId=${ideaId}`,
+        undefined,
+        { snapshot: { ...stateRef.current } }
+      );
+      if (!res.ok) return;
+      const data = await res.json();
+      setConsistencyIssues(data.issues ?? []);
+      setConsistencyOk(data.ok ?? null);
+      setDetected(data.detected ?? []);
+      if (Array.isArray(data.applicableKinds)) {
+        setApplicableKindSet(new Set(data.applicableKinds));
+      }
+    } catch {
+      // Consistency is advisory — a failed check never blocks the page.
+    }
+  }, [ideaId]);
 
   const loadAll = useCallback(async () => {
     try {
@@ -295,6 +340,9 @@ export default function DocsPage() {
         if (projRes.ok) {
           const projData = await projRes.json();
           setStackLock(projData.project?.stackLock ?? null);
+          setTechDecisions(
+            parseTechDecisions(projData.project?.techDecisions)
+          );
         }
       }
       const docsData = await docsRes.json();
@@ -311,12 +359,14 @@ export default function DocsPage() {
         setDocsMeta(meta);
         setDocIds(ids);
       }
+      // Consistency is advisory and cheap — refresh it with the docs.
+      void loadConsistency();
     } catch {
       // ignore
     } finally {
       setLoading(false);
     }
-  }, [ideaId]);
+  }, [ideaId, loadConsistency]);
 
   useEffect(() => {
     // Restore doc-page state after a login redirect (session expired mid-work).
@@ -384,7 +434,7 @@ export default function DocsPage() {
 
   async function generateAll() {
     if (!idea) return;
-    const missing = DOC_KINDS.filter((d) => !docs[d.kind]);
+    const missing = applicableDefs.filter((d) => !docs[d.kind]);
     if (missing.length === 0) return;
     setGenState({ running: true, current: 0, total: missing.length, label: "" });
     setError(null);
@@ -534,10 +584,10 @@ export default function DocsPage() {
     }
   }
 
-  const generatedCount = DOC_KINDS.filter((d) => docs[d.kind]).length;
+  const generatedCount = applicableDefs.filter((d) => docs[d.kind]).length;
   const activeContent = docs[activeKind];  const activeMeta = DOC_KINDS.find((d) => d.kind === activeKind);
   const activeUpdatedAt = docsMeta[activeKind];
-  const allDone = generatedCount === DOC_KINDS.length;
+  const allDone = generatedCount === applicableDefs.length;
 
   const q = filter.trim().toLowerCase();
   const visibleKinds = q
@@ -557,7 +607,7 @@ export default function DocsPage() {
 
   const progressPct = genState?.running
     ? Math.round(((genState.current + 1) / genState.total) * 100)
-    : Math.round((generatedCount / DOC_KINDS.length) * 100);
+    : Math.round((generatedCount / applicableDefs.length) * 100);
 
   const targetLabel =
     idea?.project.category === "from-play-store-scan"
@@ -654,15 +704,20 @@ export default function DocsPage() {
 
   // StackLockPanel alignment writes the aligned docs back here. The aligned
   // docs were just regenerated, so reset their freshness stamps too.
-  const handleDocsAligned = useCallback((updated: Record<string, string>) => {
-    setDocs((prev) => ({ ...prev, ...updated }));
-    const now = new Date().toISOString();
-    setDocsMeta((prev) => {
-      const next = { ...prev };
-      for (const k of Object.keys(updated)) next[k] = now;
-      return next;
-    });
-  }, []);
+  const handleDocsAligned = useCallback(
+    (updated: Record<string, string>) => {
+      setDocs((prev) => ({ ...prev, ...updated }));
+      const now = new Date().toISOString();
+      setDocsMeta((prev) => {
+        const next = { ...prev };
+        for (const k of Object.keys(updated)) next[k] = now;
+        return next;
+      });
+      // Aligned/regenerated docs may have resolved (or introduced) issues.
+      void loadConsistency();
+    },
+    [loadConsistency]
+  );
 
   if (loading) {
     return (
@@ -704,7 +759,7 @@ export default function DocsPage() {
             Technical Documentation Generator
           </h1>
           <p className="mt-1 text-[0.9375rem] text-muted-foreground">
-            {DOC_KINDS.length} production-grade specs for engineering handoff.
+            {applicableDefs.length} production-grade specs for engineering handoff.
           </p>
         </div>
         <span className="inline-flex items-center gap-2 self-start rounded border border-border bg-secondary/40 px-3 py-1.5 font-mono text-xs text-muted-foreground md:self-auto">
@@ -741,6 +796,65 @@ export default function DocsPage() {
         />
       </div>
 
+      {/* Locked decisions: one decision, propagated to every doc */}
+      <div className="print-hide mt-6">
+        <DecisionsPanel
+          projectId={idea.projectId}
+          ideaId={ideaId}
+          techDecisions={techDecisions}
+          detected={detected}
+          onTechDecisionsChange={setTechDecisions}
+          onDocsUpdated={handleDocsAligned}
+        />
+      </div>
+
+      {/* Consistency: deterministic check — where docs disagree or are missing */}
+      <div className="print-hide mt-6 rounded-xl border border-border bg-card p-5">
+        <div className="mb-1 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+            4. Doc Consistency
+          </h2>
+          <button
+            type="button"
+            onClick={() => void loadConsistency()}
+            className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+          >
+            Re-check
+          </button>
+        </div>
+        {consistencyOk === null ? (
+          <p className="text-sm text-muted-foreground">Checking documents…</p>
+        ) : consistencyIssues.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            All required documents exist and agree with each other and with
+            the locked decisions. The pack is safe to hand to a builder.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {consistencyIssues.map((issue, i) => (
+              <li
+                key={i}
+                className={`flex items-start gap-2 text-sm ${
+                  issue.severity === "blocking"
+                    ? "text-destructive"
+                    : "text-muted-foreground"
+                }`}
+              >
+                <span className="material-symbols mt-0.5 shrink-0 text-[18px]">
+                  {issue.severity === "blocking" ? "error" : "info"}
+                </span>
+                <span>{issue.message}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <p className="mt-3 text-xs text-muted-foreground">
+          Checked automatically from the documents themselves — no AI. Fix by
+          locking the decision above, then regenerating or aligning the
+          disagreeing docs.
+        </p>
+      </div>
+
       {/* Two-pane workspace */}
       <div className="mt-6 flex flex-col items-start gap-6 min-[900px]:flex-row">
         {/* LEFT: document index — collapsible drawer on mobile */}
@@ -759,7 +873,7 @@ export default function DocsPage() {
                 Project Documents
               </span>
               <span className="shrink-0 rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-bold text-primary">
-                {generatedCount}/{DOC_KINDS.length}
+                {generatedCount}/{applicableDefs.length}
               </span>
             </span>
             <span className="material-symbols shrink-0 text-[20px] text-muted-foreground">
@@ -782,7 +896,7 @@ export default function DocsPage() {
                 </h2>
               </div>
               <span className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-bold text-primary">
-                {DOC_KINDS.length}
+                {applicableDefs.length}
               </span>
             </div>
             <p className="truncate text-xs text-muted-foreground" title={idea.title}>
@@ -876,7 +990,7 @@ export default function DocsPage() {
                 <span className="text-muted-foreground">
                   {genState?.running
                     ? `Generating ${genState.current + 1} of ${genState.total} docs`
-                    : `${generatedCount} of ${DOC_KINDS.length} docs ready`}
+                    : `${generatedCount} of ${applicableDefs.length} docs ready`}
                 </span>
                 <span className="font-bold text-primary">{progressPct}%</span>
               </div>
@@ -907,7 +1021,7 @@ export default function DocsPage() {
                     ? "Generating…"
                     : `Generate All Documents${
                         generatedCount > 0
-                          ? ` (${DOC_KINDS.length - generatedCount} left)`
+                          ? ` (${applicableDefs.length - generatedCount} left)`
                           : ""
                       }`}
               </span>

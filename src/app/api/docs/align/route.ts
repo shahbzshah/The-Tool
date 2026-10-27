@@ -3,6 +3,7 @@ import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { checkAiQuota } from "@/lib/ai-quota";
 import { generateDocForIdea, STACK_SENSITIVE_KINDS } from "@/lib/docgen";
+import { applicableKinds } from "@/lib/constants";
 import { AIConfigError } from "@/lib/ai";
 
 export const runtime = "nodejs";
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
     // C5: user-scoped lookup — cross-user alignment 404s.
     const idea = await prisma.idea.findFirst({
       where: { id: ideaId, project: { userId: auth.user.id } },
-      include: { project: { select: { stackLock: true } } },
+      include: { project: { select: { stackLock: true, category: true } } },
     });
     if (!idea) {
       return NextResponse.json({ error: "Idea not found." }, { status: 404 });
@@ -45,8 +46,27 @@ export async function POST(req: Request) {
       );
     }
 
+    // Only align kinds that apply to this idea — a habit tracker must not
+    // gain an irrelevant voice/sync spec from the align pass.
+    let features: string[] = [];
+    try {
+      const parsed = JSON.parse(idea.features);
+      if (Array.isArray(parsed)) features = parsed.map(String);
+    } catch {
+      // leave empty
+    }
+    const applicable = applicableKinds({
+      title: idea.title,
+      pitch: idea.pitch,
+      features,
+      category: idea.project.category,
+    }).map((d) => d.kind);
+    const kinds = STACK_SENSITIVE_KINDS.filter((k) =>
+      applicable.includes(k)
+    );
+
     const docs = [];
-    for (const kind of STACK_SENSITIVE_KINDS) {
+    for (const kind of kinds) {
       docs.push(await generateDocForIdea(ideaId, kind));
     }
 

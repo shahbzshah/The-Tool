@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { DOC_KINDS } from "@/lib/constants";
+import { DOC_KINDS, applicableKinds } from "@/lib/constants";
 import { skillsForPlatform, getSkillsCacheStatus } from "@/lib/skills";
+import { checkConsistency } from "@/lib/consistency";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -30,8 +31,13 @@ export async function GET(req: Request) {
       select: {
         id: true,
         projectId: true,
+        title: true,
+        pitch: true,
+        features: true,
         updatedAt: true,
-        project: { select: { platform: true } },
+        project: {
+          select: { platform: true, category: true, techDecisions: true },
+        },
       },
     });
     if (!idea) {
@@ -40,7 +46,7 @@ export async function GET(req: Request) {
 
     const documents = await prisma.document.findMany({
       where: { ideaId },
-      select: { kind: true, updatedAt: true },
+      select: { kind: true, updatedAt: true, content: true },
     });
     const docAt = new Map(documents.map((d) => [d.kind, d.updatedAt]));
     const ideaAt = idea.updatedAt.getTime();
@@ -67,9 +73,37 @@ export async function GET(req: Request) {
     const skillNames = skillsForPlatform(idea.project.platform);
     const cacheStatus = getSkillsCacheStatus(skillNames);
 
+    // Deterministic consistency: same check the Docs page shows, so the
+    // export checklist can warn about contradictions before handoff.
+    let features: string[] = [];
+    try {
+      const parsed = JSON.parse(idea.features);
+      if (Array.isArray(parsed)) features = parsed.map(String);
+    } catch {
+      // leave empty
+    }
+    const ideaLike = {
+      title: idea.title,
+      pitch: idea.pitch,
+      features,
+      category: idea.project.category,
+    };
+    const consistency = checkConsistency({
+      docs: documents.map((d) => ({ kind: d.kind, content: d.content })),
+      idea: ideaLike,
+      techDecisionsRaw: idea.project.techDecisions,
+    });
+
     return NextResponse.json({
       platform: idea.project.platform,
       docs,
+      applicableKinds: applicableKinds(ideaLike).map((d) => d.kind),
+      consistency: {
+        ok: consistency.ok,
+        issues: consistency.issues,
+        missingKinds: consistency.missingKinds,
+      },
+      scaffoldFiles: [".env.example", ".gitignore"],
       refinedBrief: docAt.has("REFINED_BRIEF"),
       uploads: { total: uploadTotal, includable: uploadIncludable },
       skills: {

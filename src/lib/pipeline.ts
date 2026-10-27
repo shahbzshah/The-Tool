@@ -1,4 +1,4 @@
-import { DOC_KINDS } from "@/lib/constants";
+import { DOC_KINDS, applicableKinds, type IdeaLike } from "@/lib/constants";
 import { getProjectTokenTotal } from "@/lib/usage";
 
 export type PipelineStepKey = "hunter" | "refine" | "design" | "docs" | "export";
@@ -19,7 +19,14 @@ export type PipelineProgress = {
 /** Minimal project shape needed to derive pipeline progress. */
 export type PipelineProjectInput = {
   id: string;
-  ideas: Array<{ id: string; documents: Array<{ kind: string }> }>;
+  category?: string;
+  ideas: Array<{
+    id: string;
+    title?: string;
+    pitch?: string;
+    features?: string | string[] | null;
+    documents: Array<{ kind: string }>;
+  }>;
   uploads: Array<{ id: string }>;
 };
 
@@ -36,7 +43,8 @@ const STEP_LABELS: Record<PipelineStepKey, string> = {
  * - Hunter: reached as soon as the project exists (it was created by Hunter).
  * - Refine: done when an idea has a saved REFINED_BRIEF document.
  * - Design: done when the project has at least one design upload.
- * - Docs: done when the primary idea has all DOC_KINDS documents.
+ * - Docs: done when the primary idea has all applicable DOC_KINDS documents
+ *   (core kinds plus voice/sync specs when the idea needs them).
  * - Export: no server-side export record exists, so this is always pending
  *   (done=false) and links to the export page.
  */
@@ -51,7 +59,23 @@ export function getPipelineProgress(project: PipelineProjectInput): PipelineProg
   const designDone = project.uploads.length > 0;
 
   const docsCount = firstIdea ? firstIdea.documents.length : 0;
-  const docsDone = firstIdea !== null && docsCount >= DOC_KINDS.length;
+  // Docs are done when every kind that applies to this idea exists.
+  // When the caller has no idea text (history list), only core kinds gate.
+  const requiredKinds =
+    firstIdea?.title || firstIdea?.pitch
+      ? applicableKinds({
+          title: firstIdea?.title,
+          pitch: firstIdea?.pitch,
+          features: firstIdea?.features ?? null,
+          category: project.category,
+        } satisfies IdeaLike)
+      : DOC_KINDS.filter((d) => !d.conditional);
+  const presentKinds = new Set(
+    firstIdea ? firstIdea.documents.map((d) => d.kind) : []
+  );
+  const docsDone =
+    firstIdea !== null &&
+    requiredKinds.every((d) => presentKinds.has(d.kind));
 
   const steps: PipelineStep[] = [
     {
@@ -79,7 +103,7 @@ export function getPipelineProgress(project: PipelineProjectInput): PipelineProg
       label: STEP_LABELS.docs,
       href: firstIdeaId ? `/docs/${firstIdeaId}` : "#",
       done: docsDone,
-      detail: `${docsCount}/${DOC_KINDS.length}`,
+      detail: `${docsCount}/${requiredKinds.length}`,
     },
     {
       key: "export",
