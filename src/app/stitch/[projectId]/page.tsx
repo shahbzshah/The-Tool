@@ -77,6 +77,21 @@ function parseArr(json: string): string[] {
   }
 }
 
+/**
+ * Read a JSON API response. When the AI call times out, Vercel answers with
+ * plain text ("An error occurred...") instead of JSON — parsing that with
+ * res.json() throws the raw "Unexpected token 'A'..." crash. Reading text
+ * first turns it into a clean retry message instead.
+ */
+async function readJson<T>(res: Response, timeoutMessage: string): Promise<T> {
+  const text = await res.text();
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    throw new Error(timeoutMessage);
+  }
+}
+
 function ElementCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="card-paper p-4">
@@ -125,7 +140,10 @@ export default function StitchPromptPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId }),
       });
-      const d = await r.json();
+      const d = await readJson<{
+        results: { covered: boolean; matchedFile: string | null; reason: string }[];
+        error?: string;
+      }>(r, "Analysis timed out — try again.");
       if (!r.ok) throw new Error(d.error || "Analysis failed");
       const next: Record<number, { covered: boolean; matchedFile: string | null; reason: string }> = {};
       d.results.forEach((res: { covered: boolean; matchedFile: string | null; reason: string }, i: number) => {
@@ -173,7 +191,10 @@ export default function StitchPromptPage() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ projectId }),
           });
-          const genData = await gen.json();
+          const genData = await readJson<{ prompt: StitchPrompt; error?: string }>(
+            gen,
+            "Generation timed out — try again."
+          );
           if (!gen.ok) throw new Error(genData.error || "Generation failed.");
           setPrompt(genData.prompt);
         } catch (err) {
@@ -213,7 +234,10 @@ export default function StitchPromptPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ projectId }),
       });
-      const data = await res.json();
+      const data = await readJson<{ prompt: StitchPrompt; error?: string }>(
+        res,
+        "Generation timed out — try again."
+      );
       if (!res.ok) throw new Error(data.error || "Generation failed.");
       setPrompt(data.prompt);
     } catch (err) {
@@ -645,7 +669,11 @@ export default function StitchPromptPage() {
                         method: "POST",
                         body: form,
                       });
-                      const data = await res.json();
+                      const data = await readJson<{
+                        uploads?: DesignUpload[];
+                        upload?: DesignUpload;
+                        error?: string;
+                      }>(res, "Upload timed out — try again.");
                       if (!res.ok) throw new Error(data.error || "Upload failed.");
                       const list = data.uploads ?? (data.upload ? [data.upload] : []);
                       setUploads((prev) => [...list, ...prev]);
