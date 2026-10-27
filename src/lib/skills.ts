@@ -1,33 +1,27 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
+import bundled from "./agent-skills-data.json";
 
 /**
  * Curated agent-skills bundle for the Export pack.
  *
- * Skills are pulled from the public community repo
- * https://github.com/addyosmani/agent-skills and cached on disk so the
- * pack builds even when GitHub is slow or unreachable. The cache refreshes
- * when it is older than 7 days. Every failure is soft: the caller gets a
- * note for the pack README instead of an exception.
+ * The skills are BUNDLED with the app — a snapshot of the public repo
+ * https://github.com/addyosmani/agent-skills (MIT, (c) 2025 Addy Osmani),
+ * fetched 2026-10-27 — instead of downloaded from GitHub at export time.
+ * The old runtime download kept failing on Vercel: the unauthenticated
+ * GitHub API allows 60 requests/hour per shared egress IP, and the /tmp
+ * cache does not survive between serverless instances, so packs regularly
+ * shipped without skills/. Bundled skills are in every pack with no
+ * network call and no timeout risk.
+ *
+ * To refresh the snapshot, re-fetch the text files under skills/<name>/
+ * from the repo (extensions .md/.txt/.sh/.json/.yaml/.yml only) and
+ * replace agent-skills-data.json, keeping its shape.
  */
 
 export const AGENT_SKILLS_REPO = "addyosmani/agent-skills";
-export const AGENT_SKILLS_REF = "HEAD";
 
-const CACHE_DIR = path.join(os.tmpdir(), "agent-skills-cache");
-const TIMESTAMP_FILE = path.join(CACHE_DIR, ".fetched-at");
-const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
-
-// Only small text companions ship in the pack — no binaries.
-const TEXT_EXTENSIONS = new Set([
-  ".md",
-  ".txt",
-  ".sh",
-  ".json",
-  ".yaml",
-  ".yml",
-]);
+const BUNDLED_FILES = (
+  bundled as unknown as { files: Record<string, string> }
+).files;
 
 // The upstream repo is platform-agnostic, so each set picks the skills that
 // matter most for that build target. Capped at 8 per pack.
@@ -72,151 +66,22 @@ export function skillsForPlatform(
   return [...SKILL_SETS.default];
 }
 
-async function fetchText(url: string): Promise<string> {
-  const res = await fetch(url, {
-    headers: { "User-Agent": "ideas-app-export/1.0" },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
-  return res.text();
+function skillBundled(name: string): boolean {
+  return Object.keys(BUNDLED_FILES).some((p) =>
+    p.startsWith(`skills/${name}/`)
+  );
 }
 
-function cacheFresh(): boolean {
-  try {
-    const at = Number(fs.readFileSync(TIMESTAMP_FILE, "utf8").trim());
-    return Number.isFinite(at) && Date.now() - at < SEVEN_DAYS_MS;
-  } catch {
-    return false;
-  }
-}
-
-function skillCached(name: string): boolean {
-  try {
-    return fs
-      .statSync(path.join(CACHE_DIR, "skills", name, "SKILL.md"))
-      .isFile();
-  } catch {
-    return false;
-  }
-}
-
-/** Fast, network-free view of what the cache already holds. */
+/** The bundle ships with the app, so every selected skill is always ready. */
 export function getSkillsCacheStatus(names: string[]): {
   cached: boolean;
   cachedNames: string[];
 } {
-  const cachedNames = names.filter(skillCached);
+  const cachedNames = names.filter(skillBundled);
   return {
-    cached: cacheFresh() && cachedNames.length === names.length,
+    cached: cachedNames.length === names.length,
     cachedNames,
   };
-}
-
-type TreeEntry = { path?: string; type?: string };
-
-/**
- * Make sure the selected skills are on disk. Fetches only what is missing
- * or stale: one GitHub tree listing, then the individual skill files from
- * raw.githubusercontent.com. Never throws.
- */
-export async function ensureSkillsCache(
-  names: string[]
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  try {
-    const missing = cacheFresh()
-      ? names.filter((n) => !skillCached(n))
-      : [...names];
-    if (missing.length === 0) return { ok: true };
-
-    fs.mkdirSync(path.join(CACHE_DIR, "skills"), { recursive: true });
-
-    const wanted = new Set(missing);
-    const treeUrl = `https://api.github.com/repos/${AGENT_SKILLS_REPO}/git/trees/${AGENT_SKILLS_REF}?recursive=1`;
-    const tree = (await fetchText(treeUrl).then((t) =>
-      JSON.parse(t)
-    )) as { tree?: TreeEntry[] };
-    if (!tree.tree) throw new Error("GitHub API did not return a repo tree.");
-
-    const files = tree.tree
-      .filter((e) => e.type === "blob" && typeof e.path === "string")
-      .map((e) => e.path as string)
-      .filter((p) => {
-        const parts = p.split("/");
-        return (
-          parts.length > 2 &&
-          parts[0] === "skills" &&
-          wanted.has(parts[1]) &&
-          TEXT_EXTENSIONS.has(path.extname(p).toLowerCase())
-        );
-      });
-    if (files.length === 0)
-      throw new Error("No skill files found in the repo tree.");
-
-    const results = await Promise.allSettled(
-      files.map(async (p) => {
-        const text = await fetchText(
-          `https://raw.githubusercontent.com/${AGENT_SKILLS_REPO}/${AGENT_SKILLS_REF}/${p}`
-        );
-        const dest = path.join(CACHE_DIR, p);
-        // Path-traversal guard: tree paths like skills/x/../../evil.md would
-        // pass the filter above but resolve outside the cache directory.
-        if (dest !== CACHE_DIR && !dest.startsWith(CACHE_DIR + path.sep)) return;
-        fs.mkdirSync(path.dirname(dest), { recursive: true });
-        fs.writeFileSync(dest, text);
-      })
-    );
-    const failed = results.filter((r) => r.status === "rejected");
-    if (failed.length > 0)
-      throw new Error(`${failed.length} skill file(s) failed to download.`);
-
-    fs.writeFileSync(TIMESTAMP_FILE, String(Date.now()));
-    return { ok: true };
-  } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
-}
-
-function readSkillFiles(name: string): Record<string, string> {
-  const dir = path.join(CACHE_DIR, "skills", name);
-  const out: Record<string, string> = {};
-  const walk = (d: string) => {
-    let entries: fs.Dirent[];
-    try {
-      entries = fs.readdirSync(d, { withFileTypes: true });
-    } catch {
-      return;
-    }
-    for (const entry of entries) {
-      const full = path.join(d, entry.name);
-      if (entry.isDirectory()) {
-        walk(full);
-        continue;
-      }
-      if (!TEXT_EXTENSIONS.has(path.extname(entry.name).toLowerCase()))
-        continue;
-      const rel = path.relative(dir, full).split(path.sep).join("/");
-      out[`skills/${name}/${rel}`] = fs.readFileSync(full, "utf8");
-    }
-  };
-  if (!fs.existsSync(dir)) return out;
-  walk(dir);
-  return out;
-}
-
-/** Never-throwing wrapper around ensureSkillsCache. */
-async function safeEnsure(
-  names: string[]
-): Promise<{ ok: true } | { ok: false; error: string }> {
-  try {
-    return await ensureSkillsCache(names);
-  } catch (err) {
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : String(err),
-    };
-  }
 }
 
 export type SkillsBundle = {
@@ -235,25 +100,23 @@ export async function buildSkillsBundle(
   platform: string | null | undefined
 ): Promise<SkillsBundle> {
   const attempted = skillsForPlatform(platform);
-  const ensured = await safeEnsure(attempted);
 
   const files: Record<string, string> = {};
   const included: string[] = [];
   for (const name of attempted) {
-    const skillFiles = readSkillFiles(name);
-    if (Object.keys(skillFiles).length > 0) {
-      Object.assign(files, skillFiles);
-      included.push(name);
+    const prefix = `skills/${name}/`;
+    let found = false;
+    for (const [p, content] of Object.entries(BUNDLED_FILES)) {
+      if (p.startsWith(prefix)) {
+        files[p] = content;
+        found = true;
+      }
     }
+    if (found) included.push(name);
   }
 
   let note: string | null = null;
-  if (ensured.ok === false) {
-    note =
-      included.length > 0
-        ? `Agent skills: refresh failed (${ensured.error}); the pack includes ${included.length} cached skill(s).`
-        : `Agent skills were skipped: ${ensured.error}`;
-  } else if (included.length < attempted.length) {
+  if (included.length < attempted.length) {
     const missing = attempted.filter((n) => !included.includes(n));
     note = `Agent skills not included: ${missing.join(", ")}.`;
   }

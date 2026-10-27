@@ -117,7 +117,7 @@ function PackChecklist({ preview }: { preview: PackPreview }) {
         }
         detail={
           skillsOk
-            ? "Cached locally — the pack includes them with no extra download."
+            ? "Bundled with the app — included in every export, no download needed."
             : "Will be downloaded from addyosmani/agent-skills when you export. If the download fails, the pack still builds without them."
         }
       />
