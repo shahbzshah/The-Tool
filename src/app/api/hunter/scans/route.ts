@@ -90,11 +90,20 @@ export async function POST(req: Request) {
         return {
           appId: s.detail.appId,
           title: s.detail.title,
-          rating: s.detail.score != null ? Number(s.detail.score) : null,
+          rating:
+            s.detail.score != null && Number.isFinite(Number(s.detail.score))
+              ? Number(s.detail.score)
+              : null,
           installs: s.detail.installs ?? null,
           installsMin: installsMin > 0 ? BigInt(installsMin) : null,
-          reviewsCount: reviews ? BigInt(Math.floor(reviews)) : null,
-          score: s.composite.score,
+          reviewsCount: Number.isFinite(reviews)
+            ? reviews
+              ? BigInt(Math.floor(reviews))
+              : null
+            : null,
+          // Defence in depth: compositeScore already guards NaN, but a
+          // NaN Float here would fail the whole scan's persist.
+          score: Number.isFinite(s.composite.score) ? s.composite.score : 0,
           category: s.detail.genre ?? null,
           summary: s.summary,
           thumbnail: s.detail.icon ?? null,
@@ -118,8 +127,12 @@ export async function POST(req: Request) {
           containsAds: s.detail.adSupported ?? null,
           priceText: s.detail.priceText ?? null,
           playUpdated: playUpdatedString(s.detail),
-          velocityPerDay: s.velocity.perDay,
-          deltaRatings30: s.velocity.delta30,
+          velocityPerDay: Number.isFinite(s.velocity.perDay)
+            ? s.velocity.perDay
+            : null,
+          deltaRatings30: Number.isFinite(s.velocity.delta30)
+            ? s.velocity.delta30
+            : null,
           isRising: s.isRising,
         };
       };
@@ -153,12 +166,18 @@ export async function POST(req: Request) {
         await prisma.opportunity.deleteMany({ where: { id: { in: dupIds } } });
       }
       const creates: ({ scanJobId: string } & ReturnType<typeof toRow>)[] = [];
-      const updates: { id: string; data: { scanJobId: string } & ReturnType<typeof toRow> }[] = [];
+      const updates: {
+        id: string;
+        data: { scanJob: { connect: { id: string } } } & ReturnType<typeof toRow>;
+      }[] = [];
       for (const s of uniqueRanked) {
-        const data = { scanJobId: job.id, ...toRow(s) };
+        const row = toRow(s);
         const id = existingIds.get(s.detail.appId);
-        if (id) updates.push({ id, data });
-        else creates.push(data);
+        // Relation form, not the scanJobId scalar: the scalar is rejected
+        // by the deployed client's update validation ("Unknown argument
+        // `scanJobId`, did you mean `scanJob`?").
+        if (id) updates.push({ id, data: { scanJob: { connect: { id: job.id } }, ...row } });
+        else creates.push({ scanJobId: job.id, ...row });
       }
       if (creates.length > 0) {
         await prisma.opportunity.createMany({ data: creates });

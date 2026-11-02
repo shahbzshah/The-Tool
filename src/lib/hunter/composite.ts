@@ -85,6 +85,9 @@ export function momentumComponent(
 ): number | null {
   if (!v || !v.hasHistory || v.perDay == null) return null;
   const monthly = v.perDay * 30;
+  // Ratings can fall (reviews removed): monthly <= -1 makes
+  // log10(monthly + 1) NaN, which would poison the whole score.
+  if (!Number.isFinite(monthly) || monthly <= -1) return null;
   let m = (100 * Math.log10(monthly + 1)) / 4;
   if (v.acceleration != null) m += v.acceleration > 0 ? 10 : -10;
   // Old + flat is the classic gap-score false positive: cap it.
@@ -171,7 +174,10 @@ export function compositeScore(args: {
   const missing: ComponentKey[] = [];
   for (const k of Object.keys(COMPOSITE_WEIGHTS) as ComponentKey[]) {
     const v = computed[k];
-    if (v == null) missing.push(k);
+    // A non-finite component (NaN/Infinity from a bad input) is missing
+    // evidence, not a score — excluding it keeps one bad app from
+    // poisoning the whole composite with NaN (Prisma rejects NaN Floats).
+    if (v == null || !Number.isFinite(v)) missing.push(k);
     else components[k] = v;
   }
   let weightSum = 0;
@@ -180,7 +186,8 @@ export function compositeScore(args: {
     weightSum += COMPOSITE_WEIGHTS[k];
     scoreSum += COMPOSITE_WEIGHTS[k] * (components[k] as number);
   }
-  const score = weightSum > 0 ? clamp100(scoreSum / weightSum) : 0;
+  const rawScore = weightSum > 0 ? clamp100(scoreSum / weightSum) : 0;
+  const score = Number.isFinite(rawScore) ? rawScore : 0;
   const { confidence, note } = confidenceBand({
     ratingsCount: args.ratingsCount,
     reviewSample: args.reviewSample,
