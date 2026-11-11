@@ -200,7 +200,7 @@ export default function UploadPanel({
   return (
     <div className="card-paper p-5">
       <h2 className="label-caps mb-1 text-muted-foreground">
-        3. Upload Stitch Exports
+        Upload Stitch Exports
       </h2>
       <p className="mb-4 text-sm text-muted-foreground">
         Export from Google Stitch and drop the files here — DESIGN.md, HTML, and
