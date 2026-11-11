@@ -26,12 +26,26 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4">
-      <div className="card-paper w-full space-y-4 p-8">
+    <main className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4 py-8">
+      <p className="label-caps mb-3 text-center text-primary">
+        Ideas App // Telemetry OS
+      </p>
+      <div className="card-elevated w-full space-y-4 p-8">
+        <div className="flex items-start justify-between gap-3 border-b border-border pb-5">
+          <div className="flex h-11 w-11 items-center justify-center rounded-md border border-primary-hover bg-primary text-primary-foreground">
+            <span className="material-symbols text-[24px]">lock_reset</span>
+          </div>
+          <span className="pill border border-border bg-muted text-muted-foreground">
+            Password reset
+          </span>
+        </div>
         <h1 className="font-serif text-xl font-semibold">Forgot password</h1>
         {sent ? (
           <div className="space-y-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="flex items-start gap-2 text-sm text-muted-foreground">
+              <span className="material-symbols mt-0.5 shrink-0 text-[18px] text-score-high">
+                check_circle
+              </span>
               If an account exists for that email, a reset link is on its way.
               Check your inbox (and spam).
             </p>

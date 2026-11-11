@@ -143,88 +143,134 @@ export default function IntakeJobPage({ params }: { params: { id: string } }) {
     router.push("/");
   }
 
-  const inputCls =
-    "w-full rounded border border-input bg-background px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40";
+  const inputCls = "input-paper";
+  const textareaCls =
+    "input-paper !h-auto min-h-[110px] resize-none py-3 leading-relaxed";
 
   if (loadError) {
     return (
-      <main className="mx-auto max-w-2xl px-4 py-8">
-        <p className="text-muted-foreground">{loadError}</p>
-        <Link href="/" className="mt-4 inline-block text-sm text-primary underline">
-          Back home
-        </Link>
+      <main className="mx-auto max-w-2xl px-4 py-8 md:py-12">
+        <div className="card-paper space-y-4 p-6 md:p-8">
+          <p className="label-caps text-primary">Intake</p>
+          <p className="font-serif text-xl text-foreground">{loadError}</p>
+          <Link href="/" className="btn-secondary inline-flex">
+            <span className="material-symbols text-[18px]">arrow_back</span>
+            Back home
+          </Link>
+        </div>
       </main>
     );
   }
   if (!job) {
     return (
-      <main className="mx-auto max-w-2xl px-4 py-8">
-        <p className="text-muted-foreground">Loading…</p>
+      <main className="mx-auto max-w-2xl px-4 py-8 md:py-12">
+        <div className="card-paper flex items-center gap-3 p-6 md:p-8">
+          <span className="h-2 w-2 animate-pulse rounded-full bg-primary" />
+          <p className="text-sm text-muted-foreground">Loading…</p>
+        </div>
       </main>
     );
   }
 
   const locked = job.status === "researching" || job.status === "done";
   const canResearch = job.status === "awaiting_confirm" || job.status === "failed";
+  const statusPill =
+    job.status === "done"
+      ? "border border-score-high/30 bg-score-high/10 text-score-high"
+      : job.status === "researching"
+        ? "border border-primary/30 bg-primary/10 text-primary"
+        : job.status === "failed"
+          ? "border border-destructive/30 bg-destructive/10 text-destructive"
+          : "border border-score-medium/30 bg-score-medium/10 text-score-medium";
 
   return (
-    <main className="mx-auto max-w-2xl space-y-5 px-4 py-6">
-      <div className="flex items-center justify-between">
-        <Link href="/" className="text-sm text-muted-foreground underline">
-          ← Home
+    <main className="mx-auto max-w-2xl space-y-5 px-4 py-6 md:py-10">
+      <div className="flex items-center justify-between gap-3">
+        <Link
+          href="/"
+          className="inline-flex items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <span className="material-symbols text-[18px]">arrow_back</span>
+          Home
         </Link>
-        <span className="font-mono text-[11px] uppercase tracking-wider text-muted-foreground">
+        <span className="pill border border-border bg-muted text-muted-foreground">
           {SOURCE_LABEL[job.source] ?? job.source}
         </span>
       </div>
 
-      <h1 className="font-serif text-2xl font-medium tracking-tight text-foreground">
-        Confirm the topic
-      </h1>
-      <p className="text-sm leading-relaxed text-muted-foreground">
-        Check what the engine understood, fix anything wrong, then confirm.
-        Research only runs on what you approve here.
-      </p>
+      <header className="border-b border-border pb-5">
+        <p className="label-caps text-primary">Intake // Confirmation gate</p>
+        <h1 className="mt-1 font-serif text-3xl font-medium tracking-tight text-foreground">
+          Confirm the topic
+        </h1>
+        <p className="mt-1 max-w-xl text-[0.9375rem] leading-relaxed text-muted-foreground">
+          Check what the engine understood, fix anything wrong, then confirm.
+          Research only runs on what you approve here.
+        </p>
+      </header>
 
       {job.thumbnail && (
         <img
           src={job.thumbnail}
           alt="Uploaded media or imported thumbnail"
-          className="w-full max-h-72 rounded border border-border object-contain bg-muted"
+          className="max-h-72 w-full rounded-md border border-border bg-muted object-contain"
         />
       )}
       {job.linkUrl && (
-        <p className="truncate text-sm text-muted-foreground">
-          From:{" "}
-          <a href={job.linkUrl} target="_blank" rel="noreferrer" className="text-primary underline">
+        <p className="flex items-center gap-2 truncate font-mono text-xs text-muted-foreground">
+          <span className="material-symbols shrink-0 text-[16px] text-primary">link</span>
+          <a href={job.linkUrl} target="_blank" rel="noreferrer" className="truncate text-primary underline underline-offset-2">
             {job.linkUrl}
           </a>
         </p>
       )}
 
       {job.draft.needs_user_help && job.status === "awaiting_confirm" && (
-        <div className="rounded border border-score-medium/30 bg-score-medium/10 px-4 py-3">
-          <p className="text-sm font-semibold text-score-medium">
-            {job.draft.visual_failed
-              ? "The visual read didn't come through — help it along:"
-              : "Not sure about this one — your call:"}
+        <div className="rounded-md border border-score-medium/40 bg-score-medium/10 px-4 py-4">
+          <p className="label-caps flex items-center gap-1.5 text-score-medium">
+            <span className="material-symbols text-[16px]">warning</span>
+            Needs your call
           </p>
-          <p className="mt-1 text-sm leading-relaxed text-foreground">
+          <p className="mt-2 font-serif text-lg leading-snug text-foreground">
             {job.draft.help_question ?? "What is this about, in one line?"}
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            {job.draft.visual_failed
+              ? "The visual read didn't come through — help it along."
+              : "Not sure about this one — your call."}
           </p>
         </div>
       )}
 
       {job.draft.confidence != null && (
-        <p className="font-mono text-xs text-muted-foreground">
-          Read confidence: {Math.round(job.draft.confidence * 100)}%
-          {job.draft.confidence < 0.55 && " — below the gate, so it asked instead of guessing."}
-        </p>
+        <div className="card-paper flex items-center justify-between gap-4 px-4 py-3">
+          <p className="label-caps text-muted-foreground">Read confidence</p>
+          <p className="flex items-baseline gap-2">
+            <span
+              className={`font-mono text-xl font-semibold ${
+                job.draft.confidence < 0.55 ? "text-score-medium" : "text-score-high"
+              }`}
+            >
+              {Math.round(job.draft.confidence * 100)}%
+            </span>
+            {job.draft.confidence < 0.55 && (
+              <span className="text-xs text-score-medium">
+                Below the gate — it asked instead of guessing.
+              </span>
+            )}
+          </p>
+        </div>
       )}
 
-      <div className="card-paper flex flex-col gap-4 p-4">
+      <div className="card-paper flex flex-col gap-4 p-4 md:p-6">
+        <div className="flex items-center justify-between gap-3 border-b border-border pb-4">
+          <p className="label-caps text-muted-foreground">Draft fields</p>
+          <span className={`pill ${statusPill}`}>
+            {job.status.replace(/_/g, " ").toUpperCase()}
+          </span>
+        </div>
         <label className="block">
-          <span className="mb-1 block font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <span className="label-caps mb-1.5 block text-muted-foreground">
             Topic
           </span>
           <input
@@ -239,7 +285,7 @@ export default function IntakeJobPage({ params }: { params: { id: string } }) {
           />
         </label>
         <label className="block">
-          <span className="mb-1 block font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <span className="label-caps mb-1.5 block text-muted-foreground">
             App idea
           </span>
           <textarea
@@ -251,11 +297,11 @@ export default function IntakeJobPage({ params }: { params: { id: string } }) {
             disabled={locked}
             placeholder="The app someone might build from this (optional)"
             rows={3}
-            className={inputCls}
+            className={textareaCls}
           />
         </label>
         <label className="block">
-          <span className="mb-1 block font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <span className="label-caps mb-1.5 block text-muted-foreground">
             Who it is for
           </span>
           <input
@@ -270,7 +316,7 @@ export default function IntakeJobPage({ params }: { params: { id: string } }) {
           />
         </label>
         <label className="block">
-          <span className="mb-1 block font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <span className="label-caps mb-1.5 block text-muted-foreground">
             Play Store keywords (comma-separated, max 5)
           </span>
           <input
@@ -286,18 +332,18 @@ export default function IntakeJobPage({ params }: { params: { id: string } }) {
         </label>
 
         {job.draft.visible_text.length > 0 && (
-          <div>
-            <p className="mb-1 font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <div className="border-t border-border pt-4">
+            <p className="label-caps mb-1.5 text-muted-foreground">
               Words seen in the media
             </p>
-            <p className="text-sm leading-relaxed text-foreground">
+            <p className="font-mono text-[13px] leading-relaxed text-foreground">
               {job.draft.visible_text.join(" · ")}
             </p>
           </div>
         )}
         {job.draft.motion_summary && (
-          <div>
-            <p className="mb-1 font-mono text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+          <div className="border-t border-border pt-4">
+            <p className="label-caps mb-1.5 text-muted-foreground">
               What moves in the video
             </p>
             <p className="text-sm leading-relaxed text-foreground">{job.draft.motion_summary}</p>
@@ -306,21 +352,26 @@ export default function IntakeJobPage({ params }: { params: { id: string } }) {
       </div>
 
       {actionError && (
-        <p className="rounded border border-score-low/30 bg-score-low/10 px-3 py-2 text-sm leading-relaxed text-score-low">
+        <p className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm leading-relaxed text-destructive">
+          <span className="material-symbols mt-0.5 shrink-0 text-[18px]">error</span>
           {actionError}
         </p>
       )}
       {job.error && job.status === "failed" && (
-        <p className="rounded border border-score-low/30 bg-score-low/10 px-3 py-2 text-sm leading-relaxed text-score-low">
+        <p className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm leading-relaxed text-destructive">
+          <span className="material-symbols mt-0.5 shrink-0 text-[18px]">error</span>
           Research failed: {job.error}
         </p>
       )}
 
       {researching ? (
-        <p className="rounded border border-border bg-muted px-4 py-3 text-center text-sm text-muted-foreground">
-          Researching the Play Store — this takes a minute or two. This page
-          updates on its own.
-        </p>
+        <div className="card-paper flex items-center gap-3 px-4 py-3">
+          <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-primary" />
+          <p className="text-sm text-muted-foreground">
+            Researching the Play Store — this takes a minute or two. This page
+            updates on its own.
+          </p>
+        </div>
       ) : (
         canResearch && (
           <div className="flex flex-col gap-2">
@@ -328,7 +379,7 @@ export default function IntakeJobPage({ params }: { params: { id: string } }) {
               type="button"
               onClick={runResearch}
               disabled={saving || !topic.trim() || !keywordsText.trim()}
-              className="rounded bg-primary px-4 py-3 font-mono text-sm font-bold text-primary-foreground disabled:opacity-50"
+              className="btn-primary min-h-[48px] w-full"
             >
               {saving ? "Saving…" : "Confirm and research"}
             </button>
@@ -337,7 +388,7 @@ export default function IntakeJobPage({ params }: { params: { id: string } }) {
                 type="button"
                 onClick={saveEdits}
                 disabled={saving}
-                className="rounded border border-border px-4 py-2.5 font-mono text-sm text-foreground disabled:opacity-50"
+                className="btn-secondary min-h-[44px] w-full"
               >
                 Save edits only
               </button>
@@ -354,16 +405,17 @@ export default function IntakeJobPage({ params }: { params: { id: string } }) {
       {job.status === "done" && job.opportunityId && (
         <Link
           href={`/hunter/opportunities/${job.opportunityId}`}
-          className="block rounded bg-primary px-4 py-3 text-center font-mono text-sm font-bold text-primary-foreground"
+          className="btn-primary min-h-[48px] w-full"
         >
-          See the researched opportunity →
+          See the researched opportunity
+          <span className="material-symbols text-[18px]">arrow_forward</span>
         </Link>
       )}
 
       <button
         type="button"
         onClick={() => setShowDelete(true)}
-        className="text-sm text-muted-foreground underline"
+        className="text-sm text-destructive/80 underline underline-offset-2 transition-colors hover:text-destructive"
       >
         Delete this job
       </button>

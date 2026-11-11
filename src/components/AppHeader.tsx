@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { ONBOARD_EVENT } from "@/lib/shortcuts";
+import QuotaIndicator from "@/components/QuotaIndicator";
 
 const STEPS = [
   { label: "Hunter", href: "/" },
@@ -80,17 +81,17 @@ export default function AppHeader({ className = "" }: { className?: string }) {
     <header className={`sticky top-0 z-40 border-b border-border bg-card-elevated ${className}`}>
       <div className="mx-auto flex w-full max-w-[1580px] items-center justify-between gap-4 px-4 py-2.5 md:px-6">
         <div className="flex min-w-0 items-center gap-8">
-          {/* Wordmark */}
+          {/* Wordmark — Telemetry OS */}
           <Link href="/" className="group flex shrink-0 items-center gap-2">
             <div className="flex h-7 w-7 items-center justify-center rounded border border-primary bg-primary/10 font-serif text-lg font-bold text-primary">
               I
             </div>
             <div className="flex flex-col">
               <span className="font-serif text-lg font-semibold leading-none tracking-tight text-foreground transition-colors group-hover:text-primary">
-                Ideas App
+                Ideas OS
               </span>
-              <span className="mt-0.5 font-mono text-[10px] uppercase leading-none tracking-wider text-muted-foreground">
-                Telemetry OS
+              <span className="mt-0.5 font-mono text-[10px] uppercase leading-none tracking-[0.08em] text-muted-foreground">
+                Telemetry v2.4
               </span>
             </div>
           </Link>
@@ -119,31 +120,21 @@ export default function AppHeader({ className = "" }: { className?: string }) {
                     </svg>
                   )}
                   <span
-                    className={`flex items-center gap-1.5 rounded px-2.5 py-1 font-medium ${
+                    className={`flex items-center gap-1.5 rounded px-2.5 py-1 font-mono text-[11px] font-medium uppercase tracking-[0.08em] ${
                       isActive
-                        ? "border border-primary/30 bg-primary/10 font-semibold text-primary"
+                        ? "bg-primary font-semibold text-primary-foreground"
                         : isDone
                           ? "text-foreground"
                           : "text-muted-foreground"
                     }`}
                   >
-                    <span
-                      className={`flex h-4 w-4 items-center justify-center rounded-full font-mono text-[10px] ${
-                        isActive
-                          ? "bg-primary text-primary-foreground"
-                          : isDone
-                            ? "bg-score-high text-white"
-                            : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {isDone ? (
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                          <path d="M20 6 9 17l-5-5" />
-                        </svg>
-                      ) : (
-                        i + 1
-                      )}
-                    </span>
+                    {isDone ? (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M20 6 9 17l-5-5" />
+                      </svg>
+                    ) : (
+                      <span className="text-[10px]">{String(i + 1).padStart(2, "0")}</span>
+                    )}
                     {step.label}
                   </span>
                 </span>
@@ -167,17 +158,18 @@ export default function AppHeader({ className = "" }: { className?: string }) {
 
         {/* Right utility controls */}
         <div className="flex shrink-0 items-center gap-2 md:gap-3">
+          <QuotaIndicator />
           <button
             onClick={() => window.dispatchEvent(new Event(ONBOARD_EVENT))}
             aria-label="Help and pipeline tour"
             title="Help — take the pipeline tour"
-            className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-md border border-transparent text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground md:h-9 md:min-h-0 md:w-9 md:min-w-0"
+            className="flex min-h-[44px] items-center gap-1.5 rounded-md border border-transparent px-2 text-xs font-medium text-muted-foreground transition-colors hover:border-border hover:bg-muted hover:text-foreground md:min-h-0"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="10" />
-              <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
-              <path d="M12 17h.01" />
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
+              <path d="M4 22v-7" />
             </svg>
+            <span className="hidden lg:inline">Pipeline Tour</span>
           </button>
           <button
             onClick={toggleTheme}
@@ -217,17 +209,19 @@ export default function AppHeader({ className = "" }: { className?: string }) {
           {email && (
             <>
               <span className="hidden h-4 w-px bg-border sm:inline" />
-              <div className="flex items-center gap-2 text-xs">
-                <span className="hidden max-w-[180px] truncate rounded border border-border bg-muted px-2 py-1 font-mono text-muted-foreground md:inline">
-                  {email}
-                </span>
-                <button
-                  onClick={logout}
-                  className="ml-1 min-h-[44px] font-medium text-muted-foreground transition-colors hover:text-primary md:min-h-0"
-                >
-                  Sign out
-                </button>
-              </div>
+              <span
+                className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-[13px] font-semibold text-primary-foreground"
+                title={email}
+              >
+                {email[0].toUpperCase()}
+              </span>
+              <button
+                onClick={logout}
+                className="ml-1 min-h-[44px] font-medium text-muted-foreground transition-colors hover:text-primary md:min-h-0"
+                aria-label="Sign out"
+              >
+                Sign out
+              </button>
             </>
           )}
         </div>

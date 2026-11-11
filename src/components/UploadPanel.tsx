@@ -198,8 +198,8 @@ export default function UploadPanel({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <h2 className="mb-1 text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+    <div className="card-paper p-5">
+      <h2 className="label-caps mb-1 text-muted-foreground">
         3. Upload Stitch Exports
       </h2>
       <p className="mb-4 text-sm text-muted-foreground">
@@ -215,10 +215,10 @@ export default function UploadPanel({
         onDragLeave={() => setDragOver(false)}
         onDrop={handleDrop}
         onClick={() => inputRef.current?.click()}
-        className={`cursor-pointer rounded-lg border-2 border-dashed px-4 py-8 text-center transition-colors ${
+        className={`cursor-pointer rounded-md border-2 border-dashed px-4 py-8 text-center transition-colors ${
           dragOver
-            ? "border-accent bg-primary/10"
-            : "border-border hover:border-ring"
+            ? "border-primary bg-primary/10"
+            : "border-border hover:border-primary/50"
         }`}
       >
         <p className="text-sm text-foreground/80">
@@ -237,7 +237,7 @@ export default function UploadPanel({
               e.stopPropagation();
               inputRef.current?.click();
             }}
-            className="rounded border border-border px-3 py-1.5 text-xs font-medium text-foreground/80 hover:border-ring"
+            className="btn-secondary !px-3 !py-1.5 !text-xs"
           >
             Choose files
           </button>
@@ -247,7 +247,7 @@ export default function UploadPanel({
               e.stopPropagation();
               folderInputRef.current?.click();
             }}
-            className="rounded border border-border px-3 py-1.5 text-xs font-medium text-foreground/80 hover:border-ring"
+            className="btn-secondary !px-3 !py-1.5 !text-xs"
           >
             Choose folder <span className="material-symbols text-[16px]">folder</span>
           </button>
@@ -297,7 +297,7 @@ export default function UploadPanel({
       </div>
 
       {error && (
-        <p className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       )}
@@ -305,10 +305,10 @@ export default function UploadPanel({
       {uploads.length > 0 && (
         <div className="mt-4 space-y-3">
           {groupByScreen(uploads).map(([screen, items]) => (
-            <div key={screen || "_root"} className="rounded-lg bg-background p-3">
-              <p className="mb-2 flex items-center gap-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+            <div key={screen || "_root"} className="rounded-md border border-border bg-muted/50 p-3">
+              <p className="label-caps mb-2 flex items-center gap-2 text-muted-foreground">
                 <span className="material-symbols text-[16px]">folder</span> {screen || "Loose files"}
-                <span className="rounded-full bg-muted px-2 py-0.5 text-[10px]">
+                <span className="pill bg-muted text-muted-foreground">
                   {items.length} file{items.length === 1 ? "" : "s"}
                 </span>
               </p>
@@ -323,7 +323,7 @@ export default function UploadPanel({
                         ? u.filename.slice(u.filename.indexOf("/") + 1)
                         : u.filename}
                     </span>
-                    <span className="ml-2 shrink-0 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                    <span className="pill ml-2 shrink-0 bg-muted text-muted-foreground">
                       {TYPE_BADGE[u.type] ?? u.type}
                     </span>
                   </li>

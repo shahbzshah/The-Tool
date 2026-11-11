@@ -237,6 +237,39 @@ function DocHistoryMenu({
 
 // --- end foundation version-history addition ---
 
+// Index grouping (presentation only): the 19 kinds in three ledger sections,
+// matching the numbered panels in the Telemetry OS mock (5 / 5 / 9).
+const DOC_GROUPS: { label: string; kinds: string[] }[] = [
+  {
+    label: "Product Specifications",
+    kinds: ["REFINED_BRIEF", "PRD", "BRD", "USER_STORIES", "WORKFLOW"],
+  },
+  {
+    label: "System Architecture",
+    kinds: [
+      "TECHNICAL_SPEC",
+      "ARCHITECTURE",
+      "DATABASE_SCHEMA",
+      "API_SPEC",
+      "SYNC_SPEC",
+    ],
+  },
+  {
+    label: "Design & Build Guides",
+    kinds: [
+      "DESIGN_SYSTEM",
+      "UI",
+      "FOLDER_STRUCTURE",
+      "RULES",
+      "MASTER_PROMPT",
+      "BUILD_GUIDE",
+      "TASKS",
+      "DECISIONS",
+      "VOICE_SPEC",
+    ],
+  },
+];
+
 export default function DocsPage() {
   const params = useParams<{ ideaId: string }>();
   const ideaId = params.ideaId;
@@ -702,6 +735,24 @@ export default function DocsPage() {
   const activeStale = docIsStale(activeKind);
   // --- end stale detection -------------------------------------------------
 
+  // Per-doc word count + generation stamp for the index (from loaded docs).
+  const docWordCount = (kind: string): number => {
+    const c = docs[kind];
+    return c ? c.split(/\s+/).filter(Boolean).length : 0;
+  };
+  const docDateLabel = (kind: string): string => {
+    const at = docsMeta[kind];
+    if (!at) return "";
+    const d = new Date(at);
+    return `${d.toLocaleDateString("en-CA")} ${d.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    })}`;
+  };
+  const docNumber = (kind: string): number =>
+    DOC_KINDS.findIndex((d) => d.kind === kind) + 1;
+
   // StackLockPanel alignment writes the aligned docs back here. The aligned
   // docs were just regenerated, so reset their freshness stamps too.
   const handleDocsAligned = useCallback(
@@ -739,33 +790,42 @@ export default function DocsPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-[1200px] px-6 py-6">
+    <main className="mx-auto w-full max-w-[1440px] px-6 py-6">
       {/* Page header */}
-      <section className="print-hide flex flex-col gap-3 border-b border-border pb-5 md:flex-row md:items-end md:justify-between">
-        <div>
-          <div className="mb-1.5 flex items-center gap-2">
-            <span className="font-mono text-xs font-bold uppercase tracking-wider text-primary">
-              Stage 04 // Hand-off Engine
-            </span>
-            <span className="text-border">•</span>
-            <span className="flex items-center gap-1.5 font-mono text-xs text-score-high">
-              <span className="h-1.5 w-1.5 rounded-full bg-score-high" />
-              Pipeline Operational
-            </span>
-            {/* Daily AI quota pre-429 warning */}
-            <QuotaIndicator />
-          </div>
-          <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground md:text-4xl">
-            Technical Documentation Generator
-          </h1>
-          <p className="mt-1 text-[0.9375rem] text-muted-foreground">
-            {applicableDefs.length} production-grade specs for engineering handoff.
+      <section className="print-hide border-b border-border pb-5">
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <p className="label-caps text-primary">
+            Step 04 // Pipeline: Technical Documentation Generator
           </p>
+          {/* Daily AI quota pre-429 warning */}
+          <QuotaIndicator />
         </div>
-        <span className="inline-flex items-center gap-2 self-start rounded border border-border bg-secondary/40 px-3 py-1.5 font-mono text-xs text-muted-foreground md:self-auto">
-          <span className="material-symbols text-[16px]">folder_zip</span>
-          Target: {targetLabel}
-        </span>
+        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground md:text-4xl">
+              Technical Documentation Generator
+            </h1>
+            <p className="mt-1 text-[0.9375rem] text-muted-foreground">
+              {idea.title}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className={`pill border ${
+                allDone
+                  ? "border-score-high/30 bg-score-high/10 text-score-high"
+                  : "border-primary/30 bg-primary/10 text-primary"
+              }`}
+            >
+              <span className="h-1.5 w-1.5 rounded-full bg-current" />
+              {generatedCount} of {applicableDefs.length} docs generated
+            </span>
+            <span className="pill border border-border bg-muted text-muted-foreground">
+              <span className="material-symbols text-[14px]">folder_zip</span>
+              Target: {targetLabel}
+            </span>
+          </div>
+        </div>
       </section>
 
       {error && (
@@ -784,8 +844,9 @@ export default function DocsPage() {
         />
       </div>
 
-      {/* Stack lock: the canonical tech stack injected into generated docs */}
-      <div className="print-hide mt-6">
+      {/* 01–03: stack lock, locked decisions, consistency audit */}
+      <div className="print-hide mt-6 grid items-start gap-4 xl:grid-cols-3">
+        {/* Stack lock: the canonical tech stack injected into generated docs */}
         <StackLockPanel
           projectId={idea.projectId}
           ideaId={ideaId}
@@ -794,10 +855,8 @@ export default function DocsPage() {
           docs={docs}
           onDocsUpdated={handleDocsAligned}
         />
-      </div>
 
-      {/* Locked decisions: one decision, propagated to every doc */}
-      <div className="print-hide mt-6">
+        {/* Locked decisions: one decision, propagated to every doc */}
         <DecisionsPanel
           projectId={idea.projectId}
           ideaId={ideaId}
@@ -806,18 +865,35 @@ export default function DocsPage() {
           onTechDecisionsChange={setTechDecisions}
           onDocsUpdated={handleDocsAligned}
         />
-      </div>
 
       {/* Consistency: deterministic check — where docs disagree or are missing */}
-      <div className="print-hide mt-6 rounded-xl border border-border bg-card p-5">
-        <div className="mb-1 flex items-center justify-between">
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-            4. Doc Consistency
+      <div className="card-paper p-5">
+        <div className="mb-1 flex items-center justify-between gap-2">
+          <h2 className="label-caps text-muted-foreground">
+            03 // Consistency Audit
           </h2>
+          {consistencyOk !== null && (
+            <span
+              className={`pill border ${
+                consistencyIssues.length === 0
+                  ? "border-score-high/30 bg-score-high/10 text-score-high"
+                  : "border-score-medium/40 bg-score-medium/10 text-score-medium"
+              }`}
+            >
+              {consistencyIssues.length === 0
+                ? "No conflicts"
+                : `${consistencyIssues.length} issue${consistencyIssues.length === 1 ? "" : "s"}`}
+            </span>
+          )}
+        </div>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground">
+            Checked automatically from the documents themselves — no AI.
+          </p>
           <button
             type="button"
             onClick={() => void loadConsistency()}
-            className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary"
+            className="shrink-0 rounded-md border border-border px-3 py-1 font-mono text-[11px] text-muted-foreground transition-colors hover:border-primary hover:text-primary"
           >
             Re-check
           </button>
@@ -834,10 +910,10 @@ export default function DocsPage() {
             {consistencyIssues.map((issue, i) => (
               <li
                 key={i}
-                className={`flex items-start gap-2 text-sm ${
+                className={`flex items-start gap-2 rounded-md border px-3 py-2 text-sm ${
                   issue.severity === "blocking"
-                    ? "text-destructive"
-                    : "text-muted-foreground"
+                    ? "border-destructive/30 bg-destructive/5 text-destructive"
+                    : "border-border bg-muted/50 text-muted-foreground"
                 }`}
               >
                 <span className="material-symbols mt-0.5 shrink-0 text-[18px]">
@@ -849,10 +925,10 @@ export default function DocsPage() {
           </ul>
         )}
         <p className="mt-3 text-xs text-muted-foreground">
-          Checked automatically from the documents themselves — no AI. Fix by
-          locking the decision above, then regenerating or aligning the
+          Fix by locking the decision above, then regenerating or aligning the
           disagreeing docs.
         </p>
+      </div>
       </div>
 
       {/* Two-pane workspace */}
@@ -872,7 +948,7 @@ export default function DocsPage() {
               <span className="truncate text-sm font-semibold text-foreground">
                 Project Documents
               </span>
-              <span className="shrink-0 rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-bold text-primary">
+              <span className="pill shrink-0 border border-primary/30 bg-primary/10 text-primary">
                 {generatedCount}/{applicableDefs.length}
               </span>
             </span>
@@ -887,19 +963,14 @@ export default function DocsPage() {
           >
           <div className="space-y-3 border-b border-border p-4">
             <div className="hidden items-center justify-between min-[900px]:flex">
-              <div className="flex min-w-0 items-center gap-2">
-                <span className="material-symbols text-[18px] text-muted-foreground">
-                  menu_book
-                </span>
-                <h2 className="truncate text-sm font-semibold text-foreground">
-                  Project Documents
-                </h2>
-              </div>
-              <span className="rounded border border-primary/20 bg-primary/10 px-1.5 py-0.5 font-mono text-xs font-bold text-primary">
-                {applicableDefs.length}
+              <h2 className="label-caps text-muted-foreground">
+                Index Repository
+              </h2>
+              <span className="font-mono text-[11px] text-muted-foreground">
+                {visibleKinds.length} / {applicableDefs.length} visible
               </span>
             </div>
-            <p className="truncate text-xs text-muted-foreground" title={idea.title}>
+            <p className="truncate font-serif text-sm text-foreground" title={idea.title}>
               {idea.title}
             </p>
             <div className="relative">
@@ -915,66 +986,100 @@ export default function DocsPage() {
             </div>
           </div>
 
-          <div className="max-h-[520px] flex-1 divide-y divide-border/60 overflow-y-auto">
-            {visibleKinds.map((d) => {
-              const status = docStatus(d.kind);
-              const isActive = d.kind === activeKind;
+          <div className="max-h-[520px] flex-1 overflow-y-auto">
+            {DOC_GROUPS.map((group) => {
+              const rows = visibleKinds.filter((d) =>
+                group.kinds.includes(d.kind)
+              );
+              if (rows.length === 0) return null;
+              const ready = rows.filter((d) => docs[d.kind]).length;
               return (
-                <button
-                  key={d.kind}
-                  type="button"
-                  onClick={() => {
-                    setActiveKind(d.kind);
-                    setIndexOpen(false);
-                  }}
-                  className={`flex min-h-[48px] w-full cursor-pointer items-center justify-between gap-2 p-3 text-left transition-colors ${
-                    isActive
-                      ? "border-l-4 border-primary bg-secondary/30"
-                      : "border-l-4 border-transparent hover:bg-muted/50"
-                  } ${status === "queued" ? "opacity-70 hover:opacity-100" : ""}`}
-                >
-                  <span className="flex min-w-0 items-center gap-2.5">
-                    <span
-                      className={`h-2 w-2 shrink-0 rounded-full ${
-                        status === "ready"
-                          ? "bg-score-high"
-                          : status === "generating"
-                            ? "animate-pulse bg-score-medium"
-                            : "bg-muted-foreground/40"
-                      }`}
-                    />
-                    <span
-                      className={`truncate text-[0.875rem] ${
-                        isActive
-                          ? "font-semibold text-foreground"
-                          : "text-muted-foreground"
-                      }`}
-                    >
-                      {d.title}
+                <div key={group.label}>
+                  <div className="flex items-center justify-between border-b border-border bg-muted/60 px-4 py-2">
+                    <span className="label-caps text-muted-foreground">
+                      {group.label} ({rows.length})
                     </span>
-                    {docIsStale(d.kind) && docs[d.kind] && (
-                      <span
-                        className="material-symbols shrink-0 text-[14px] text-score-medium"
-                        title="May be outdated — idea changed since generation"
-                      >
-                        warning
-                      </span>
-                    )}
-                  </span>
-                  {status === "generating" ? (
-                    <span className="material-symbols shrink-0 animate-spin text-[15px] text-score-medium">
-                      sync
+                    <span className="font-mono text-[11px] text-muted-foreground">
+                      {ready}/{rows.length} ready
                     </span>
-                  ) : isActive ? (
-                    <span className="material-symbols shrink-0 text-[16px] text-primary">
-                      chevron_right
-                    </span>
-                  ) : (
-                    <span className="shrink-0 font-mono text-[11px] text-muted-foreground/60">
-                      {status === "queued" ? "queued" : d.label}
-                    </span>
-                  )}
-                </button>
+                  </div>
+                  <div className="divide-y divide-border/60">
+                    {rows.map((d) => {
+                      const status = docStatus(d.kind);
+                      const isActive = d.kind === activeKind;
+                      const stale = docIsStale(d.kind) && docs[d.kind];
+                      const words = docWordCount(d.kind);
+                      const num = String(docNumber(d.kind)).padStart(2, "0");
+                      const pill = !docs[d.kind]
+                        ? {
+                            text: "Missing",
+                            cls: "border-score-low/30 bg-score-low/10 text-score-low",
+                          }
+                        : stale
+                          ? {
+                              text: "May be outdated",
+                              cls: "border-score-medium/40 bg-score-medium/10 text-score-medium",
+                            }
+                          : isActive
+                            ? {
+                                text: "Up to date",
+                                cls: "border-score-high bg-score-high text-white",
+                              }
+                            : {
+                                text: "Generated",
+                                cls: "border-score-high/30 bg-score-high/10 text-score-high",
+                              };
+                      return (
+                        <button
+                          key={d.kind}
+                          type="button"
+                          onClick={() => {
+                            setActiveKind(d.kind);
+                            setIndexOpen(false);
+                          }}
+                          className={`flex min-h-[48px] w-full cursor-pointer items-start justify-between gap-2 p-3 text-left transition-colors ${
+                            isActive
+                              ? "border-l-2 border-primary bg-primary/5"
+                              : "border-l-2 border-transparent hover:bg-muted/50"
+                          } ${status === "queued" ? "opacity-70 hover:opacity-100" : ""}`}
+                        >
+                          <span className="flex min-w-0 items-start gap-2.5">
+                            <span className="mt-0.5 shrink-0 font-mono text-[11px] text-muted-foreground/60">
+                              {num}
+                            </span>
+                            <span className="min-w-0">
+                              <span
+                                className={`block truncate font-serif text-[0.9375rem] ${
+                                  isActive
+                                    ? "font-semibold text-foreground"
+                                    : "text-foreground/90"
+                                }`}
+                              >
+                                {d.title}
+                              </span>
+                              <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">
+                                {docs[d.kind]
+                                  ? `${words.toLocaleString()} words • ${docDateLabel(d.kind)}`
+                                  : "0 words • Pending generation"}
+                              </span>
+                            </span>
+                          </span>
+                          {status === "generating" ? (
+                            <span className="material-symbols mt-1 shrink-0 animate-spin text-[15px] text-score-medium">
+                              sync
+                            </span>
+                          ) : (
+                            <span
+                              className={`mt-0.5 shrink-0 rounded-md border px-2 py-0.5 font-mono text-[10px] font-medium ${pill.cls}`}
+                            >
+                              {pill.text}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
               );
             })}
             {visibleKinds.length === 0 && (
@@ -1156,7 +1261,7 @@ export default function DocsPage() {
                   <button
                     onClick={regenerateOne}
                     disabled={regenerating}
-                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:min-h-0 disabled:opacity-50"
+                    className="btn-primary min-h-[44px] !px-3 !py-1.5 !text-xs md:min-h-0"
                   >
                     <span className="material-symbols text-[16px]">refresh</span>
                     <span>{regenerating ? "Regenerating…" : "Regenerate"}</span>
@@ -1172,7 +1277,7 @@ export default function DocsPage() {
                   <button
                     onClick={copyDoc}
                     disabled={!activeContent}
-                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:min-h-0 disabled:opacity-50"
+                    className="btn-ghost min-h-[44px] !px-3 !py-1.5 !text-xs md:min-h-0"
                   >
                     <span className="material-symbols text-[16px]">
                       {copied ? "check" : "content_copy"}
@@ -1182,7 +1287,7 @@ export default function DocsPage() {
                   <button
                     onClick={downloadDoc}
                     disabled={!activeContent}
-                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-input bg-secondary px-3 py-1.5 text-xs font-medium text-secondary-foreground transition-colors hover:bg-muted disabled:opacity-50 md:min-h-0"
+                    className="btn-secondary min-h-[44px] !px-3 !py-1.5 !text-xs md:min-h-0"
                   >
                     <span className="material-symbols text-[16px]">download</span>
                     <span>Download .md</span>
@@ -1191,14 +1296,14 @@ export default function DocsPage() {
                     onClick={() => window.print()}
                     disabled={!activeContent}
                     title="Print this document"
-                    className="inline-flex min-h-[44px] items-center gap-1.5 rounded-md border border-border bg-transparent px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground md:min-h-0 disabled:opacity-50"
+                    className="btn-ghost min-h-[44px] !px-3 !py-1.5 !text-xs md:min-h-0"
                   >
                     <span className="material-symbols text-[16px]">print</span>
                     <span>Print</span>
                   </button>
                 </div>
               </div>
-              <pre className="print-doc max-h-[36rem] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background/60 p-5 font-mono text-[0.8125rem] leading-relaxed text-foreground/85">
+              <pre className="print-doc max-h-[36rem] overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background p-5 font-serif text-[0.9375rem] leading-relaxed text-foreground/90">
                 {renderHighlightedContent()}
               </pre>
             </>

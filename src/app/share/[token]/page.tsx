@@ -232,63 +232,89 @@ export default async function SharePage({
   return (
     <main className="mx-auto max-w-[860px] px-4 py-10 md:px-8 md:py-16">
       {/* Masthead */}
-      <header className="mb-10 text-center">
+      <header className="mb-10 border-b border-border pb-8 text-center">
         <p className="label-caps mb-3 text-primary">Shared from The-Tool</p>
         <h1 className="font-serif text-4xl tracking-tight text-foreground md:text-5xl">
           {projectName}
         </h1>
+        <div className="mt-4 flex items-center justify-center gap-2">
+          <span className="pill border border-border bg-muted text-muted-foreground">
+            Public dossier · read-only
+          </span>
+          <span className="pill border border-border bg-muted text-muted-foreground">
+            {docs.length} document{docs.length === 1 ? "" : "s"}
+          </span>
+        </div>
       </header>
 
       {/* Approved idea */}
       {idea ? (
-        <section className="card-elevated mb-8 p-6 md:p-8">
-          <p className="label-caps mb-2 text-muted-foreground">
-            The approved idea
-          </p>
-          <h2 className="mb-3 font-serif text-2xl text-foreground">
-            {idea.title}
-          </h2>
-          <p className="text-[1.05rem] leading-relaxed text-foreground/90">
-            {idea.pitch}
-          </p>
+        <section className="card-elevated mb-8 overflow-hidden">
+          <div className="flex items-center justify-between gap-3 border-b border-border bg-card-elevated px-6 py-4 md:px-8">
+            <p className="label-caps text-muted-foreground">
+              The approved idea
+            </p>
+            <span className="pill border border-score-high/30 bg-score-high/10 text-score-high">
+              <span className="h-1.5 w-1.5 rounded-full bg-score-high" />
+              Approved
+            </span>
+          </div>
+          <div className="p-6 md:p-8">
+            <h2 className="mb-3 font-serif text-2xl text-foreground">
+              {idea.title}
+            </h2>
+            <p className="text-[1.05rem] leading-relaxed text-foreground/90">
+              {idea.pitch}
+            </p>
 
-          {idea.features.length > 0 && (
-            <div className="mt-6">
-              <p className="label-caps mb-2 text-muted-foreground">
-                Key features
-              </p>
-              <ul className="list-disc space-y-1.5 pl-5 text-sm leading-relaxed text-foreground/90">
-                {idea.features.map((f, i) => (
-                  <li key={i}>{f}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="mt-6 grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
-            <div>
-              <p className="label-caps mb-1.5 text-muted-foreground">
-                Target audience
-              </p>
-              <p className="text-sm leading-relaxed text-foreground/90">
-                {idea.targetAudience}
-              </p>
-            </div>
-            {idea.monetization && (
-              <div>
-                <p className="label-caps mb-1.5 text-muted-foreground">
-                  Monetization
+            {idea.features.length > 0 && (
+              <div className="mt-6">
+                <p className="label-caps mb-2 text-muted-foreground">
+                  Key features
                 </p>
-                <p className="text-sm leading-relaxed text-foreground/90">
-                  {idea.monetization}
-                </p>
+                <ul className="space-y-1.5 text-sm leading-relaxed text-foreground/90">
+                  {idea.features.map((f, i) => (
+                    <li key={i} className="flex items-start gap-2">
+                      <span className="material-symbols mt-0.5 shrink-0 text-[16px] text-primary">
+                        check
+                      </span>
+                      <span>{f}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             )}
+
+            <div className="mt-6 grid gap-4 border-t border-border pt-5 sm:grid-cols-2">
+              <div>
+                <p className="label-caps mb-1.5 text-muted-foreground">
+                  Target audience
+                </p>
+                <p className="text-sm leading-relaxed text-foreground/90">
+                  {idea.targetAudience}
+                </p>
+              </div>
+              {idea.monetization && (
+                <div>
+                  <p className="label-caps mb-1.5 text-muted-foreground">
+                    Monetization
+                  </p>
+                  <p className="text-sm leading-relaxed text-foreground/90">
+                    {idea.monetization}
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
         </section>
       ) : (
-        <section className="card-paper mb-8 p-6 text-center md:p-8">
-          <p className="text-sm text-muted-foreground">
+        <section className="card-paper mb-8 overflow-hidden">
+          <div className="border-b border-border bg-card-elevated px-6 py-4 md:px-8">
+            <p className="label-caps text-muted-foreground">
+              The approved idea
+            </p>
+          </div>
+          <p className="p-6 text-center text-sm text-muted-foreground md:p-8">
             This project has no approved idea yet.
           </p>
         </section>
@@ -296,9 +322,16 @@ export default async function SharePage({
 
       {/* Documents */}
       <section className="mb-10">
-        <p className="label-caps mb-4 text-muted-foreground">
-          Generated documents ({docs.length})
-        </p>
+        <div className="mb-4 flex items-end justify-between gap-3">
+          <p className="label-caps text-muted-foreground">
+            Generated documents ({docs.length})
+          </p>
+          {docs.length > 0 && (
+            <p className="font-mono text-xs text-muted-foreground">
+              {docs.length} / {DOC_KINDS.length} kinds
+            </p>
+          )}
+        </div>
         {docs.length === 0 ? (
           <div className="card-paper p-8 text-center">
             <p className="text-sm text-muted-foreground">
@@ -307,18 +340,25 @@ export default async function SharePage({
           </div>
         ) : (
           <div className="space-y-6">
-            {docs.map((doc) => (
-              <article key={doc.kind} className="card-paper p-6 md:p-8">
-                <p className="label-caps mb-1 text-primary">{doc.label}</p>
-                <h3 className="mb-4 font-serif text-xl text-foreground">
-                  {doc.title}
-                </h3>
-                <div
-                  className="share-doc-body"
-                  dangerouslySetInnerHTML={{
-                    __html: renderMarkdown(doc.content),
-                  }}
-                />
+            {docs.map((doc, i) => (
+              <article key={doc.kind} className="card-paper overflow-hidden">
+                <div className="flex items-center justify-between gap-3 border-b border-border bg-card-elevated px-6 py-4 md:px-8">
+                  <p className="label-caps text-primary">{doc.label}</p>
+                  <span className="pill border border-border bg-muted font-mono text-muted-foreground">
+                    Doc {String(i + 1).padStart(2, "0")}
+                  </span>
+                </div>
+                <div className="p-6 md:p-8">
+                  <h3 className="mb-4 font-serif text-2xl text-foreground">
+                    {doc.title}
+                  </h3>
+                  <div
+                    className="share-doc-body"
+                    dangerouslySetInnerHTML={{
+                      __html: renderMarkdown(doc.content),
+                    }}
+                  />
+                </div>
               </article>
             ))}
           </div>
@@ -326,17 +366,17 @@ export default async function SharePage({
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-border pt-6 text-center">
+      <footer className="border-t border-border pt-8 text-center">
         <p className="text-sm text-muted-foreground">
           This page was generated with The-Tool — from idea to full
           documentation in one pipeline.
         </p>
         <Link
           href="/"
-          className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
+          className="btn-primary mt-5"
         >
-          <span className="material-symbols text-[18px]">arrow_forward</span>
           Try it yourself
+          <span className="material-symbols text-[18px]">arrow_forward</span>
         </Link>
       </footer>
     </main>

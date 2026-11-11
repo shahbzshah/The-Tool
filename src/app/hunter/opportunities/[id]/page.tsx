@@ -51,10 +51,11 @@ function Icon({ name, className = "text-[20px]" }: { name: string; className?: s
   );
 }
 
-function tierTextClass(label: string) {
-  if (label.includes("High")) return "text-score-high";
-  if (label.includes("Medium")) return "text-score-medium";
-  return "text-score-low";
+/** Soft tinted pill for a tier label (Telemetry OS micro-data pills). */
+function tierPillClass(label: string) {
+  if (label.includes("High")) return "border-score-high/40 bg-score-high/10 text-score-high";
+  if (label.includes("Medium")) return "border-score-medium/40 bg-score-medium/10 text-score-medium";
+  return "border-score-low/40 bg-score-low/10 text-score-low";
 }
 
 function barClass(value: number) {
@@ -361,17 +362,17 @@ function AnalysisCards({ content }: { content: string }) {
   return (
     <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
       {cards.map((c) => (
-        <div key={c.num} className="card-elevated flex flex-col justify-between space-y-3 p-6">
-          <div>
-            <div className={`mb-1 flex items-center gap-2 font-mono text-[13px] uppercase ${c.kickerClass}`}>
+        <div key={c.num} className="card-elevated flex flex-col justify-between space-y-3 p-5">
+          <div className="border-b border-border pb-3">
+            <div className={`mb-1 flex items-center gap-2 label-caps ${c.kickerClass}`}>
               <Icon name={c.icon} className="text-[18px]" />
               <span>
                 {c.num} / {c.kicker}
               </span>
             </div>
             <h3 className="font-serif text-xl font-semibold text-foreground">{c.title}</h3>
-            <div className="mt-2">{c.body}</div>
           </div>
+          <div>{c.body}</div>
         </div>
       ))}
     </div>
@@ -407,7 +408,11 @@ function ScorecardCards({ content }: { content: string }) {
   return (
     <div className="space-y-6">
       <div className={`rounded-md border px-4 py-3 ${verdictCls}`}>
-        <p className="font-serif text-xl font-semibold">Verdict: {verdict} <NewBadge /></p>
+        <p className="flex flex-wrap items-center gap-2 font-serif text-xl font-semibold">
+          <span className="label-caps text-muted-foreground">Verdict</span>
+          <span className={`pill ${verdictCls}`}>{verdict}</span>
+          <NewBadge />
+        </p>
         {a.summary && <p className="mt-1 text-sm leading-relaxed opacity-90">{a.summary}</p>}
         <p className="mt-2 font-mono text-[12px] opacity-80">
           Every criterion below is scored from the computed evidence packet. A criterion with no
@@ -416,9 +421,9 @@ function ScorecardCards({ content }: { content: string }) {
       </div>
       <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
         {criteria.map(({ key, label, c }) => (
-          <div key={key} className="card-elevated flex flex-col space-y-2 p-6">
+          <div key={key} className="card-elevated flex flex-col space-y-2 p-5">
             <span className="label-caps text-muted-foreground">{label}</span>
-            <p className="font-serif text-3xl font-semibold text-foreground">
+            <p className="font-mono text-3xl font-semibold text-foreground">
               {c?.value === "Unknown" || c?.value == null ? "Unknown" : `${c.value}/100`}
             </p>
             {c?.evidence && <p className="text-sm leading-relaxed text-muted-foreground">{c.evidence}</p>}
@@ -429,9 +434,9 @@ function ScorecardCards({ content }: { content: string }) {
         ))}
       </div>
       {Array.isArray(sc.kill_criteria) && sc.kill_criteria.length > 0 && (
-        <div className="card-paper p-6">
-          <h3 className="font-serif text-lg font-medium text-foreground">Kill criteria</h3>
-          <ul className="mt-2 space-y-2 text-sm text-muted-foreground">
+        <div className="card-paper p-5 md:p-6">
+          <h3 className="border-b border-border pb-2 font-serif text-lg font-medium text-foreground">Kill criteria</h3>
+          <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
             {sc.kill_criteria.map((k: string, i: number) => (
               <li key={i} className="flex items-start gap-2">
                 <Icon name="cancel" className="text-score-low text-[16px] mt-0.5" />
@@ -442,8 +447,8 @@ function ScorecardCards({ content }: { content: string }) {
         </div>
       )}
       {Array.isArray(sc.verified_quotes) && sc.verified_quotes.length > 0 && (
-        <div className="card-paper p-6">
-          <h3 className="font-serif text-lg font-medium text-foreground">
+        <div className="card-paper p-5 md:p-6">
+          <h3 className="border-b border-border pb-2 font-serif text-lg font-medium text-foreground">
             Verified user quotes
           </h3>
           <p className="mt-1 font-mono text-[12px] text-muted-foreground">
@@ -463,8 +468,8 @@ function ScorecardCards({ content }: { content: string }) {
         </div>
       )}
       {/* What the AI does not know — standing unknowns, always shown. */}
-      <div className="card-paper p-6">
-        <h3 className="font-serif text-lg font-medium text-foreground">
+      <div className="card-paper p-5 md:p-6">
+        <h3 className="border-b border-border pb-2 font-serif text-lg font-medium text-foreground">
           What the AI does not know
         </h3>
         <p className="mt-1 text-sm leading-relaxed text-muted-foreground">
@@ -564,11 +569,13 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
   return (
     <div className="space-y-6">
       {/* How this score works */}
-      <section className="card-paper p-6 md:p-8">
-        <span className="label-caps text-muted-foreground">Score anatomy</span>
-        <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          How this score works <NewBadge />
-        </h2>
+      <section className="card-paper p-5 md:p-6">
+        <div className="border-b border-border pb-3">
+          <span className="label-caps text-muted-foreground">Score anatomy</span>
+          <h2 className="mt-0.5 font-serif text-[1.75rem] font-medium leading-tight text-foreground">
+            How this score works <NewBadge />
+          </h2>
+        </div>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           {comp.confidenceNote ?? "Confidence note unavailable."} Components with no evidence are
           excluded from the weighted sum — they never score 0 and never get guessed. The old
@@ -604,11 +611,13 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       </section>
 
       {/* Momentum + range */}
-      <section className="card-paper p-6 md:p-8">
-        <span className="label-caps text-muted-foreground">Momentum &amp; range</span>
-        <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Is it moving? <NewBadge />
-        </h2>
+      <section className="card-paper p-5 md:p-6">
+        <div className="border-b border-border pb-3">
+          <span className="label-caps text-muted-foreground">Momentum &amp; range</span>
+          <h2 className="mt-0.5 font-serif text-[1.75rem] font-medium leading-tight text-foreground">
+            Is it moving? <NewBadge />
+          </h2>
+        </div>
         {!v.hasHistory || v.perDay == null ? (
           <p className="mt-2 text-sm text-muted-foreground">
             Collecting history — velocity, 7/30-day changes, and download ranges appear once this
@@ -657,7 +666,7 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
                       min={1}
                       value={effLow}
                       onChange={(e) => setPriorLow(e.target.value ? Number(e.target.value) : null)}
-                      className="w-20 rounded border border-input bg-card px-2 py-1 text-foreground"
+                      className="w-20 rounded-md border border-input bg-card px-2 py-1.5 font-mono text-sm text-foreground focus:border-foreground focus:outline-none"
                     />
                   </label>
                   <label className="text-muted-foreground">
@@ -667,7 +676,7 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
                       min={1}
                       value={effHigh}
                       onChange={(e) => setPriorHigh(e.target.value ? Number(e.target.value) : null)}
-                      className="w-20 rounded border border-input bg-card px-2 py-1 text-foreground"
+                      className="w-20 rounded-md border border-input bg-card px-2 py-1.5 font-mono text-sm text-foreground focus:border-foreground focus:outline-none"
                     />
                   </label>
                   <span className="text-muted-foreground">
@@ -687,7 +696,7 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
           </>
         )}
         {opp.isRising && (
-          <p className="mt-3 inline-flex items-center gap-1.5 rounded border border-score-high/30 bg-score-high/10 px-2 py-0.5 text-[11px] font-semibold text-score-high">
+          <p className="mt-3 pill border border-score-high/40 bg-score-high/10 text-score-high">
             ▲ NEW &amp; RISING
           </p>
         )}
@@ -701,11 +710,13 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       </section>
 
       {/* Wedge audit */}
-      <section className="card-paper p-6 md:p-8">
-        <span className="label-caps text-muted-foreground">Keyword wedge audit</span>
-        <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Can a new app enter “{wedge.keyword ?? evidence.keyword}”? <NewBadge />
-        </h2>
+      <section className="card-paper p-5 md:p-6">
+        <div className="border-b border-border pb-3">
+          <span className="label-caps text-muted-foreground">Keyword wedge audit</span>
+          <h2 className="mt-0.5 font-serif text-[1.75rem] font-medium leading-tight text-foreground">
+            Can a new app enter “{wedge.keyword ?? evidence.keyword}”? <NewBadge />
+          </h2>
+        </div>
         <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
           <div>
             <p className="label-caps text-muted-foreground">Wedge score</p>
@@ -743,7 +754,7 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {wedge.suggestedWedges.map((w: string) => (
-                <span key={w} className="rounded border border-border bg-muted px-2 py-1 font-mono text-[12px] text-foreground">
+                <span key={w} className="rounded-md border border-border bg-muted px-2 py-1 font-mono text-[12px] text-foreground">
                   {w}
                 </span>
               ))}
@@ -753,11 +764,13 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       </section>
 
       {/* Monetisation strip */}
-      <section className="card-paper p-6 md:p-8">
-        <span className="label-caps text-muted-foreground">Monetisation signals</span>
-        <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Does anyone pay here? <NewBadge />
-        </h2>
+      <section className="card-paper p-5 md:p-6">
+        <div className="border-b border-border pb-3">
+          <span className="label-caps text-muted-foreground">Monetisation signals</span>
+          <h2 className="mt-0.5 font-serif text-[1.75rem] font-medium leading-tight text-foreground">
+            Does anyone pay here? <NewBadge />
+          </h2>
+        </div>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">{mon.line ?? "Unknown."}</p>
         <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 font-mono text-[13px] text-muted-foreground">
           <span>IAP: {mon.offersIap ? `yes${mon.iapRange ? ` (${mon.iapRange})` : ""}` : "no"}</span>
@@ -771,11 +784,13 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       </section>
 
       {/* Freshness */}
-      <section className="card-paper p-6 md:p-8">
-        <span className="label-caps text-muted-foreground">Freshness</span>
-        <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Is the incumbent still alive? <NewBadge />
-        </h2>
+      <section className="card-paper p-5 md:p-6">
+        <div className="border-b border-border pb-3">
+          <span className="label-caps text-muted-foreground">Freshness</span>
+          <h2 className="mt-0.5 font-serif text-[1.75rem] font-medium leading-tight text-foreground">
+            Is the incumbent still alive? <NewBadge />
+          </h2>
+        </div>
         <div className="mt-3 grid grid-cols-2 gap-4 md:grid-cols-4">
           <div>
             <p className="label-caps text-muted-foreground">Days since update</p>
@@ -810,11 +825,13 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       </section>
 
       {/* Review themes */}
-      <section className="card-paper p-6 md:p-8">
-        <span className="label-caps text-muted-foreground">What users actually complain about</span>
-        <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Complaint themes, from real 1–3★ reviews <NewBadge />
-        </h2>
+      <section className="card-paper p-5 md:p-6">
+        <div className="border-b border-border pb-3">
+          <span className="label-caps text-muted-foreground">What users actually complain about</span>
+          <h2 className="mt-0.5 font-serif text-[1.75rem] font-medium leading-tight text-foreground">
+            Complaint themes, from real 1–3★ reviews <NewBadge />
+          </h2>
+        </div>
         {evidence.miningNote && (
           <p className="mt-2 text-sm text-muted-foreground">{evidence.miningNote}</p>
         )}
@@ -856,11 +873,13 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       </section>
 
       {/* Trend */}
-      <section className="card-paper p-6 md:p-8">
-        <span className="label-caps text-muted-foreground">90-day trend</span>
-        <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Fad or sustained demand? <NewBadge />
-        </h2>
+      <section className="card-paper p-5 md:p-6">
+        <div className="border-b border-border pb-3">
+          <span className="label-caps text-muted-foreground">90-day trend</span>
+          <h2 className="mt-0.5 font-serif text-[1.75rem] font-medium leading-tight text-foreground">
+            Fad or sustained demand? <NewBadge />
+          </h2>
+        </div>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
           Direction: <span className="font-mono font-bold text-foreground">{trend.direction ?? "unknown"}</span>
           {trend.note ? ` — ${trend.note}` : ""}
@@ -873,11 +892,13 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
       </section>
 
       {/* Cross-checks */}
-      <section className="card-paper p-6 md:p-8">
-        <span className="label-caps text-muted-foreground">Manual cross-checks</span>
-        <h2 className="font-serif text-[1.75rem] font-medium leading-tight text-foreground">
-          Verify it yourself <NewBadge />
-        </h2>
+      <section className="card-paper p-5 md:p-6">
+        <div className="border-b border-border pb-3">
+          <span className="label-caps text-muted-foreground">Manual cross-checks</span>
+          <h2 className="mt-0.5 font-serif text-[1.75rem] font-medium leading-tight text-foreground">
+            Verify it yourself <NewBadge />
+          </h2>
+        </div>
         <p className="mt-2 text-sm text-muted-foreground">
           These are plain links for spot-checking — The-Tool does not scrape these sites.
         </p>
@@ -1209,7 +1230,7 @@ export default function OpportunityDetailPage({
           <div className="flex items-center gap-3 font-mono text-[13px] text-muted-foreground">
             <span>ARCHIVE ID: {archiveId}</span>
             <span className="h-1.5 w-1.5 rounded-full bg-score-high" />
-            <span className="text-[11px] font-bold uppercase tracking-wider text-score-high">
+            <span className="pill border border-score-high/40 bg-score-high/10 text-score-high">
               Live Radar Signal
             </span>
           </div>
@@ -1217,35 +1238,47 @@ export default function OpportunityDetailPage({
 
         {/* Header card */}
         <section className="card-elevated p-6 md:p-8">
+          {/* Dossier header band */}
+          <div className="mb-5 flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+            <span className="label-caps text-muted-foreground">Opportunity dossier</span>
+            {(opp.scanJob?.keyword ?? opp.category) && (
+              <span className="font-mono text-[12px] text-muted-foreground">
+                {opp.scanJob ? `kw: "${opp.scanJob.keyword}"` : opp.category}
+              </span>
+            )}
+          </div>
           <div className="flex flex-col items-start justify-between gap-6 border-b border-border pb-6 lg:flex-row lg:items-center">
             <div className="flex flex-1 flex-col items-start gap-6 sm:flex-row sm:items-center">
               {/* Score box */}
-              <div className="flex min-w-[110px] flex-col items-center justify-center rounded-md border border-border bg-card p-4 text-center">
-                <span className="font-serif text-5xl leading-none text-foreground">
-                  {tier.score}
+              <div className="flex min-w-[110px] flex-col items-center justify-center rounded-md border border-border bg-muted p-4 text-center">
+                <span className="flex items-baseline gap-1">
+                  <span className="font-mono text-5xl font-semibold leading-none text-foreground">
+                    {tier.score}
+                  </span>
+                  <span className="font-mono text-xs text-muted-foreground">/ 100</span>
                 </span>
                 <div
-                  className={`mt-2 inline-flex items-center gap-1.5 rounded border px-2 py-0.5 text-[11px] ${tierTextClass(tier.label)}`}
+                  className={`mt-2 inline-flex items-center gap-1.5 pill ${tierPillClass(tier.label)}`}
                 >
                   <span
                     className={`h-1.5 w-1.5 rounded-full ${barClass(tier.score)}`}
                   />
-                  <span className="label-caps">{tier.label}</span>
+                  <span>{tier.label}</span>
                 </div>
               </div>
               {/* Title + meta */}
               <div className="flex-1 space-y-2">
                 <div className="flex items-start justify-between gap-3">
-                  <h1 className="font-serif text-2xl font-medium tracking-tight text-foreground">
+                  <h1 className="font-serif text-3xl font-medium tracking-tight text-foreground md:text-4xl">
                     {opp.title}
                   </h1>
                   <button
                     onClick={toggleBookmark}
                     aria-label={opp.isBookmarked ? "Remove bookmark" : "Bookmark"}
-                    className={`p-1 transition-opacity hover:opacity-80 ${
+                    className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-md border transition-colors ${
                       opp.isBookmarked
-                        ? "text-score-medium"
-                        : "text-muted-foreground/40 hover:text-score-medium"
+                        ? "border-score-medium/40 bg-score-medium/10 text-score-medium"
+                        : "border-border text-muted-foreground/60 hover:bg-muted hover:text-score-medium"
                     }`}
                   >
                     <span
@@ -1272,7 +1305,7 @@ export default function OpportunityDetailPage({
                         className="h-14 w-14 rounded border border-border object-cover"
                       />
                     )}
-                    <span className="rounded border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[11px] font-semibold text-primary">
+                    <span className="pill border border-primary/30 bg-primary/10 text-primary">
                       {opp.source === "own-idea"
                         ? "FROM YOUR OWN IDEA"
                         : opp.source === "link"
@@ -1305,14 +1338,14 @@ export default function OpportunityDetailPage({
                     </>
                   )}
                   {opp.isRising && (
-                    <span className="inline-flex items-center gap-1 rounded border border-score-high/30 bg-score-high/10 px-2 py-0.5 text-[11px] font-semibold text-score-high">
+                    <span className="pill border border-score-high/40 bg-score-high/10 text-score-high">
                       ▲ NEW &amp; RISING
                     </span>
                   )}
                   {(!opp.source || opp.source === "hunter") && (
                     <>
                       <span className="text-border">|</span>
-                      <span className="inline-flex items-center gap-1.5 rounded border border-border bg-card px-2 py-0.5 text-[12px]">
+                      <span className="inline-flex items-center gap-1.5 rounded-md border border-border bg-muted px-2 py-1 text-[12px]">
                         <span className="text-muted-foreground">package:</span>
                         <span className="font-bold text-foreground">{opp.appId}</span>
                         <button
@@ -1355,26 +1388,26 @@ export default function OpportunityDetailPage({
           <div className="grid grid-cols-2 gap-4 pt-6 md:grid-cols-4">
             <div className="card-paper p-3">
               <p className="label-caps text-muted-foreground">User Rating</p>
-              <p className="mt-1 inline-flex items-center gap-1.5 font-mono text-lg text-foreground">
+              <p className="mt-1 inline-flex items-center gap-1.5 font-mono text-xl font-semibold text-foreground">
                 <Icon name="star" className="text-score-medium text-[20px]" />
                 {opp.rating ?? "—"}
               </p>
             </div>
             <div className="card-paper p-3">
               <p className="label-caps text-muted-foreground">Installs</p>
-              <p className="mt-1 font-mono text-lg text-foreground">
+              <p className="mt-1 font-mono text-xl font-semibold text-foreground">
                 {opp.installs ?? "—"}
               </p>
             </div>
             <div className="card-paper p-3">
               <p className="label-caps text-muted-foreground">Reviews</p>
-              <p className="mt-1 font-mono text-lg text-foreground">
+              <p className="mt-1 font-mono text-xl font-semibold text-foreground">
                 {opp.reviewsCount ?? "—"}
               </p>
             </div>
             <div className="card-paper p-3">
               <p className="label-caps text-muted-foreground">Quality Signal</p>
-              <p className="mt-1 font-mono text-lg text-foreground">
+              <p className="mt-1 font-mono text-xl font-semibold text-foreground">
                 {breakdown?.quality != null
                   ? `${Math.round(breakdown.quality)}/100`
                   : "—"}
@@ -1385,11 +1418,14 @@ export default function OpportunityDetailPage({
 
         {/* Score history */}
         {history.length > 0 && (
-          <section className="card-paper p-6">
-            <div className="mb-2 flex items-baseline justify-between">
-              <h2 className="font-serif text-lg font-medium text-foreground">
-                Score over time
-              </h2>
+          <section className="card-paper p-5 md:p-6">
+            <div className="mb-3 flex items-baseline justify-between border-b border-border pb-3">
+              <div>
+                <span className="label-caps text-muted-foreground">Score history</span>
+                <h2 className="mt-0.5 font-serif text-lg font-medium text-foreground">
+                  Score over time
+                </h2>
+              </div>
               <span className="font-mono text-[13px] text-muted-foreground">
                 {history.length} {history.length === 1 ? "scan" : "scans"}
               </span>
@@ -1407,7 +1443,7 @@ export default function OpportunityDetailPage({
         {/* Why it scores */}
         {summaryParagraphs.length > 0 && (
           <section className="card-paper p-6 md:p-8">
-            <div className="mb-4 flex items-center gap-3">
+            <div className="mb-4 flex items-center gap-3 border-b border-border pb-4">
               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-secondary font-mono text-sm font-bold text-foreground">
                 ¶
               </div>
@@ -1453,7 +1489,7 @@ export default function OpportunityDetailPage({
 
         {/* Evidence packet: wedge, velocity, themes, trend, cross-checks */}
         {evidenceLoading && !evidence && (
-          <section className="card-paper p-6">
+          <section className="card-paper p-5 md:p-6">
             <p className="text-sm text-muted-foreground">
               Building the evidence packet — wedge audit, velocity, review themes…
             </p>
@@ -1461,35 +1497,38 @@ export default function OpportunityDetailPage({
         )}
         {evidence && <EvidenceSections evidence={evidence} opp={opp} />}
         {evidenceNote && !evidence && (
-          <section className="card-paper p-6">
+          <section className="card-paper p-5 md:p-6">
             <p className="text-sm text-muted-foreground">{evidenceNote}</p>
           </section>
         )}
 
         {/* AI Synthesized Intelligence */}
         <section className="space-y-6">
-          <div className="flex flex-col justify-between gap-3 border-b border-border pb-2 sm:flex-row sm:items-center">
-            <div className="flex items-center gap-3">
-              <Icon name="psychology" className="text-primary text-[22px]" />
-              <h2 className="font-serif text-xl font-semibold text-foreground">
-                AI Synthesized Intelligence
-              </h2>
+          <div className="border-b border-border pb-3">
+            <span className="label-caps text-muted-foreground">AI synthesis</span>
+            <div className="mt-1 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <div className="flex items-center gap-3">
+                <Icon name="psychology" className="text-primary text-[22px]" />
+                <h2 className="font-serif text-xl font-semibold text-foreground">
+                  AI Synthesized Intelligence
+                </h2>
+              </div>
+              <button
+                onClick={() => opp && runAnalysis(opp.id, true)}
+                disabled={analyzing}
+                className="btn-ghost !px-3 !py-1.5 !text-xs"
+              >
+                <Icon
+                  name="refresh"
+                  className={`text-[16px] ${analyzing ? "animate-spin" : ""}`}
+                />
+                {analyzing ? "Analyzing…" : "Re-analyze"}
+              </button>
             </div>
-            <button
-              onClick={() => opp && runAnalysis(opp.id, true)}
-              disabled={analyzing}
-              className="btn-ghost !px-3 !py-1.5 !text-xs"
-            >
-              <Icon
-                name="refresh"
-                className={`text-[16px] ${analyzing ? "animate-spin" : ""}`}
-              />
-              {analyzing ? "Analyzing…" : "Re-analyze"}
-            </button>
           </div>
 
           {analyzing && analyses.length === 0 && (
-            <div className="card-paper flex items-center gap-3 p-6">
+            <div className="card-paper flex items-center gap-3 p-5">
               <Icon name="psychology" className="animate-pulse text-primary text-[22px]" />
               <p className="text-sm text-muted-foreground">
                 Synthesizing intelligence — reading the market, scoring the gap…
@@ -1516,7 +1555,7 @@ export default function OpportunityDetailPage({
                   </div>
                   <button
                     onClick={() => deleteAnalysis(a.id)}
-                    className="text-xs text-muted-foreground hover:text-foreground"
+                    className="btn-ghost !px-2.5 !py-1 !text-xs"
                   >
                     Delete
                   </button>
@@ -1547,7 +1586,7 @@ export default function OpportunityDetailPage({
       <aside className="sticky bottom-0 z-40 w-full border-t border-border bg-card-elevated px-6 py-4">
         <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center justify-between gap-4 sm:flex-row">
           <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full border border-border bg-card text-primary">
+            <div className="flex h-9 w-9 items-center justify-center rounded-md border border-border bg-card text-primary">
               <Icon name="bolt" />
             </div>
             <div>

@@ -42,16 +42,25 @@ export default function RegisterPage() {
 
   return (
     <main className="mx-auto flex min-h-[80vh] w-full max-w-[420px] flex-col justify-center px-4 py-8">
+      <p className="label-caps mb-3 text-center text-primary">
+        Ideas App // Telemetry OS
+      </p>
       <div className="card-elevated p-8">
-        <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <span className="material-symbols text-[24px]">radar</span>
+        <div className="flex items-start justify-between gap-3 border-b border-border pb-5">
+          <div className="flex h-11 w-11 items-center justify-center rounded-md border border-primary-hover bg-primary text-primary-foreground">
+            <span className="material-symbols text-[24px]">radar</span>
+          </div>
+          <span className="pill border border-border bg-muted text-muted-foreground">
+            New account
+          </span>
         </div>
-        <h1 className="font-serif text-2xl">Create your account</h1>
+        <h1 className="mt-5 font-serif text-2xl">Create your account</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           Your scans, bookmarks and history live here.
         </p>
         {error && (
-          <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+          <p className="mt-4 flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            <span className="material-symbols mt-0.5 shrink-0 text-[18px]">error</span>
             {error}
           </p>
         )}

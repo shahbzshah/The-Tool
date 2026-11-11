@@ -46,13 +46,19 @@ export default function ResetPasswordPage() {
 
   if (!token) {
     return (
-      <main className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4">
-        <div className="card-paper w-full space-y-4 p-8 text-center">
+      <main className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4 py-8">
+        <p className="label-caps mb-3 text-center text-primary">
+          Ideas App // Telemetry OS
+        </p>
+        <div className="card-elevated w-full space-y-4 p-8 text-center">
+          <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-md border border-primary-hover bg-primary text-primary-foreground">
+            <span className="material-symbols text-[24px]">link_off</span>
+          </div>
           <h1 className="font-serif text-xl font-semibold">Invalid link</h1>
           <p className="text-sm text-muted-foreground">
             This password reset link is missing its token.
           </p>
-          <Link href="/login" className="btn-primary inline-block">
+          <Link href="/login" className="btn-primary inline-flex">
             Back to login
           </Link>
         </div>
@@ -61,12 +67,26 @@ export default function ResetPasswordPage() {
   }
 
   return (
-    <main className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4">
-      <div className="card-paper w-full space-y-4 p-8">
+    <main className="mx-auto flex min-h-[60vh] max-w-md flex-col items-center justify-center px-4 py-8">
+      <p className="label-caps mb-3 text-center text-primary">
+        Ideas App // Telemetry OS
+      </p>
+      <div className="card-elevated w-full space-y-4 p-8">
+        <div className="flex items-start justify-between gap-3 border-b border-border pb-5">
+          <div className="flex h-11 w-11 items-center justify-center rounded-md border border-primary-hover bg-primary text-primary-foreground">
+            <span className="material-symbols text-[24px]">lock_reset</span>
+          </div>
+          <span className="pill border border-border bg-muted text-muted-foreground">
+            Password reset
+          </span>
+        </div>
         <h1 className="font-serif text-xl font-semibold">Set a new password</h1>
         {done ? (
           <div className="space-y-4 text-center">
-            <p className="text-sm text-muted-foreground">
+            <p className="flex items-start justify-center gap-2 text-sm text-muted-foreground">
+              <span className="material-symbols mt-0.5 shrink-0 text-[18px] text-score-high">
+                check_circle
+              </span>
               Your password has been reset.
             </p>
             <button onClick={() => router.push("/login")} className="btn-primary w-full">
@@ -97,7 +117,10 @@ export default function ResetPasswordPage() {
               {saving ? "Resetting…" : "Reset password"}
             </button>
             {status && (
-              <p className="text-sm text-muted-foreground">{status}</p>
+              <p className="flex items-start gap-2 text-sm text-destructive">
+                <span className="material-symbols mt-0.5 shrink-0 text-[18px]">error</span>
+                {status}
+              </p>
             )}
           </>
         )}

@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Newsreader, Plus_Jakarta_Sans, Space_Mono } from "next/font/google";
+import { Newsreader, Inter, JetBrains_Mono } from "next/font/google";
 import HeaderSwitch from "@/components/HeaderSwitch";
 import Onboarding from "@/components/Onboarding";
 import ShortcutProvider from "@/components/ShortcutProvider";
@@ -14,15 +14,15 @@ const display = Newsreader({
   display: "swap",
 });
 
-const sans = Plus_Jakarta_Sans({
+const sans = Inter({
   weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
   variable: "--font-sans",
   display: "swap",
 });
 
-const mono = Space_Mono({
-  weight: ["400", "700"],
+const mono = JetBrains_Mono({
+  weight: ["400", "500", "600", "700"],
   subsets: ["latin"],
   variable: "--font-mono",
   display: "swap",

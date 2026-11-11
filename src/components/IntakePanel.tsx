@@ -137,43 +137,39 @@ export default function IntakePanel() {
     }
   }
 
-  const inputCls =
-    "w-full rounded border border-input bg-background px-3 py-2.5 text-base text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-2 focus:ring-primary/40";
+  const inputCls = "input-paper";
+  const textareaCls = "input-paper h-auto min-h-[96px] resize-y";
   const doorBtn = (active: boolean) =>
-    `flex-1 rounded border px-2 py-2.5 font-mono text-[11px] font-bold uppercase tracking-wide transition-colors ${
+    `rounded px-3 py-2 font-mono text-[11px] font-bold uppercase tracking-wide transition-colors ${
       active
-        ? "border-primary bg-primary text-primary-foreground"
-        : "border-border bg-muted text-muted-foreground"
+        ? "bg-card-elevated text-foreground shadow-sm"
+        : "text-muted-foreground hover:text-foreground"
     }`;
 
   return (
     <section className="card-elevated flex flex-col gap-4 p-5" aria-label="Start from something you found">
-      <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-1.5 font-mono text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
-          <span className="material-symbols text-[14px] text-primary">upload</span>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 font-serif text-lg font-medium text-foreground">
+          <span className="material-symbols text-[18px] text-primary">upload</span>
           Start from something you found
         </h2>
-        <span className="border border-primary/30 bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary">
-          NEW
-        </span>
+        <div className="inline-flex flex-wrap gap-0.5 rounded-md border border-border bg-muted p-0.5">
+          <button type="button" className={doorBtn(door === "upload")} onClick={() => setDoor("upload")}>
+            Upload media
+          </button>
+          <button type="button" className={doorBtn(door === "link")} onClick={() => setDoor("link")}>
+            Paste a link
+          </button>
+          <button type="button" className={doorBtn(door === "idea")} onClick={() => setDoor("idea")}>
+            Type an idea
+          </button>
+        </div>
       </div>
       <p className="text-sm leading-relaxed text-muted-foreground">
         A clip, a screenshot, a link, or just your own idea — the research
         engine takes it from there. Nothing is researched until you confirm
         the topic.
       </p>
-
-      <div className="flex gap-2">
-        <button type="button" className={doorBtn(door === "upload")} onClick={() => setDoor("upload")}>
-          Upload media
-        </button>
-        <button type="button" className={doorBtn(door === "link")} onClick={() => setDoor("link")}>
-          Paste a link
-        </button>
-        <button type="button" className={doorBtn(door === "idea")} onClick={() => setDoor("idea")}>
-          Type an idea
-        </button>
-      </div>
 
       {door === "upload" && (
         <div className="flex flex-col gap-3">
@@ -185,12 +181,15 @@ export default function IntakePanel() {
             className="w-full text-sm text-muted-foreground file:mr-3 file:rounded file:border file:border-border file:bg-muted file:px-3 file:py-2 file:font-mono file:text-xs file:text-foreground"
           />
           {fileName && <p className="truncate text-sm text-foreground">{fileName}</p>}
-          <input
-            value={oneLiner}
-            onChange={(e) => setOneLiner(e.target.value)}
-            placeholder="One line about it (optional — helps if the clip has no title)"
-            className={inputCls}
-          />
+          <label className="flex flex-col gap-1.5">
+            <span className="label-caps text-muted-foreground">One line about it</span>
+            <input
+              value={oneLiner}
+              onChange={(e) => setOneLiner(e.target.value)}
+              placeholder="One line about it (optional — helps if the clip has no title)"
+              className={inputCls}
+            />
+          </label>
           <p className="text-xs leading-relaxed text-muted-foreground">
             Video: max 100 MB and 10 minutes — frames are pulled out on your
             phone, the full video is never uploaded. Image: max 15 MB.
@@ -199,7 +198,7 @@ export default function IntakePanel() {
             type="button"
             onClick={runUpload}
             disabled={busy}
-            className="rounded bg-primary px-4 py-3 font-mono text-sm font-bold text-primary-foreground disabled:opacity-50"
+            className="btn-primary min-h-[44px] w-full sm:ml-auto sm:w-auto"
           >
             {busy ? progress || "Working…" : "Upload and understand"}
           </button>
@@ -208,25 +207,31 @@ export default function IntakePanel() {
 
       {door === "link" && (
         <div className="flex flex-col gap-3">
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="Paste a YouTube, Play Store, article, or Product Hunt link"
-            inputMode="url"
-            className={inputCls}
-          />
-          <textarea
-            value={caption}
-            onChange={(e) => setCaption(e.target.value)}
-            placeholder="Caption text — needed for Facebook / Instagram links, which block automatic reads"
-            rows={3}
-            className={inputCls}
-          />
+          <label className="flex flex-col gap-1.5">
+            <span className="label-caps text-muted-foreground">Link</span>
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="Paste a YouTube, Play Store, article, or Product Hunt link"
+              inputMode="url"
+              className={inputCls}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="label-caps text-muted-foreground">Caption</span>
+            <textarea
+              value={caption}
+              onChange={(e) => setCaption(e.target.value)}
+              placeholder="Caption text — needed for Facebook / Instagram links, which block automatic reads"
+              rows={3}
+              className={textareaCls}
+            />
+          </label>
           <button
             type="button"
             onClick={runLink}
             disabled={busy}
-            className="rounded bg-primary px-4 py-3 font-mono text-sm font-bold text-primary-foreground disabled:opacity-50"
+            className="btn-primary min-h-[44px] w-full sm:ml-auto sm:w-auto"
           >
             {busy ? "Reading the link…" : "Import link"}
           </button>
@@ -235,29 +240,38 @@ export default function IntakePanel() {
 
       {door === "idea" && (
         <div className="flex flex-col gap-3">
-          <input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            placeholder="Idea name"
-            className={inputCls}
-          />
-          <input
-            value={whatItDoes}
-            onChange={(e) => setWhatItDoes(e.target.value)}
-            placeholder="What does it do?"
-            className={inputCls}
-          />
-          <input
-            value={audience}
-            onChange={(e) => setAudience(e.target.value)}
-            placeholder="Who is it for? (optional)"
-            className={inputCls}
-          />
+          <label className="flex flex-col gap-1.5">
+            <span className="label-caps text-muted-foreground">Idea title</span>
+            <input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="Idea name"
+              className={inputCls}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="label-caps text-muted-foreground">What it does</span>
+            <input
+              value={whatItDoes}
+              onChange={(e) => setWhatItDoes(e.target.value)}
+              placeholder="What does it do?"
+              className={inputCls}
+            />
+          </label>
+          <label className="flex flex-col gap-1.5">
+            <span className="label-caps text-muted-foreground">Target audience</span>
+            <input
+              value={audience}
+              onChange={(e) => setAudience(e.target.value)}
+              placeholder="Who is it for? (optional)"
+              className={inputCls}
+            />
+          </label>
           <button
             type="button"
             onClick={runIdea}
             disabled={busy}
-            className="rounded bg-primary px-4 py-3 font-mono text-sm font-bold text-primary-foreground disabled:opacity-50"
+            className="btn-primary min-h-[44px] w-full sm:ml-auto sm:w-auto"
           >
             {busy ? "Saving…" : "Continue to research"}
           </button>

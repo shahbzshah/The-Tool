@@ -5,79 +5,71 @@ import type { PipelineStep } from "@/lib/pipeline";
 
 type PipelineStepsProps = {
   steps: PipelineStep[];
-  /** "full" renders labeled pills; "compact" renders small linked dots/labels. */
+  /** "full" renders larger labeled pills; "compact" renders small pills. */
   size?: "full" | "compact";
 };
 
 /**
  * PipelineSteps — the 5-step Hunter → Refine → Design → Docs → Export
- * indicator. Each step links to its page. Pure presentational; derive the
- * steps with getPipelineProgress() from "@/lib/pipeline".
+ * indicator, restyled to the Telemetry OS ledger pills: numbered mono
+ * pills, done steps carry a green check, the current step is solid rust
+ * with an "Active" tag, later steps are muted. Each step links to its
+ * page. Pure presentational; derive the steps with getPipelineProgress()
+ * from "@/lib/pipeline".
  */
 export default function PipelineSteps({ steps, size = "full" }: PipelineStepsProps) {
-  if (size === "compact") {
-    return (
-      <nav aria-label="Pipeline progress" className="flex items-center gap-1">
-        {steps.map((step, i) => (
-          <span key={step.key} className="flex items-center gap-1">
-            {i > 0 && <span aria-hidden className="text-border">·</span>}
-            <Link
-              href={step.href}
-              title={step.detail ? `${step.label}: ${step.detail}` : step.label}
-              className={`inline-flex items-center gap-1 font-mono text-[11px] transition-colors ${
-                step.done
-                  ? "font-semibold text-score-high hover:underline"
-                  : "text-muted-foreground/70 hover:text-foreground"
-              }`}
-            >
-              <span
-                className={`h-1.5 w-1.5 rounded-full ${
-                  step.done ? "bg-score-high" : "bg-muted-foreground/30"
-                }`}
-              />
-              {step.label}
-              {step.detail && (
-                <span className="opacity-70">({step.detail})</span>
-              )}
-            </Link>
-          </span>
-        ))}
-      </nav>
-    );
-  }
+  // The current step is the first one not yet done; when every step is
+  // done, the last step reads as the active one.
+  const currentIdx = (() => {
+    const i = steps.findIndex((s) => !s.done);
+    return i === -1 ? steps.length - 1 : i;
+  })();
+
+  const pill =
+    size === "compact"
+      ? "px-2 py-1 text-[11px]"
+      : "px-3 py-1.5 text-xs";
 
   return (
     <nav
       aria-label="Pipeline progress"
-      className="mt-3 flex flex-wrap items-center gap-1.5"
+      className="flex flex-wrap items-center gap-1.5"
     >
-      {steps.map((step, i) => (
-        <span key={step.key} className="flex items-center gap-1.5">
-          {i > 0 && (
-            <span
-              aria-hidden
-              className={`mx-0.5 h-px w-4 ${
-                step.done ? "bg-score-high/60" : "bg-border"
-              }`}
-            />
-          )}
+      {steps.map((step, i) => {
+        const state =
+          i === currentIdx ? "current" : step.done ? "done" : "todo";
+        return (
           <Link
+            key={step.key}
             href={step.href}
             title={step.detail ? `${step.label}: ${step.detail}` : step.label}
-            className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 font-mono text-xs transition-colors ${
-              step.done
-                ? "border-score-high/30 bg-score-high/10 text-score-high hover:bg-score-high/20"
-                : "border-border bg-card text-muted-foreground hover:text-foreground"
+            className={`inline-flex items-center gap-1.5 rounded-md border font-mono font-medium uppercase tracking-[0.08em] transition-colors ${pill} ${
+              state === "current"
+                ? "border-primary-hover bg-primary text-primary-foreground"
+                : state === "done"
+                  ? "border-border bg-muted text-muted-foreground hover:text-foreground"
+                  : "border-border bg-card text-muted-foreground/70 hover:text-foreground"
             }`}
           >
-            <span className="material-symbols text-[14px]">
-              {step.done ? "check_circle" : "radio_button_unchecked"}
-            </span>
-            {step.label}
-            {step.detail && <span className="opacity-70">{step.detail}</span>}
+            {state === "done" && (
+              <span
+                className="material-symbols text-[13px] leading-none text-score-high"
+                aria-hidden
+              >
+                check
+              </span>
+            )}
+            <span>{i + 1}</span>
+            <span>{step.label}</span>
+            {state === "current" && <span>Active</span>}
+            {step.detail && (
+              <span className="normal-case tracking-normal opacity-70">
+                {step.detail}
+              </span>
+            )}
           </Link>
-        </span>
-      ))}
+        );
+      })}
     </nav>
   );
 }

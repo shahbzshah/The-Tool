@@ -87,12 +87,12 @@ export default function DecisionsPanel({
   }
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          3. Locked Decisions
+    <div className="card-paper p-5">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h2 className="label-caps text-muted-foreground">
+          02 // Locked Decisions
         </h2>
-        <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
+        <span className="pill border border-score-high/30 bg-score-high/10 text-score-high">
           {lockedCount}/{TECH_DECISION_DEFS.length} locked
         </span>
       </div>
@@ -103,22 +103,22 @@ export default function DecisionsPanel({
         your current docs already say — when they disagree, pick the winner.
       </p>
 
-      <div className="space-y-3">
+      <div className="grid gap-3 min-[1500px]:grid-cols-2">
         {TECH_DECISION_DEFS.map((def) => {
           const det = detected.find((d) => d.key === def.key);
           const locked = !!techDecisions[def.key]?.trim();
           return (
-            <div key={def.key} className="flex flex-col gap-1">
-              <label className="flex items-baseline justify-between text-sm">
+            <div key={def.key} className="flex flex-col gap-1 rounded-md border border-border bg-muted/50 p-3">
+              <label className="flex flex-col text-sm">
                 <span className="font-medium text-foreground">
                   {def.label}
                   {locked && (
-                    <span className="ml-2 rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
+                    <span className="pill ml-2 border border-score-high/30 bg-score-high/10 text-score-high">
                       locked
                     </span>
                   )}
                 </span>
-                <span className="text-xs text-muted-foreground">{def.hint}</span>
+                <span className="text-[11px] text-muted-foreground">{def.hint}</span>
               </label>
               <input
                 value={draft[def.key] ?? ""}
@@ -127,7 +127,7 @@ export default function DecisionsPanel({
                 }
                 placeholder={def.suggestions[0]}
                 list={`decisions-${def.key}`}
-                className="w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground outline-none placeholder:text-muted-foreground/50 focus:border-ring"
+                className="input-paper !h-10 !py-2"
               />
               <datalist id={`decisions-${def.key}`}>
                 {def.suggestions.map((s) => (
@@ -145,7 +145,7 @@ export default function DecisionsPanel({
                       onClick={() =>
                         setDraft((prev) => ({ ...prev, [def.key]: v }))
                       }
-                      className="mr-1 rounded-full border border-border px-2 py-0.5 text-xs text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+                      className="mr-1 rounded-md border border-border bg-card px-2 py-0.5 font-mono text-[11px] text-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
                     >
                       {v}
                     </button>
@@ -172,7 +172,7 @@ export default function DecisionsPanel({
         <button
           onClick={save}
           disabled={saving}
-          className="rounded bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          className="btn-primary !px-4 !py-2 !text-sm"
         >
           {saving ? "Saving…" : "Save decisions"}
         </button>

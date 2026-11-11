@@ -35,24 +35,35 @@ function ChecklistRow({
   ok,
   title,
   detail,
+  pill,
 }: {
   ok: boolean;
   title: string;
   detail: string;
+  pill: string;
 }) {
   return (
     <li className="flex items-start gap-3 py-3">
       <span
-        className={`material-symbols text-[22px] ${
+        className={`material-symbols mt-0.5 text-[22px] ${
           ok ? "text-score-high" : "text-score-medium"
         }`}
       >
         {ok ? "check_circle" : "warning"}
       </span>
-      <div className="min-w-0">
+      <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-foreground">{title}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>
       </div>
+      <span
+        className={`pill shrink-0 border ${
+          ok
+            ? "border-score-high/30 bg-score-high/10 text-score-high"
+            : "border-score-medium/30 bg-score-medium/10 text-score-medium"
+        }`}
+      >
+        {pill}
+      </span>
     </li>
   );
 }
@@ -93,6 +104,7 @@ function PackChecklist({ preview }: { preview: PackPreview }) {
             ? "Every required doc kind is generated."
             : `Missing: ${docsMissing.map((d) => d.label).join(", ")}`
         }
+        pill={docsOk ? "Complete" : `${docsMissing.length} missing`}
       />
       <ChecklistRow
         ok={consistencyOk}
@@ -106,6 +118,11 @@ function PackChecklist({ preview }: { preview: PackPreview }) {
             ? "No conflicting database, endpoint, table, or locked-decision claims found."
             : blockingIssues.map((i) => i.message).join(" ")
         }
+        pill={
+          consistencyOk
+            ? "No conflicts"
+            : `${blockingIssues.length} conflict${blockingIssues.length === 1 ? "" : "s"}`
+        }
       />
       <ChecklistRow
         ok
@@ -115,6 +132,7 @@ function PackChecklist({ preview }: { preview: PackPreview }) {
             ? `${preview.scaffoldFiles.join(", ")} are generated from the pack's own documents — no AI call, no download.`
             : ".env.example and .gitignore are generated from the pack's own documents."
         }
+        pill="Included"
       />
       <ChecklistRow
         ok={preview.refinedBrief}
@@ -128,6 +146,7 @@ function PackChecklist({ preview }: { preview: PackPreview }) {
             ? "The Refine decisions record is included."
             : "Approve one from Refine and generate REFINED_BRIEF.md to include it."
         }
+        pill={preview.refinedBrief ? "Included" : "Missing"}
       />
       <ChecklistRow
         ok={uploadsOk}
@@ -147,6 +166,13 @@ function PackChecklist({ preview }: { preview: PackPreview }) {
                 : "From your Stitch design exports."
               : `${uploads.total} upload(s) exist but carry no stored content, so nothing is included.`
         }
+        pill={
+          uploads.total === 0
+            ? "None"
+            : uploadsOk
+              ? `${uploads.includable} included`
+              : "Skipped"
+        }
       />
       <ChecklistRow
         ok={skillsOk}
@@ -160,6 +186,7 @@ function PackChecklist({ preview }: { preview: PackPreview }) {
             ? "Bundled with the app — included in every export, no download needed."
             : "Will be downloaded from addyosmani/agent-skills when you export. If the download fails, the pack still builds without them."
         }
+        pill={skillsOk ? "Bundled" : "Download"}
       />
     </ul>
   );
@@ -309,6 +336,9 @@ export default function ExportPage() {
   }
 
   const staleDocs = preview ? preview.docs.filter((d) => d.present && d.stale) : [];
+  const consistencyBlocking = preview?.consistency
+    ? preview.consistency.issues.filter((i) => i.severity === "blocking").length
+    : null;
   const applicableSet = preview?.applicableKinds
     ? new Set(preview.applicableKinds)
     : null;
@@ -412,7 +442,7 @@ export default function ExportPage() {
 
   return (
     <main className="mx-auto max-w-[1200px] px-4 py-6 md:px-8 md:py-12">
-      <div className="mx-auto max-w-3xl">
+      <div>
         <div className="mb-6 text-sm">
           <Link
             href={`/docs/${idea.id}`}
@@ -423,20 +453,40 @@ export default function ExportPage() {
           </Link>
         </div>
 
-        <header className="mb-8 text-center">
-          <p className="label-caps mb-3 text-primary">Export</p>
-          <h1 className="mb-3 font-serif text-3xl tracking-tight text-foreground md:text-4xl">
-            {docsReady
-              ? "Your build pack is ready"
-              : `${applicablePresent} of ${applicableTotal} docs generated`}
-          </h1>
-          <p className="text-muted-foreground">
-            Pack for <span className="text-foreground">{idea.title}</span> —{" "}
-            <span className="font-mono text-sm">
-              {applicablePresent}/{applicableTotal} docs
-            </span>{" "}
-            included
-          </p>
+        <header className="mb-8">
+          <p className="label-caps mb-2 text-primary">Step 05 // Pipeline</p>
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h1 className="font-serif text-3xl tracking-tight text-foreground md:text-4xl">
+                {docsReady
+                  ? "Your build pack is ready"
+                  : `${applicablePresent} of ${applicableTotal} docs generated`}
+              </h1>
+              <p className="mt-2 text-muted-foreground">
+                Pack for <span className="text-foreground">{idea.title}</span> —{" "}
+                <span className="font-mono text-sm">
+                  {applicablePresent}/{applicableTotal} docs
+                </span>{" "}
+                included
+              </p>
+            </div>
+            {preview && (
+              <span
+                className={`pill shrink-0 border ${
+                  docsReady
+                    ? "border-score-high/40 bg-score-high/10 text-score-high"
+                    : "border-score-medium/40 bg-score-medium/10 text-score-medium"
+                }`}
+              >
+                <span
+                  className={`h-1.5 w-1.5 rounded-full ${
+                    docsReady ? "bg-score-high" : "bg-score-medium"
+                  }`}
+                />
+                {applicablePresent} of {applicableTotal} docs ready
+              </span>
+            )}
+          </div>
         </header>
 
         {docCount === 0 && (
@@ -457,38 +507,89 @@ export default function ExportPage() {
           </div>
         )}
 
-        <div className="mb-8 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="card-paper p-4 text-center">
-            <span className="material-symbols mb-2 inline-block text-[24px] text-primary">
-              description
-            </span>
-            <p className="label-caps text-muted-foreground">Documents</p>
-            <p className="mt-1 font-mono text-lg text-foreground">
+        <div className="mb-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="card-paper p-4">
+            <div className="flex items-start justify-between gap-2">
+              <p className="label-caps text-muted-foreground">Documents</p>
+              <span className="material-symbols text-[20px] text-primary">
+                description
+              </span>
+            </div>
+            <p className="mt-2 font-mono text-2xl leading-none text-foreground">
               {applicablePresent}/{applicableTotal}
             </p>
-          </div>
-          <div className="card-paper p-4 text-center">
-            <span className="material-symbols mb-2 inline-block text-[24px] text-primary">
-              smart_toy
-            </span>
-            <p className="label-caps text-muted-foreground">Target tool</p>
-            <p className="mt-1 text-lg font-medium text-foreground">
-              {tool.name}
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              required docs generated
             </p>
           </div>
-          <div className="card-paper p-4 text-center">
-            <span className="material-symbols mb-2 inline-block text-[24px] text-primary">
-              folder_zip
-            </span>
-            <p className="label-caps text-muted-foreground">Format</p>
-            <p className="mt-1 font-mono text-lg text-foreground">.zip</p>
+          <div className="card-paper p-4">
+            <div className="flex items-start justify-between gap-2">
+              <p className="label-caps text-muted-foreground">Target tool</p>
+              <span className="material-symbols text-[20px] text-primary">
+                smart_toy
+              </span>
+            </div>
+            <p className="mt-2 font-serif text-2xl leading-none text-primary">
+              {tool.name}
+            </p>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {tool.tagline}
+            </p>
+          </div>
+          <div className="card-paper p-4">
+            <div className="flex items-start justify-between gap-2">
+              <p className="label-caps text-muted-foreground">Format</p>
+              <span className="material-symbols text-[20px] text-primary">
+                folder_zip
+              </span>
+            </div>
+            <p className="mt-2 font-mono text-2xl leading-none text-foreground">
+              .zip
+            </p>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              build pack archive
+            </p>
+          </div>
+          <div className="card-paper p-4">
+            <div className="flex items-start justify-between gap-2">
+              <p className="label-caps text-muted-foreground">Consistency</p>
+              <span className="material-symbols text-[20px] text-primary">
+                verified
+              </span>
+            </div>
+            <p
+              className={`mt-2 font-mono text-2xl leading-none ${
+                consistencyBlocking === null
+                  ? "text-muted-foreground"
+                  : consistencyBlocking === 0
+                    ? "text-score-high"
+                    : "text-score-medium"
+              }`}
+            >
+              {consistencyBlocking === null ? "—" : consistencyBlocking}
+            </p>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {consistencyBlocking === null
+                ? "consistency not checked yet"
+                : consistencyBlocking === 0
+                  ? "no contradictions across documents"
+                  : "contradiction(s) across documents"}
+            </p>
           </div>
         </div>
 
         <section className="mb-6">
-          <h2 className="label-caps mb-3 text-muted-foreground">
-            1. Pick your AI coding tool
-          </h2>
+          <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="flex items-center gap-2 font-serif text-xl font-medium text-foreground">
+              <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-primary font-mono text-[11px] font-bold text-primary-foreground">
+                1
+              </span>
+              Pick your AI coding tool
+            </h2>
+            <p className="label-caps text-muted-foreground">
+              Presets adapt system instructions &amp; scaffolding
+            </p>
+          </div>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {EXPORT_TOOLS.map((t) => {
               const active = selected === t.id;
@@ -506,113 +607,149 @@ export default function ExportPage() {
                       : "hover:border-input"
                   }`}
                 >
-                  <span
-                    className={`material-symbols mb-2 inline-block text-[24px] ${
-                      active ? "text-primary" : "text-muted-foreground"
-                    }`}
-                  >
-                    {TOOL_ICONS[t.id]}
+                  <span className="flex items-start justify-between gap-2">
+                    <span
+                      className={`material-symbols text-[24px] ${
+                        active ? "text-primary" : "text-muted-foreground"
+                      }`}
+                    >
+                      {TOOL_ICONS[t.id]}
+                    </span>
+                    {active && (
+                      <span className="material-symbols text-[20px] text-primary">
+                        check_circle
+                      </span>
+                    )}
                   </span>
-                  <div className="text-sm font-semibold text-foreground">
+                  <div className="mt-2 text-sm font-semibold text-foreground">
                     {t.name}
                   </div>
                   <div className="mt-1 text-xs text-muted-foreground">
                     {t.tagline}
                   </div>
+                  {active && (
+                    <span className="pill mt-3 border border-primary/30 bg-primary/10 text-primary">
+                      Selected
+                    </span>
+                  )}
                 </button>
               );
             })}
           </div>
         </section>
 
-        {preview && (
-          <section className="card-paper mb-6 p-4 md:p-6">
-            <h2 className="label-caps mb-1 text-muted-foreground">
-              2. Pack checklist
-            </h2>
-            <p className="mb-2 text-sm text-muted-foreground">
-              What the pack will contain. Gaps are informational — you can
-              still download.
+        <div className="grid gap-6 lg:grid-cols-2">
+          {preview && (
+            <section className="card-paper p-4 md:p-6">
+              <h2 className="mb-1 flex items-center gap-2 font-serif text-xl font-medium text-foreground">
+                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-primary font-mono text-[11px] font-bold text-primary-foreground">
+                  2
+                </span>
+                Pack checklist
+              </h2>
+              <p className="mb-2 text-sm text-muted-foreground">
+                What the pack will contain. Gaps are informational — you can
+                still download.
+              </p>
+              <PackChecklist preview={preview} />
+              {staleDocs.length > 0 && (
+                <div className="mt-4 rounded-md border border-score-medium/40 bg-score-medium/10 p-3">
+                  <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-score-medium">
+                    <span className="material-symbols text-[15px]">warning</span>
+                    {staleDocs.length} doc{staleDocs.length > 1 ? "s" : ""} may
+                    be outdated
+                  </p>
+                  <ul className="space-y-1.5">
+                    {staleDocs.map((d) => (
+                      <li
+                        key={d.kind}
+                        className="flex items-start gap-1.5 text-xs text-foreground"
+                      >
+                        <span className="material-symbols mt-px shrink-0 text-[14px] text-score-medium">
+                          warning
+                        </span>
+                        <span>
+                          <span className="font-medium">{d.label}</span> — May
+                          be outdated — idea changed since generation
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </section>
+          )}
+
+          <section className="card-elevated p-4 md:p-6">
+            <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="flex items-center gap-2 font-serif text-xl font-medium text-foreground">
+                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-primary font-mono text-[11px] font-bold text-primary-foreground">
+                  3
+                </span>
+                Download the pack
+              </h2>
+              <p className="label-caps text-muted-foreground">
+                Immediate local handoff
+              </p>
+            </div>
+            <p className="mb-5 text-sm text-muted-foreground">
+              <span className="text-foreground">{tool.name}</span>: {tool.usage}
             </p>
-            <PackChecklist preview={preview} />
-            {staleDocs.length > 0 && (
-              <div className="mt-4 rounded-md border border-score-medium/40 bg-score-medium/10 p-3">
-                <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-score-medium">
-                  <span className="material-symbols text-[15px]">warning</span>
-                  {staleDocs.length} doc{staleDocs.length > 1 ? "s" : ""} may
-                  be outdated
-                </p>
-                <ul className="space-y-1.5">
-                  {staleDocs.map((d) => (
-                    <li
-                      key={d.kind}
-                      className="flex items-start gap-1.5 text-xs text-foreground"
-                    >
-                      <span className="material-symbols mt-px shrink-0 text-[14px] text-score-medium">
-                        warning
-                      </span>
-                      <span>
-                        <span className="font-medium">{d.label}</span> — May
-                        be outdated — idea changed since generation
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            <div className="flex flex-col gap-3">
+              <button
+                onClick={download}
+                disabled={downloading || docCount === 0}
+                className="btn-primary min-h-[48px] w-full"
+              >
+                <span className="material-symbols text-[20px]">download</span>
+                {downloading ? "Building zip…" : `Download ${tool.name} pack`}
+              </button>
+              <button
+                onClick={saveToFolder}
+                disabled={downloading || docCount === 0}
+                className="btn-secondary min-h-[48px] w-full"
+              >
+                <span className="material-symbols text-[20px]">folder</span>
+                {downloading ? "Writing files…" : "Save to folder"}
+              </button>
+              {done && (
+                <span className="inline-flex items-center gap-1.5 text-sm text-score-high">
+                  <span className="material-symbols text-[20px]">
+                    check_circle
+                  </span>
+                  {writtenCount > 0
+                    ? `${writtenCount} files written to your folder.`
+                    : "Downloaded! Unzip into your project root."}
+                </span>
+              )}
+            </div>
+            <p className="mt-4 text-xs text-muted-foreground">
+              “Save to folder” works in Chrome/Edge — pick a folder and the files
+              are written there directly, no unzipping needed.
+            </p>
+            {error && (
+              <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {error}
+              </p>
             )}
           </section>
-        )}
+        </div>
 
-        <section className="card-elevated p-4 md:p-6">
-          <h2 className="label-caps mb-1 text-muted-foreground">
-            3. Download the pack
-          </h2>
-          <p className="mb-5 text-sm text-muted-foreground">
-            <span className="text-foreground">{tool.name}</span>: {tool.usage}
-          </p>
-          <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:flex-wrap sm:items-center">
-            <button
-              onClick={download}
-              disabled={downloading || docCount === 0}
-              className="btn-primary min-h-[48px] w-full sm:w-auto"
-            >
-              <span className="material-symbols text-[20px]">download</span>
-              {downloading ? "Building zip…" : `Download ${tool.name} pack`}
-            </button>
-            <button
-              onClick={saveToFolder}
-              disabled={downloading || docCount === 0}
-              className="btn-secondary min-h-[48px] w-full sm:w-auto"
-            >
-              <span className="material-symbols text-[20px]">folder</span>
-              {downloading ? "Writing files…" : "Save to folder"}
-            </button>
-            {done && (
-              <span className="inline-flex items-center gap-1.5 text-sm text-score-high">
-                <span className="material-symbols text-[20px]">
-                  check_circle
-                </span>
-                {writtenCount > 0
-                  ? `${writtenCount} files written to your folder.`
-                  : "Downloaded! Unzip into your project root."}
+        <section className="card-paper mt-6 p-4 md:p-6">
+          <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="flex items-center gap-2 font-serif text-xl font-medium text-foreground">
+              <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-primary font-mono text-[11px] font-bold text-primary-foreground">
+                4
+              </span>
+              Share a public link
+            </h2>
+            {shareToken && (
+              <span className="pill border border-score-high/30 bg-score-high/10 text-score-high">
+                <span className="h-1.5 w-1.5 rounded-full bg-score-high" />
+                Link active
               </span>
             )}
           </div>
-          <p className="mt-4 text-xs text-muted-foreground">
-            “Save to folder” works in Chrome/Edge — pick a folder and the files
-            are written there directly, no unzipping needed.
-          </p>
-          {error && (
-            <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-              {error}
-            </p>
-          )}
-        </section>
-
-        <section className="card-paper mt-6 p-4 md:p-6">
-          <h2 className="label-caps mb-1 text-muted-foreground">
-            4. Share a public link
-          </h2>
           <p className="mb-4 text-sm text-muted-foreground">
             Create a read-only public link showing the approved idea and all
             generated documents. Anyone with the link can view it — no sign-in
@@ -672,8 +809,7 @@ export default function ExportPage() {
           )}
         </section>
 
-        {/* Strict pipeline: Export → Docs only (no jump to Design) */}
-        <div className="mt-10 border-t border-border pt-6">
+        <div className="mt-10 flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
           <Link
             href={`/docs/${ideaId}`}
             className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
@@ -681,6 +817,22 @@ export default function ExportPage() {
             <span className="material-symbols text-[18px]">arrow_back</span>
             Back to Docs
           </Link>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <Link
+              href="/history"
+              className="btn-secondary min-h-[44px] w-full sm:w-auto"
+            >
+              <span className="material-symbols text-[18px]">history</span>
+              View in Project History
+            </Link>
+            <Link
+              href="/"
+              className="btn-primary min-h-[44px] w-full sm:w-auto"
+            >
+              Restart with New Opportunity
+              <span className="material-symbols text-[18px]">arrow_forward</span>
+            </Link>
+          </div>
         </div>
       </div>
     </main>

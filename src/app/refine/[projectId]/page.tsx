@@ -505,10 +505,10 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   }
 
   return (
-    <main className="mx-auto flex w-full max-w-[1200px] flex-col gap-6 px-4 py-4 md:px-6 md:py-6">
+    <main className="mx-auto flex w-full max-w-[1440px] flex-col gap-6 px-4 py-4 md:px-8 md:py-6">
       <Link
         href="/"
-        className="inline-flex w-fit items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        className="inline-flex w-fit items-center gap-1.5 rounded-md border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
       >
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
           <path d="m15 18-6-6 6-6" />
@@ -534,47 +534,53 @@ export default function RefinePage({ params }: { params: { projectId: string } }
           </button>
         </div>
       )}
-      {/* Page header */}
-      <section className="flex flex-col justify-between gap-4 border-b border-border pb-4 md:flex-row md:items-center">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[11px] uppercase tracking-widest text-muted-foreground">
-              Project Spec #{projectId.slice(0, 8).toUpperCase()}
-            </span>
-            <span className="h-1 w-1 rounded-full bg-border" />
-            {briefUpdatedAt ? (
-              <span className="font-mono text-[11px] text-score-medium">
-                Modified {new Date(briefUpdatedAt).toLocaleString()}
+      {/* Page header — telemetry meta card */}
+      <section className="rounded-md border border-border bg-card p-5 md:p-6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0 space-y-2">
+            <span className="label-caps text-primary">Spec Refinement</span>
+            <h1 className="break-words font-serif text-3xl font-medium tracking-tight md:text-4xl">
+              Refine Brief: {idea?.title ?? "Loading…"}
+            </h1>
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 font-mono text-[11px] text-muted-foreground">
+              <span>
+                Project Spec #{projectId.slice(0, 8).toUpperCase()}
               </span>
-            ) : (
-              <span className="font-mono text-[11px] text-muted-foreground">
-                Brief not saved yet
-              </span>
-            )}
-            {/* Item 9: project-wide AI token usage */}
-            {tokensUsed && (
-              <>
-                <span className="h-1 w-1 rounded-full bg-border" />
-                <span
-                  className="font-mono text-[11px] text-muted-foreground"
-                  title="Total AI tokens logged for this project"
-                >
-                  {tokensUsed} tokens used
+              <span className="h-1 w-1 rounded-full bg-border" />
+              {briefUpdatedAt ? (
+                <span className="text-score-medium">
+                  Modified {new Date(briefUpdatedAt).toLocaleString()}
                 </span>
-              </>
-            )}
-            {/* Daily AI quota pre-429 warning */}
-            <QuotaIndicator />
+              ) : (
+                <span>Brief not saved yet</span>
+              )}
+              {/* Item 9: project-wide AI token usage */}
+              {tokensUsed && (
+                <>
+                  <span className="h-1 w-1 rounded-full bg-border" />
+                  <span
+                    title="Total AI tokens logged for this project"
+                  >
+                    {tokensUsed} tokens used
+                  </span>
+                </>
+              )}
+              {/* Daily AI quota pre-429 warning */}
+              <QuotaIndicator />
+            </div>
           </div>
-          <h1 className="break-words font-serif text-2xl font-medium tracking-tight md:text-4xl">
-            Refine Brief: {idea?.title ?? "Loading…"}
-          </h1>
-        </div>
-        <div className="card-elevated flex items-center gap-2 self-start px-3 py-1.5 md:self-auto">
-          <span className="h-2 w-2 animate-pulse rounded-full bg-score-medium" />
-          <span className="text-sm text-muted-foreground">
-            Stage 2 of 5 · Refining Feature Scope &amp; Positioning
-          </span>
+          <div className="flex shrink-0 flex-col items-start gap-2 md:items-end">
+            <span className="inline-flex items-center gap-2 rounded-md border border-primary/30 bg-primary/10 px-3 py-1.5 font-mono text-[11px] text-primary">
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary" />
+              Stage 2 of 5 · Refining Feature Scope &amp; Positioning
+            </span>
+            {ideaJustUpdated && (
+              <span className="inline-flex items-center gap-2 rounded-md border border-score-high/30 bg-score-high/10 px-3 py-1.5 font-mono text-[11px] text-score-high">
+                <span className="h-1.5 w-1.5 rounded-full bg-score-high" />
+                Idea updated from your chat
+              </span>
+            )}
+          </div>
         </div>
       </section>
 
@@ -583,15 +589,24 @@ export default function RefinePage({ params }: { params: { projectId: string } }
         {/* LEFT — chat */}
         <section className="card-paper flex h-[70dvh] flex-col overflow-hidden md:h-[72dvh] min-[900px]:col-span-7 min-[900px]:h-[calc(100dvh-140px)] min-[900px]:min-h-[600px]">
           {/* Chat topbar */}
-          <div className="flex items-center justify-between border-b border-border bg-card-elevated px-5 py-3.5">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <span className="material-symbols text-[19px] text-primary">neurology</span>
-              <span className="text-sm font-semibold">Synthesis Co-Pilot</span>
-              {modelName && (
-                <span className="hidden max-w-[220px] truncate rounded bg-secondary px-2 py-0.5 font-mono text-[11px] text-muted-foreground sm:inline" title={modelName}>
-                  {modelName}
-                </span>
-              )}
+          <div className="flex items-center justify-between gap-3 border-b border-border bg-card px-5 py-3.5">
+            <div className="flex min-w-0 items-center gap-3">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-primary text-primary-foreground">
+                <span className="material-symbols text-[20px]">neurology</span>
+              </span>
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="font-serif text-base font-semibold leading-tight">Synthesis Co-Pilot</span>
+                  <span className="rounded-md border border-score-high/30 bg-score-high/10 px-1.5 py-0.5 font-mono text-[10px] font-semibold text-score-high">
+                    READY
+                  </span>
+                </div>
+                {modelName && (
+                  <p className="mt-0.5 max-w-[280px] truncate font-mono text-[11px] text-muted-foreground" title={modelName}>
+                    {modelName}
+                  </p>
+                )}
+              </div>
             </div>
             <button
               onClick={copyConversation}
@@ -605,38 +620,36 @@ export default function RefinePage({ params }: { params: { projectId: string } }
           </div>
 
           {/* Message stream */}
-          <div className="flex-1 space-y-5 overflow-y-auto bg-background/70 p-5">
+          <div className="flex-1 space-y-5 overflow-y-auto bg-background p-5">
             {analysisText && (
               <div className="my-1 flex items-center justify-center">
-                <span className="rounded border border-border/60 bg-secondary/60 px-3 py-1 font-mono text-[11px] text-muted-foreground">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-3 py-1 font-mono text-[10px] uppercase tracking-[0.08em] text-muted-foreground">
+                  <span className="material-symbols text-[13px] text-score-high">verified</span>
                   Grounded in the market analysis
                 </span>
               </div>
             )}
             {messages.map((m, i) =>
               m.role === "user" ? (
-                <div key={i} className="ml-auto flex max-w-[92%] items-start justify-end gap-3">
-                  <div className="space-y-2 rounded-md border border-primary/25 bg-primary/[0.07] p-4 shadow-sm">
+                <div key={i} className="ml-auto flex max-w-[92%] justify-end">
+                  <div className="space-y-2 rounded-md border border-border bg-muted p-4">
                     <div className="flex items-center justify-end gap-4">
                       {fmtTime(m.createdAt) && (
                         <span className="font-mono text-[11px] text-muted-foreground">{fmtTime(m.createdAt)}</span>
                       )}
-                      <span className="text-[12px] font-semibold text-primary">You</span>
+                      <span className="text-[12px] font-semibold">You</span>
                     </div>
                     <p className="whitespace-pre-wrap text-sm leading-relaxed">{m.content}</p>
-                  </div>
-                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-primary/25 bg-secondary text-primary">
-                    <span className="material-symbols text-[15px]">person</span>
                   </div>
                 </div>
               ) : (
                 <div key={i} className="flex max-w-[92%] items-start gap-3">
-                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-card-elevated text-primary shadow-sm">
-                    <span className="material-symbols text-[15px]">auto_awesome</span>
+                  <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-muted font-mono text-[11px] font-bold text-muted-foreground">
+                    Ai
                   </div>
-                  <div className="card-elevated space-y-2 p-4">
+                  <div className="flex-1 space-y-2 rounded-md border border-border bg-card p-4">
                     <div className="flex items-center justify-between gap-4">
-                      <span className="text-[12px] font-semibold">Editorial Analyst</span>
+                      <span className="label-caps text-primary">Editorial Analyst</span>
                       {fmtTime(m.createdAt) && (
                         <span className="font-mono text-[11px] text-muted-foreground">{fmtTime(m.createdAt)}</span>
                       )}
@@ -659,10 +672,10 @@ export default function RefinePage({ params }: { params: { projectId: string } }
             )}
             {sending && (
               <div className="flex max-w-[92%] items-start gap-3">
-                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded border border-border bg-card-elevated text-primary shadow-sm">
-                  <span className="material-symbols text-[15px]">auto_awesome</span>
+                <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-md border border-border bg-muted font-mono text-[11px] font-bold text-muted-foreground">
+                  Ai
                 </div>
-                <div className="card-elevated px-4 py-2.5 text-sm text-muted-foreground">
+                <div className="rounded-md border border-border bg-card px-4 py-2.5 text-sm text-muted-foreground">
                   Thinking…
                 </div>
               </div>
@@ -671,14 +684,15 @@ export default function RefinePage({ params }: { params: { projectId: string } }
           </div>
 
           {/* Starter prompts + pinned input */}
-          <div className="border-t border-border bg-card-elevated p-4">
+          <div className="border-t border-border bg-card p-4">
+            <span className="label-caps mb-2 block text-muted-foreground">Quick synthesis inquiries</span>
             <div className="mb-3 flex gap-2 overflow-x-auto pb-1 md:flex-wrap md:overflow-visible md:pb-0">
               {STARTER_PROMPTS.map((p) => (
                 <button
                   key={p}
                   onClick={() => send(undefined, p)}
                   disabled={sending}
-                  className="min-h-[44px] shrink-0 whitespace-nowrap rounded-full border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
+                  className="min-h-[40px] shrink-0 whitespace-nowrap rounded-md border border-border bg-background px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground disabled:opacity-50"
                 >
                   {p}
                 </button>
@@ -741,17 +755,17 @@ export default function RefinePage({ params }: { params: { projectId: string } }
             ideaJustUpdated ? "shadow-[0_0_0_2px_var(--primary)]" : ""
           }`}
         >
-          {ideaJustUpdated && (
-            <div className="rounded-md border border-primary/40 bg-primary/10 px-3 py-2 text-xs font-medium text-primary">
-              Idea updated from your chat — watch the changes above
+          <div className="flex items-start justify-between gap-3 border-b border-border pb-4">
+            <div className="flex items-start gap-2.5">
+              <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary">
+                <span className="material-symbols text-[18px]">description</span>
+              </span>
+              <div className="space-y-0.5">
+                <h2 className="font-serif text-xl font-semibold leading-tight">Living Idea Specification</h2>
+                <p className="font-mono text-[11px] text-muted-foreground">Live synchronized artifact</p>
+              </div>
             </div>
-          )}
-          <div className="flex items-start justify-between border-b border-border pb-4">
-            <div className="space-y-1">
-              <span className="label-caps block text-primary">CANONICAL ARTIFACT</span>
-              <h2 className="font-serif text-xl font-semibold">Living Idea Specification</h2>
-            </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex shrink-0 items-center gap-1.5">
               <span className="rounded border border-border bg-background px-2 py-1 font-mono text-[11px] text-muted-foreground">
                 v0.4 Auto-Synced
               </span>
@@ -767,9 +781,13 @@ export default function RefinePage({ params }: { params: { projectId: string } }
 
           {/* Product identity */}
           <div className="space-y-1.5 rounded-md border border-border bg-background p-4">
-            <span className="label-caps block text-[10px] text-muted-foreground">PRODUCT IDENTITY</span>
-            <h3 className="font-serif text-lg font-medium">{idea?.title ?? "Loading…"}</h3>
-            <p className="text-sm leading-relaxed text-muted-foreground">{idea?.pitch}</p>
+            <span className="label-caps block text-primary">Product Identity</span>
+            <h3 className="font-serif text-2xl font-medium leading-tight">{idea?.title ?? "Loading…"}</h3>
+            {idea?.pitch && (
+              <div className="mt-2 rounded-md border border-border bg-card p-3.5">
+                <p className="text-sm italic leading-relaxed text-foreground/90">&ldquo;{idea.pitch}&rdquo;</p>
+              </div>
+            )}
           </div>
 
           {/* Draft from analysis */}
@@ -789,26 +807,30 @@ export default function RefinePage({ params }: { params: { projectId: string } }
             </div>
           )}
 
-          {/* Core feature scope */}
+          {/* Core feature scope — 2-column grid of feature cards */}
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="label-caps text-muted-foreground">CORE FEATURE SCOPE</span>
+            <div className="flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2 font-serif text-lg font-semibold">
+                <span className="material-symbols text-[18px] text-primary">checklist</span>
+                Core Feature Scope
+              </span>
               {idea && (
-                <span className="font-mono text-[11px] text-muted-foreground">
-                  {idea.features.length} locked
+                <span className="shrink-0 rounded-md border border-score-high/30 bg-score-high/10 px-2 py-1 font-mono text-[11px] font-semibold text-score-high">
+                  Locked: {idea.features.length} / {idea.features.length} MVP Features
                 </span>
               )}
             </div>
             {!idea ? (
               <p className="text-sm text-muted-foreground">Loading…</p>
             ) : idea.features.length > 0 ? (
-              <ul className="space-y-2.5">
+              <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {idea.features.map((f, i) => (
-                  <li key={i} className="flex items-start gap-2.5 rounded-md p-2 transition-colors hover:bg-background">
-                    <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded bg-primary text-primary-foreground shadow-sm">
-                      <span className="material-symbols text-[13px]">check</span>
+                  <li key={i} className="relative rounded-md border border-border bg-background p-3.5">
+                    <span className="absolute right-3 top-3.5 h-2 w-2 rounded-full bg-score-high" />
+                    <span className="inline-block rounded-sm bg-primary/10 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase tracking-wider text-primary">
+                      Core {String(i + 1).padStart(2, "0")}
                     </span>
-                    <span className="flex-1 text-sm">{f}</span>
+                    <p className="mt-2 pr-4 text-sm font-medium leading-snug">{f}</p>
                   </li>
                 ))}
               </ul>
@@ -967,14 +989,16 @@ export default function RefinePage({ params }: { params: { projectId: string } }
             <div className="pt-2">
               <Link
                 href={`/stitch/${projectId}?idea=${ideaId}`}
-                className="btn-primary w-full !py-3.5"
+                className="btn-primary w-full !flex-col !items-stretch !gap-0.5 !px-5 !py-4 text-left"
               >
-                <span className="font-medium">Proceed to Stage 3: Design</span>
-                <span className="material-symbols text-[18px]">arrow_forward</span>
+                <span className="flex items-center justify-between gap-2 font-serif text-lg font-medium leading-tight">
+                  Proceed to Stage 3: Design
+                  <span className="material-symbols shrink-0 text-[20px]">arrow_forward</span>
+                </span>
+                <span className="font-mono text-[11px] text-primary-foreground/80">
+                  Continues to the Design stage with this brief
+                </span>
               </Link>
-              <p className="mt-2 text-center font-mono text-[11px] text-muted-foreground">
-                Continues to the Design stage with this brief
-              </p>
             </div>
           )}
         </aside>
@@ -983,7 +1007,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
       {/* Full idea reader modal */}
       {showFullIdea && idea && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/25 p-4 backdrop-blur-[2px]"
           onClick={() => setShowFullIdea(false)}
         >
           <div

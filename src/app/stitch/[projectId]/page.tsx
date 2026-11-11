@@ -94,9 +94,9 @@ async function readJson<T>(res: Response, timeoutMessage: string): Promise<T> {
 
 function ElementCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="card-paper p-4">
-      <h3 className="label-caps mb-2 text-primary">{title}</h3>
-      {children}
+    <div className="rounded-md border border-border bg-card p-4">
+      <h3 className="label-caps mb-1.5 text-muted-foreground">{title}</h3>
+      <div className="text-sm leading-relaxed text-foreground">{children}</div>
     </div>
   );
 }
@@ -122,6 +122,8 @@ export default function StitchPromptPage() {
   const [aiResults, setAiResults] = useState<Record<number, { covered: boolean; matchedFile: string | null; reason: string }>>({});
   const [analyzing, setAnalyzing] = useState(false);
   const [analyzeError, setAnalyzeError] = useState("");
+  const [dragOver, setDragOver] = useState(false);
+  const [copiedRec, setCopiedRec] = useState<number | null>(null);
 
   // Preview viewer state.
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -259,12 +261,51 @@ export default function StitchPromptPage() {
     }
   }
 
+  async function copyRecommendation(i: number, text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedRec(i);
+      setTimeout(() => setCopiedRec((cur) => (cur === i ? null : cur)), 2000);
+    } catch {
+      setError("Clipboard blocked — select the text and copy manually.");
+    }
+  }
+
   async function deleteUpload(id: string) {
     try {
       const res = await apiFetch(`/api/uploads?id=${id}`, { method: "DELETE" });
       if (res.ok) setUploads((prev) => prev.filter((u) => u.id !== id));
     } catch {
       // ignore
+    }
+  }
+
+  // Single upload flow, shared by the file picker and the drop zone.
+  async function uploadFile(file: File) {
+    setUploading(true);
+    setError(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      form.append("projectId", projectId);
+      const res = await apiFetch("/api/uploads", {
+        method: "POST",
+        body: form,
+      });
+      const data = await readJson<{
+        uploads?: DesignUpload[];
+        upload?: DesignUpload;
+        error?: string;
+      }>(res, "Upload timed out — try again.");
+      if (!res.ok) throw new Error(data.error || "Upload failed.");
+      const list = data.uploads ?? (data.upload ? [data.upload] : []);
+      setUploads((prev) => [...list, ...prev]);
+      // A fresh upload is always the newest → show the "current" version.
+      setSelectedKey(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Upload failed.");
+    } finally {
+      setUploading(false);
     }
   }
 
@@ -526,8 +567,8 @@ export default function StitchPromptPage() {
   }
 
   return (
-    <main className="mx-auto max-w-[1200px] px-4 py-6 md:px-8 md:py-12">
-      <div className="mx-auto max-w-4xl">
+    <main className="mx-auto max-w-[1440px] px-4 py-6 md:px-8 md:py-10">
+      <div>
         {/* Strict pipeline: Refine → Design → Docs */}
         <Link
           href={ideaId ? `/refine/${projectId}?idea=${ideaId}` : "/"}
@@ -539,11 +580,11 @@ export default function StitchPromptPage() {
 
         <header className="mb-8 mt-4">
           <div className="mb-2 flex items-center justify-between gap-3">
-            <p className="label-caps text-primary">Step 3 — Design</p>
+            <p className="label-caps text-primary">Stage 03 // Pipeline</p>
             {/* Item 9: project-wide AI token usage */}
             {tokensUsed && (
               <span
-                className="font-mono text-[11px] text-muted-foreground"
+                className="inline-flex items-center gap-1.5 rounded-md border border-border bg-card px-2.5 py-1 font-mono text-[11px] text-muted-foreground"
                 title="Total AI tokens logged for this project"
               >
                 {tokensUsed} tokens used
@@ -551,7 +592,7 @@ export default function StitchPromptPage() {
             )}
           </div>
           <h1 className="mb-2 font-serif text-3xl tracking-tight text-foreground md:text-4xl">
-            Stitch Prompt Generator
+            Design Architecture &amp; Stitch Synthesis
           </h1>
           <p className="text-muted-foreground">
             Copy the prompt below into Google Stitch to design your app&apos;s UI.
@@ -580,18 +621,27 @@ export default function StitchPromptPage() {
         )}
 
         {prompt && (
-          <section className="space-y-6">
-            <div className="card-elevated p-5">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="label-caps text-muted-foreground">
-                  Your Stitch prompt
+          <div className="grid items-start gap-6 lg:grid-cols-12">
+            <div className="space-y-6 lg:col-span-7">
+            <div className="rounded-md border border-border bg-card p-5">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <h2 className="label-caps inline-flex items-center gap-2 text-foreground">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  Your Stitch Design Prompt
                 </h2>
-                <button onClick={copyPrompt} className="btn-secondary !px-4 !py-1.5 !text-sm">
-                  <span className="material-symbols text-[18px]">
-                    {copied ? "check" : "content_copy"}
-                  </span>
-                  {copied ? "Copied!" : "Copy prompt"}
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {features.length > 0 && (
+                    <span className="rounded-md border border-border bg-muted px-2 py-1 font-mono text-[11px] text-muted-foreground">
+                      Generated from Refined Spec ({features.length} features locked)
+                    </span>
+                  )}
+                  <button onClick={copyPrompt} className="btn-secondary !px-4 !py-1.5 !text-sm">
+                    <span className="material-symbols text-[18px]">
+                      {copied ? "check" : "content_copy"}
+                    </span>
+                    {copied ? "Copied!" : "Copy prompt"}
+                  </button>
+                </div>
               </div>
               <p className="whitespace-pre-wrap rounded-md border border-border bg-background p-4 font-mono text-sm leading-relaxed text-foreground/90">
                 {prompt.promptText}
@@ -623,7 +673,16 @@ export default function StitchPromptPage() {
               )}
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div>
+              <div className="mb-3 flex items-center justify-between">
+                <h2 className="label-caps text-muted-foreground">
+                  Architectural Blueprint Badges
+                </h2>
+                <span className="font-mono text-[11px] text-muted-foreground">
+                  6 parameters defined
+                </span>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-3">
               <ElementCard title="App type">{prompt.appType}</ElementCard>
               <ElementCard title="Platform">{prompt.platform}</ElementCard>
               <ElementCard title="Color scheme">{prompt.colorScheme}</ElementCard>
@@ -649,13 +708,14 @@ export default function StitchPromptPage() {
                 </ul>
               </ElementCard>
             </div>
+            </div>
 
             {/* Stitch exports — close the loop: bring designs back in */}
-            <section className="card-elevated p-5">
+            <section className="rounded-md border border-border bg-card p-5">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="label-caps inline-flex items-center gap-2 text-muted-foreground">
-                  <span className="material-symbols text-[18px]">upload_file</span>
-                  Stitch exports
+                <h2 className="label-caps inline-flex items-center gap-2 text-foreground">
+                  <span className="material-symbols text-[18px] text-primary">upload_file</span>
+                  Artifact Archive &amp; Upload
                 </h2>
                 <div className="flex w-full flex-col gap-3 sm:w-auto sm:flex-row sm:items-center sm:flex-wrap">
                   {versions.length > 0 && (
@@ -690,35 +750,10 @@ export default function StitchPromptPage() {
                   type="file"
                   accept=".md,.markdown,.txt,.html,.htm,.png,.jpg,.jpeg,.webp,.gif,.zip"
                   className="hidden"
-                  onChange={async (e) => {
+                  onChange={(e) => {
                     const file = e.target.files?.[0];
                     e.target.value = "";
-                    if (!file) return;
-                    setUploading(true);
-                    setError(null);
-                    try {
-                      const form = new FormData();
-                      form.append("file", file);
-                      form.append("projectId", projectId);
-                      const res = await apiFetch("/api/uploads", {
-                        method: "POST",
-                        body: form,
-                      });
-                      const data = await readJson<{
-                        uploads?: DesignUpload[];
-                        upload?: DesignUpload;
-                        error?: string;
-                      }>(res, "Upload timed out — try again.");
-                      if (!res.ok) throw new Error(data.error || "Upload failed.");
-                      const list = data.uploads ?? (data.upload ? [data.upload] : []);
-                      setUploads((prev) => [...list, ...prev]);
-                      // A fresh upload is always the newest → show the "current" version.
-                      setSelectedKey(null);
-                    } catch (err) {
-                      setError(err instanceof Error ? err.message : "Upload failed.");
-                    } finally {
-                      setUploading(false);
-                    }
+                    if (file) void uploadFile(file);
                   }}
                 />
               </div>
@@ -728,22 +763,68 @@ export default function StitchPromptPage() {
                 separate entries). Single files work too. The design review and
                 your Docs are then built from what was actually designed.
               </p>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => fileRef.current?.click()}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    fileRef.current?.click();
+                  }
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragOver(true);
+                }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setDragOver(false);
+                  const file = e.dataTransfer.files?.[0];
+                  if (file) void uploadFile(file);
+                }}
+                className={`mb-4 flex cursor-pointer flex-col items-center gap-1 rounded-md border border-dashed px-4 py-8 text-center transition-colors ${
+                  dragOver
+                    ? "border-primary bg-primary/5"
+                    : "border-border bg-background hover:border-muted-foreground/50"
+                }`}
+              >
+                <span className="material-symbols text-[28px] text-muted-foreground">
+                  cloud_upload
+                </span>
+                <p className="text-sm font-medium text-foreground">
+                  {uploading ? "Uploading…" : "Drop a Stitch export here, or click to browse"}
+                </p>
+                <p className="font-mono text-[11px] text-muted-foreground">
+                  Zip, HTML, Markdown, or image files
+                </p>
+              </div>
               {visibleUploads.length === 0 ? (
                 <p className="rounded-md border border-dashed border-border p-4 text-center text-sm text-muted-foreground">
                   No exports yet.
                 </p>
               ) : (
-                <ul className="space-y-2">
+                <>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="label-caps text-muted-foreground">
+                      Synthesized Artifact
+                    </span>
+                    <span className="label-caps text-muted-foreground">
+                      Viewport &amp; Actions
+                    </span>
+                  </div>
+                  <ul className="space-y-2">
                   {visibleUploads.map((u) => (
                     <li
                       key={u.id}
-                      className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
+                      className="flex items-center justify-between rounded-md border border-border bg-background px-3 py-2.5 text-sm"
                     >
                       <span className="flex min-w-0 items-center gap-2">
                         <span className="material-symbols shrink-0 text-[18px] text-muted-foreground">
                           description
                         </span>
-                        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-xs text-muted-foreground">
+                        <span className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] uppercase text-primary">
                           {u.type}
                         </span>
                         <span className="truncate font-medium">{u.filename}</span>
@@ -764,7 +845,8 @@ export default function StitchPromptPage() {
                       </button>
                     </li>
                   ))}
-                </ul>
+                  </ul>
+                </>
               )}
               {error && (
                 <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -772,30 +854,50 @@ export default function StitchPromptPage() {
                 </p>
               )}
             </section>
+            </div>
 
+            <div className="space-y-6 lg:col-span-5">
             {/* Feature coverage — advisory checklist against the current version */}
-            <section className="card-elevated p-5">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="label-caps inline-flex items-center gap-2 text-muted-foreground">
-                  <span className="material-symbols text-[18px]">checklist</span>
-                  Feature coverage
-                </h2>
-                {features.length > 0 && uploads.length > 0 && (
-                  <span
-                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
-                      readyForDocs
-                        ? "border-score-high/40 bg-score-high/10 text-score-high"
-                        : "border-score-medium/40 bg-score-medium/10 text-score-medium"
-                    }`}
-                  >
-                    <span className="material-symbols text-[16px]">
-                      {readyForDocs ? "check_circle" : "pending"}
+            <section className="rounded-md border border-border bg-card p-5">
+              <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <h2 className="label-caps inline-flex items-center gap-2 text-foreground">
+                    <span className="material-symbols text-[18px] text-primary">checklist</span>
+                    Feature Coverage Audit
+                  </h2>
+                  {features.length > 0 && uploads.length > 0 && (
+                    <p className="mt-1 font-mono text-[11px] text-muted-foreground">
+                      {coveredCount} of {features.length} architectural spec requirements mapped
+                    </p>
+                  )}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {features.length > 0 && uploads.length > 0 && (
+                    <span
+                      className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
+                        readyForDocs
+                          ? "border-score-high/40 bg-score-high/10 text-score-high"
+                          : "border-score-medium/40 bg-score-medium/10 text-score-medium"
+                      }`}
+                    >
+                      <span className="material-symbols text-[16px]">
+                        {readyForDocs ? "check_circle" : "pending"}
+                      </span>
+                      {readyForDocs
+                        ? "Ready for docs"
+                        : `${features.length - coveredCount} feature${features.length - coveredCount === 1 ? "" : "s"} not yet covered`}
                     </span>
-                    {readyForDocs
-                      ? "Ready for docs"
-                      : `${features.length - coveredCount} feature${features.length - coveredCount === 1 ? "" : "s"} not yet covered`}
-                  </span>
-                )}
+                  )}
+                  {features.length > 0 && uploads.length > 0 && (
+                    <button
+                      onClick={analyzeWithAi}
+                      disabled={analyzing}
+                      className="btn-secondary min-h-[40px] !px-4 !py-1.5 !text-sm"
+                    >
+                      {analyzing ? "Analyzing with AI…" : "Analyze with AI"}
+                    </button>
+                  )}
+                </div>
               </div>
               <p className="mb-4 text-sm text-muted-foreground">
                 Each feature from your approved idea, checked against the
@@ -805,13 +907,6 @@ export default function StitchPromptPage() {
               </p>
               {features.length > 0 && uploads.length > 0 && (
                 <div className="mb-4">
-                  <button
-                    onClick={analyzeWithAi}
-                    disabled={analyzing}
-                    className="btn-primary min-h-[44px]"
-                  >
-                    {analyzing ? "Analyzing with AI…" : "Analyze with AI"}
-                  </button>
                   {analyzeError && (
                     <p className="mt-2 text-sm text-destructive">{analyzeError}</p>
                   )}
@@ -837,50 +932,37 @@ export default function StitchPromptPage() {
                 </p>
               ) : (
                 <>
-                  <p className="mb-3 font-serif text-2xl text-foreground">
-                    {coveredCount}
-                    <span className="text-muted-foreground"> of {features.length} features covered</span>
-                  </p>
                   <ul className="space-y-2">
                     {coverage.map((c, i) => (
                       <li
                         key={i}
-                        className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2.5"
+                        className="flex items-center justify-between gap-3 rounded-md border border-border bg-background px-3 py-2.5"
                       >
-                        <span className="flex min-w-0 items-start gap-2.5">
-                          <span
-                            className={`material-symbols mt-0.5 shrink-0 text-[20px] ${
-                              c.covered ? "text-score-high" : "text-score-medium"
-                            }`}
-                          >
-                            {c.covered ? "check_circle" : "radio_button_unchecked"}
+                        <span className="min-w-0">
+                          <span className="block text-sm font-medium text-foreground">
+                            {c.feature}
                           </span>
-                          <span className="min-w-0">
-                            <span className="block text-sm font-medium text-foreground">
-                              {c.feature}
+                          {c.matched && !c.overridden && (
+                            <span className="mt-0.5 block truncate font-mono text-xs text-score-high">
+                              Auto-matched: {c.matched}
                             </span>
-                            {c.matched && !c.overridden && (
-                              <span className="mt-0.5 block truncate font-mono text-xs text-muted-foreground">
-                                matched: {c.matched}
-                              </span>
-                            )}
-                            {c.aiReason && c.fromAi && !c.overridden && (
-                              <span className="mt-0.5 block text-xs text-muted-foreground">
-                                AI: {c.aiReason}
-                              </span>
-                            )}
-                            {c.overridden && (
-                              <span className="mt-0.5 block text-xs text-muted-foreground">
-                                set manually · was{" "}
-                                <button
-                                  onClick={() => clearOverride(i)}
-                                  className="underline hover:text-foreground"
-                                >
-                                  auto ({c.auto ? "covered" : "uncovered"})
-                                </button>
-                              </span>
-                            )}
-                          </span>
+                          )}
+                          {c.aiReason && c.fromAi && !c.overridden && (
+                            <span className="mt-0.5 block text-xs text-muted-foreground">
+                              AI: {c.aiReason}
+                            </span>
+                          )}
+                          {c.overridden && (
+                            <span className="mt-0.5 block text-xs text-muted-foreground">
+                              set manually · was{" "}
+                              <button
+                                onClick={() => clearOverride(i)}
+                                className="underline hover:text-foreground"
+                              >
+                                auto ({c.auto ? "covered" : "uncovered"})
+                              </button>
+                            </span>
+                          )}
                         </span>
                         <button
                           onClick={() => toggleOverride(i)}
@@ -888,15 +970,10 @@ export default function StitchPromptPage() {
                           aria-checked={c.covered}
                           aria-label={`Mark feature "${c.feature}" as ${c.covered ? "uncovered" : "covered"}`}
                           title={c.covered ? "Mark as uncovered" : "Mark as covered"}
-                          className="ml-2 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center"
+                          className="switch-telemetry"
+                          data-on={c.covered}
                         >
-                          <span
-                            className={`material-symbols text-[32px] transition-colors ${
-                              c.covered ? "text-primary" : "text-muted-foreground/50"
-                            }`}
-                          >
-                            {c.covered ? "toggle_on" : "toggle_off"}
-                          </span>
+                          <span />
                         </button>
                       </li>
                     ))}
@@ -906,11 +983,11 @@ export default function StitchPromptPage() {
             </section>
 
             {/* Design review — AI checks the design/prompt covers the idea */}
-            <section className="card-elevated p-5">
+            <section className="rounded-md border border-border bg-card p-5">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                <h2 className="label-caps inline-flex items-center gap-2 text-muted-foreground">
-                  <span className="material-symbols text-[18px]">search</span>
-                  Design review
+                <h2 className="label-caps inline-flex items-center gap-2 text-foreground">
+                  <span className="material-symbols text-[18px] text-primary">search</span>
+                  Synthesis Scorecard
                 </h2>
                 <button
                   onClick={runReview}
@@ -937,14 +1014,24 @@ export default function StitchPromptPage() {
 
               {review && (
                 <div className="space-y-4">
-                  <div className="flex items-center gap-3">
-                    <span className="font-serif text-4xl text-primary">
-                      {review.alignmentScore}
-                      <span className="text-2xl text-muted-foreground">/10</span>
-                    </span>
-                    <span className="label-caps text-muted-foreground">
-                      design alignment
-                    </span>
+                  <div className="rounded-md border border-border bg-background p-4">
+                    <div className="flex items-end justify-between gap-3">
+                      <span className="label-caps text-muted-foreground">
+                        Alignment index
+                      </span>
+                      <span className="font-serif text-4xl leading-none text-primary">
+                        {review.alignmentScore}
+                        <span className="text-2xl text-muted-foreground">/10</span>
+                      </span>
+                    </div>
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-muted">
+                      <div
+                        className="h-full rounded-full bg-score-high transition-all"
+                        style={{
+                          width: `${Math.min(100, Math.max(0, (review.alignmentScore / 10) * 100))}%`,
+                        }}
+                      />
+                    </div>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
@@ -952,7 +1039,7 @@ export default function StitchPromptPage() {
                         <span className="material-symbols text-[16px] text-score-high">
                           check_circle
                         </span>
-                        Covered
+                        Covered strengths
                       </h3>
                       <ul className="space-y-1 text-sm">
                         {review.matches?.map((m, i) => (
@@ -967,7 +1054,7 @@ export default function StitchPromptPage() {
                         <span className="material-symbols text-[16px] text-score-medium">
                           warning
                         </span>
-                        Gaps
+                        Identified gaps
                       </h3>
                       <ul className="space-y-1 text-sm">
                         {review.gaps?.map((g, i) => (
@@ -984,7 +1071,7 @@ export default function StitchPromptPage() {
                         <span className="material-symbols text-[16px] text-primary">
                           arrow_forward
                         </span>
-                        Recommended fixes (paste into Stitch)
+                        Recommended fix (paste into Stitch)
                       </h3>
                       <ul className="space-y-2 text-sm">
                         {review.recommendations.map((r, i) => (
@@ -992,7 +1079,16 @@ export default function StitchPromptPage() {
                             key={i}
                             className="rounded-md border border-border bg-background p-2.5 text-foreground/80"
                           >
-                            {r}
+                            <div className="flex items-start justify-between gap-2">
+                              <span>{r}</span>
+                              <button
+                                onClick={() => void copyRecommendation(i, r)}
+                                className="shrink-0 font-mono text-[11px] text-primary hover:underline"
+                                aria-label="Copy this recommendation"
+                              >
+                                {copiedRec === i ? "Copied" : "Copy snippet"}
+                              </button>
+                            </div>
                           </li>
                         ))}
                       </ul>
@@ -1001,13 +1097,14 @@ export default function StitchPromptPage() {
                 </div>
               )}
             </section>
-          </section>
+            </div>
+          </div>
         )}
 
         {/* Strict pipeline: Design → Docs (no skipping, no back) */}
         {ideaId && (
-          <div className="mt-8 flex border-t border-border pt-6 md:mt-10">
-            <Link href={`/docs/${ideaId}`} className="btn-primary min-h-[48px] w-full justify-center sm:w-auto">
+          <div className="mt-8 border-t border-border pt-6 md:mt-10">
+            <Link href={`/docs/${ideaId}`} className="btn-primary min-h-[56px] w-full justify-center !py-4 text-base">
               Continue to Docs
               <span className="material-symbols text-[20px]">arrow_forward</span>
             </Link>
@@ -1076,7 +1173,7 @@ function PreviewViewer({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-black/90 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-sm"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -1090,33 +1187,33 @@ function PreviewViewer({
         <div className="flex min-w-0 items-center gap-3">
           <button
             onClick={onClose}
-            className="rounded-full p-2 text-white/70 transition-colors hover:bg-white/10 hover:text-white"
+            className="rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             aria-label="Close preview"
           >
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
-          <span className="truncate font-mono text-sm text-white/80">
+          <span className="truncate font-mono text-sm text-foreground/80">
             {current?.filename ?? "No screens"}
           </span>
           {count > 1 && (
-            <span className="shrink-0 font-mono text-xs text-white/50">
+            <span className="shrink-0 font-mono text-xs text-muted-foreground">
               {index + 1} of {count}
             </span>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-1 rounded-full bg-white/10 p-1">
+        <div className="flex shrink-0 items-center gap-1 rounded-md border border-border bg-muted p-1">
           <button
             onClick={() => setMode("phone")}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              mode === "phone" ? "bg-white text-black" : "text-white/70 hover:text-white"
+            className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+              mode === "phone" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Phone
           </button>
           <button
             onClick={() => setMode("desktop")}
-            className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
-              mode === "desktop" ? "bg-white text-black" : "text-white/70 hover:text-white"
+            className={`rounded px-3 py-1.5 text-xs font-medium transition-colors ${
+              mode === "desktop" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
             }`}
           >
             Desktop
@@ -1136,7 +1233,7 @@ function PreviewViewer({
           <button
             onClick={() => setIndex(Math.max(index - 1, 0))}
             disabled={index === 0}
-            className="shrink-0 rounded-full bg-white/10 p-2.5 text-white transition-colors hover:bg-white/20 disabled:opacity-30"
+            className="shrink-0 rounded-full border border-border bg-card p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
             aria-label="Previous screen"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m15 18-6-6 6-6"/></svg>
@@ -1146,7 +1243,7 @@ function PreviewViewer({
         {/* Frame */}
         <div className="flex min-h-0 min-w-0 flex-1 items-center justify-center">
           {loading || !html ? (
-            <p className="text-sm text-white/60">
+            <p className="text-sm text-muted-foreground">
               {loading ? "Loading screens…" : isScreenshot ? "Screenshot not saved — re-upload your Stitch export to enable previews." : "Could not load this screen."}
             </p>
           ) : isScreenshot ? (
@@ -1154,7 +1251,7 @@ function PreviewViewer({
               <img
                 src={html}
                 alt={current.filename}
-                className="max-h-full max-w-full rounded-lg object-contain shadow-2xl"
+                className="max-h-full max-w-full rounded-lg border border-border object-contain shadow-2xl"
                 style={mode === "phone" ? { width: 375, maxWidth: "92vw" } : {}}
               />
             </div>
@@ -1171,12 +1268,12 @@ function PreviewViewer({
               />
             </div>
           ) : (
-            <div className="flex h-full max-h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-white/15 bg-neutral-900 shadow-2xl">
-              <div className="flex h-10 shrink-0 items-center gap-2 bg-neutral-800 px-4">
+            <div className="flex h-full max-h-full min-h-0 w-full max-w-5xl flex-col overflow-hidden rounded-xl border border-border bg-card shadow-2xl">
+              <div className="flex h-10 shrink-0 items-center gap-2 bg-muted px-4">
                 <span className="h-3 w-3 rounded-full bg-red-500/80" />
                 <span className="h-3 w-3 rounded-full bg-yellow-500/80" />
                 <span className="h-3 w-3 rounded-full bg-green-500/80" />
-                <span className="ml-3 truncate rounded-md bg-black/40 px-3 py-1 font-mono text-xs text-white/60">
+                <span className="ml-3 truncate rounded-md border border-border bg-card px-3 py-1 font-mono text-xs text-muted-foreground">
                   {current.filename}
                 </span>
               </div>
@@ -1195,7 +1292,7 @@ function PreviewViewer({
           <button
             onClick={() => setIndex(Math.min(index + 1, count - 1))}
             disabled={index === count - 1}
-            className="shrink-0 rounded-full bg-white/10 p-2.5 text-white transition-colors hover:bg-white/20 disabled:opacity-30"
+            className="shrink-0 rounded-full border border-border bg-card p-2.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:opacity-30"
             aria-label="Next screen"
           >
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m9 18 6-6-6-6"/></svg>
@@ -1215,7 +1312,7 @@ function PreviewViewer({
               onClick={() => setIndex(i)}
               title={u.filename}
               className={`h-2.5 rounded-full transition-all ${
-                i === index ? "w-8 bg-white" : "w-2.5 bg-white/30 hover:bg-white/60"
+                i === index ? "w-8 bg-primary" : "w-2.5 bg-border hover:bg-muted-foreground/50"
               }`}
               aria-label={`Go to screen ${i + 1}: ${u.filename}`}
             />

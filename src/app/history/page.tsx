@@ -183,131 +183,92 @@ function ProjectCard({
 
   const actionBtn =
     "btn-ghost !px-2.5 !py-1 !text-xs inline-flex items-center gap-1.5";
+  const deleteBtn =
+    "btn-ghost !px-2.5 !py-1 !text-xs !text-score-low hover:!bg-score-low/10 inline-flex items-center gap-1.5";
 
   return (
-    <section className="card-paper p-6">
-      <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <div className="mb-1.5 flex flex-wrap items-center gap-2">
-            <span className="label-caps rounded-full bg-secondary px-2.5 py-1 text-secondary-foreground">
-              {project.stitchPrompt ? "Design" : "Refine"}
-            </span>
-            {archived && (
-              <span className="label-caps rounded-full border border-border px-2.5 py-1 text-muted-foreground">
-                Archived
-              </span>
-            )}
-            {/* --- foundation: pipeline strip + AI tokens --- */}
-            <span
-              className="inline-flex items-center gap-1 rounded-full bg-secondary px-2 py-1 font-mono text-[11px] text-muted-foreground"
-              title="AI tokens used across refine and doc generation"
-            >
-              <span className="material-symbols text-[13px]">neurology</span>
-              {formatTokens(project.aiTokens)}
-            </span>
-            {/* --- end foundation addition --- */}
-          </div>
-          {renaming ? (
-            <input
-              autoFocus
-              className="input-paper !py-1.5 font-serif text-xl"
-              value={nameDraft}
-              disabled={busy === "rename"}
-              onChange={(e) => setNameDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void saveName();
-                if (e.key === "Escape") {
-                  setRenaming(false);
-                  setNameDraft(project.name);
-                }
-              }}
-              onBlur={() => void saveName()}
-            />
-          ) : (
-            <h2
-              className="cursor-text font-serif text-xl text-foreground"
-              title="Click to rename"
-              onClick={() => {
-                setNameDraft(project.name);
-                setRenaming(true);
-              }}
-            >
-              {project.name}
-            </h2>
-          )}
-          <p className="mt-1 font-mono text-xs text-muted-foreground">
-            {project.category} ·{" "}
-            {new Date(project.createdAt).toLocaleDateString()}
-          </p>
-          {/* --- foundation: 5-step pipeline progress --- */}
-          <div className="mt-2">
-            <PipelineSteps steps={progress.steps} size="compact" />
-          </div>
-          {/* --- end foundation addition --- */}
-        </div>
-        <a
-          href={`/api/projects/${project.id}/export`}
-          className="btn-ghost !px-3 !py-1.5 !text-xs"
+    <section
+      className={`card-paper p-6 ${archived ? "bg-muted/50" : ""}`}
+    >
+      {/* Ledger head: project id, stage badge, token telemetry */}
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <span className="font-mono text-xs font-semibold text-primary">
+          #{project.id.slice(0, 8).toUpperCase()}
+        </span>
+        <span
+          className={`pill border ${
+            project.stitchPrompt
+              ? "border-score-high/30 bg-score-high/10 text-score-high"
+              : "border-score-medium/30 bg-score-medium/10 text-score-medium"
+          }`}
         >
-          <span className="material-symbols text-[16px]">download</span>
-          Download bundle
-        </a>
+          {project.stitchPrompt ? "Design" : "Refine"}
+        </span>
+        {archived && (
+          <span className="pill border border-border bg-muted text-muted-foreground">
+            Archived
+          </span>
+        )}
+        {/* --- foundation: pipeline strip + AI tokens --- */}
+        <span
+          className="pill bg-muted text-muted-foreground"
+          title="AI tokens used across refine and doc generation"
+        >
+          <span className="material-symbols text-[13px]">neurology</span>
+          {formatTokens(project.aiTokens)}
+        </span>
+        {/* --- end foundation addition --- */}
       </div>
 
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <button
-          className={actionBtn}
-          disabled={busy !== null}
-          onClick={() => void duplicate()}
-          title="Deep-copy this project (ideas, documents, uploads)"
-        >
-          <span className="material-symbols text-[15px]">content_copy</span>
-          {busy === "duplicate" ? "Duplicating…" : "Duplicate"}
-        </button>
-        <button
-          className={actionBtn}
-          disabled={busy !== null}
-          onClick={() => void toggleArchive()}
-          title={archived ? "Restore to history" : "Hide from history"}
-        >
-          <span className="material-symbols text-[15px]">
-            {archived ? "unarchive" : "archive"}
-          </span>
-          {busy === "archive"
-            ? "…"
-            : archived
-              ? "Unarchive"
-              : "Archive"}
-        </button>
-        <button
-          className={actionBtn}
-          disabled={busy !== null}
-          onClick={() => setNotesOpen((v) => !v)}
-          title="Project notes"
-        >
-          <span className="material-symbols text-[15px]">
-            {project.notes ? "sticky_note_2" : "note_add"}
-          </span>
-          {project.notes ? "Notes" : "Add notes"}
-        </button>
-        <button
-          className={actionBtn}
-          disabled={busy !== null}
-          onClick={() => {
-            setDeleteText("");
-            setConfirmingDelete((v) => !v);
+      {/* Click-to-rename title */}
+      {renaming ? (
+        <input
+          autoFocus
+          className="input-paper !py-1.5 font-serif text-2xl"
+          value={nameDraft}
+          disabled={busy === "rename"}
+          onChange={(e) => setNameDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") void saveName();
+            if (e.key === "Escape") {
+              setRenaming(false);
+              setNameDraft(project.name);
+            }
           }}
-          title="Delete this project"
+          onBlur={() => void saveName()}
+        />
+      ) : (
+        <h2
+          className={`cursor-text font-serif text-2xl text-foreground ${
+            archived ? "text-muted-foreground line-through decoration-muted-foreground/60" : ""
+          }`}
+          title="Click to rename"
+          onClick={() => {
+            setNameDraft(project.name);
+            setRenaming(true);
+          }}
         >
-          <span className="material-symbols text-[15px]">delete</span>
-          Delete
-        </button>
+          {project.name}
+        </h2>
+      )}
+      <p className="mt-1 font-mono text-xs text-muted-foreground">
+        {project.category} ·{" "}
+        {new Date(project.createdAt).toLocaleDateString()}
+      </p>
+
+      {/* --- foundation: 5-step pipeline progress --- */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 border-y border-border/60 py-2.5">
+        <span className="label-caps shrink-0 text-muted-foreground">
+          Pipeline stage
+        </span>
+        <PipelineSteps steps={progress.steps} size="compact" />
       </div>
+      {/* --- end foundation addition --- */}
 
       {cardError && (
         <p
           role="alert"
-          className="mb-4 flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
+          className="mt-4 flex items-center justify-between gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive"
         >
           <span className="inline-flex items-center gap-1.5">
             <span className="material-symbols text-[16px]">error</span>
@@ -324,7 +285,7 @@ function ProjectCard({
       )}
 
       {confirmingDelete && (
-        <div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 p-4">
+        <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-4">
           <p className="text-sm font-medium text-foreground">
             Delete &ldquo;{project.name}&rdquo; and everything in it?
           </p>
@@ -360,7 +321,7 @@ function ProjectCard({
       )}
 
       {notesOpen && (
-        <div className="mb-4 rounded-md border border-border/60 p-4">
+        <div className="mt-4 rounded-md border border-border bg-muted/50 p-4">
           <label className="label-caps mb-2 block text-muted-foreground">
             Notes
           </label>
@@ -387,7 +348,8 @@ function ProjectCard({
         </div>
       )}
 
-      <ul className="divide-y divide-border/40">
+      {/* Ideas: indexed artifacts, each with its onward links */}
+      <ul className="mt-4 space-y-2">
         {ideas.map((idea) => {
           const scores = parseJsonField<IdeaScores>(idea.scores);
           const avg = averageScore(scores);
@@ -395,57 +357,117 @@ function ProjectCard({
           return (
             <li
               key={idea.id}
-              className="flex flex-wrap items-center justify-between gap-2 py-3"
+              className="rounded-md border border-border bg-muted/40 px-4 py-3"
             >
-              <div className="min-w-0 flex-1">
-                <span className="mr-2 inline-flex align-middle">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-2">
                   <span
-                    className={`material-symbols text-[18px] ${
+                    className={`material-symbols shrink-0 text-[18px] ${
                       idea.favorite ? "text-primary" : "text-muted-foreground"
                     }`}
                     title={idea.favorite ? "Favorite" : ""}
                   >
                     {idea.favorite ? "star" : "star_outline"}
                   </span>
-                </span>
-                <span className="font-medium text-foreground">
-                  {idea.title}
-                </span>
-                {avg > 0 && (
-                  <span className={`ml-2 font-mono text-xs ${scoreClass(avg)}`}>
-                    {avg}/10
+                  <span className="min-w-0 truncate font-serif text-base font-medium text-foreground">
+                    {idea.title}
                   </span>
-                )}
-                <p className="mt-0.5 line-clamp-2 pl-7 text-sm text-muted-foreground">
-                  {idea.pitch}
-                </p>
-              </div>
-              {approved && (
-                <div className="flex shrink-0 gap-2">
-                  <Link
-                    href={`/stitch/${project.id}?idea=${idea.id}`}
-                    className="btn-ghost !px-2.5 !py-1 !font-mono !text-xs"
-                  >
-                    Design
-                  </Link>
-                  <Link
-                    href={`/docs/${idea.id}`}
-                    className="btn-ghost !px-2.5 !py-1 !font-mono !text-xs"
-                  >
-                    Docs
-                  </Link>
-                  <Link
-                    href={`/export/${idea.id}`}
-                    className="btn-ghost !px-2.5 !py-1 !font-mono !text-xs"
-                  >
-                    Export
-                  </Link>
+                  {avg > 0 && (
+                    <span className={`shrink-0 font-mono text-xs ${scoreClass(avg)}`}>
+                      {avg}/10
+                    </span>
+                  )}
                 </div>
-              )}
+                {approved && (
+                  <div className="flex shrink-0 gap-2">
+                    <Link
+                      href={`/stitch/${project.id}?idea=${idea.id}`}
+                      className="btn-ghost !px-2.5 !py-1 !font-mono !text-xs"
+                    >
+                      Design
+                    </Link>
+                    <Link
+                      href={`/docs/${idea.id}`}
+                      className="btn-ghost !px-2.5 !py-1 !font-mono !text-xs"
+                    >
+                      Docs
+                    </Link>
+                    <Link
+                      href={`/export/${idea.id}`}
+                      className="btn-ghost !px-2.5 !py-1 !font-mono !text-xs"
+                    >
+                      Export
+                    </Link>
+                  </div>
+                )}
+              </div>
+              <p className="mt-1 line-clamp-2 pl-7 text-sm text-muted-foreground">
+                {idea.pitch}
+              </p>
             </li>
           );
         })}
       </ul>
+
+      {/* Ledger action bar */}
+      <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            className={actionBtn}
+            disabled={busy !== null}
+            onClick={() => void duplicate()}
+            title="Deep-copy this project (ideas, documents, uploads)"
+          >
+            <span className="material-symbols text-[15px]">content_copy</span>
+            {busy === "duplicate" ? "Duplicating…" : "Duplicate"}
+          </button>
+          <button
+            className={actionBtn}
+            disabled={busy !== null}
+            onClick={() => void toggleArchive()}
+            title={archived ? "Restore to history" : "Hide from history"}
+          >
+            <span className="material-symbols text-[15px]">
+              {archived ? "unarchive" : "archive"}
+            </span>
+            {busy === "archive"
+              ? "…"
+              : archived
+                ? "Unarchive"
+                : "Archive"}
+          </button>
+          <button
+            className={actionBtn}
+            disabled={busy !== null}
+            onClick={() => setNotesOpen((v) => !v)}
+            title="Project notes"
+          >
+            <span className="material-symbols text-[15px]">
+              {project.notes ? "sticky_note_2" : "note_add"}
+            </span>
+            {project.notes ? "Notes" : "Add notes"}
+          </button>
+          <button
+            className={deleteBtn}
+            disabled={busy !== null}
+            onClick={() => {
+              setDeleteText("");
+              setConfirmingDelete((v) => !v);
+            }}
+            title="Delete this project"
+          >
+            <span className="material-symbols text-[15px]">delete</span>
+            Delete
+          </button>
+        </div>
+        <a
+          href={`/api/projects/${project.id}/export`}
+          className="btn-primary !px-3 !py-1.5 !text-xs"
+        >
+          <span className="material-symbols text-[16px]">download</span>
+          Download bundle
+        </a>
+      </div>
     </section>
   );
 }
@@ -553,15 +575,19 @@ export default function HistoryPage() {
 
   return (
     <main className="mx-auto w-full max-w-[1200px] px-4 pb-32 pt-10 md:px-8">
-      <header className="mb-10 text-center">
-        <h1 className="mb-3 font-serif text-4xl tracking-tight text-foreground">
-          Project History
-        </h1>
-        <p className="font-mono text-sm text-muted-foreground">
-          {loading
-            ? "Loading…"
-            : `${projects.length} generation run${projects.length === 1 ? "" : "s"} · ${totalIdeas} idea${totalIdeas === 1 ? "" : "s"}${hasMore ? "+" : ""}`}
-        </p>
+      {/* Ledger header: title + real counts */}
+      <header className="mb-8 border-b border-border pb-6">
+        <p className="label-caps text-primary">Ledger index</p>
+        <div className="mt-2 flex flex-wrap items-baseline gap-x-3 gap-y-2">
+          <h1 className="font-serif text-4xl tracking-tight text-foreground">
+            Project History
+          </h1>
+          <span className="pill bg-muted font-mono text-muted-foreground">
+            {loading
+              ? "Loading…"
+              : `${projects.length} generation run${projects.length === 1 ? "" : "s"} · ${totalIdeas} idea${totalIdeas === 1 ? "" : "s"}${hasMore ? "+" : ""}`}
+          </span>
+        </div>
       </header>
 
       {error && (
@@ -570,10 +596,10 @@ export default function HistoryPage() {
         </p>
       )}
 
-      {/* Text search across project name/category and idea title/pitch. */}
+      {/* Search + filters in one ledger row */}
       {!loading && (
-        <div className="mx-auto mb-6 max-w-xl">
-          <div className="relative">
+        <div className="mx-auto mb-6 flex max-w-4xl flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
             <span className="material-symbols pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[20px] text-muted-foreground">
               search
             </span>
@@ -594,31 +620,30 @@ export default function HistoryPage() {
               </button>
             )}
           </div>
-        </div>
-      )}
-
-      {!loading && (projects.length > 0 || debouncedQuery) && (
-        <div className="mb-6 flex items-center justify-center gap-2 text-center">
-          <button
-            onClick={() => setFavoritesOnly((v) => !v)}
-            className={favoritesOnly ? "btn-primary !px-4 !py-2 !text-xs" : "btn-ghost !px-4 !py-2 !text-xs"}
-          >
-            <span className="material-symbols text-[16px]">
-              {favoritesOnly ? "star" : "star_outline"}
-            </span>
-            Favorites only
-          </button>
-          {/* --- Worker F: archived toggle --- */}
-          <button
-            onClick={() => setShowArchived((v) => !v)}
-            className={showArchived ? "btn-primary !px-4 !py-2 !text-xs" : "btn-ghost !px-4 !py-2 !text-xs"}
-          >
-            <span className="material-symbols text-[16px]">
-              {showArchived ? "unarchive" : "archive"}
-            </span>
-            {showArchived ? "Hide archived" : "Show archived"}
-          </button>
-          {/* --- end Worker F addition --- */}
+          {(projects.length > 0 || debouncedQuery) && (
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                onClick={() => setFavoritesOnly((v) => !v)}
+                className={favoritesOnly ? "btn-primary !px-4 !py-2 !text-xs" : "btn-ghost !px-4 !py-2 !text-xs"}
+              >
+                <span className="material-symbols text-[16px]">
+                  {favoritesOnly ? "star" : "star_outline"}
+                </span>
+                Favorites only
+              </button>
+              {/* --- Worker F: archived toggle --- */}
+              <button
+                onClick={() => setShowArchived((v) => !v)}
+                className={showArchived ? "btn-primary !px-4 !py-2 !text-xs" : "btn-ghost !px-4 !py-2 !text-xs"}
+              >
+                <span className="material-symbols text-[16px]">
+                  {showArchived ? "unarchive" : "archive"}
+                </span>
+                {showArchived ? "Hide archived" : "Show archived"}
+              </button>
+              {/* --- end Worker F addition --- */}
+            </div>
+          )}
         </div>
       )}
 
@@ -645,7 +670,7 @@ export default function HistoryPage() {
           </p>
         </div>
       )}
-      <div className="mx-auto max-w-4xl space-y-8">
+      <div className="mx-auto max-w-4xl space-y-6">
         {/* --- Worker F: cards now render via ProjectCard --- */}
         {visible.map((project) => (
           <ProjectCard

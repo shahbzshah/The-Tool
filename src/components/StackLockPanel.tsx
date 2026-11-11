@@ -120,13 +120,13 @@ export default function StackLockPanel({
   const alignableCount = ALIGN_KINDS.filter((k) => docs[k]).length;
 
   return (
-    <div className="rounded-xl border border-border bg-card p-5">
-      <div className="mb-1 flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
-          2. Stack Lock
+    <div className="card-paper p-5">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <h2 className="label-caps text-muted-foreground">
+          01 // Canonical Stack Lock
         </h2>
         {locked && (
-          <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">
+          <span className="pill border border-score-high/30 bg-score-high/10 text-score-high">
             locked
           </span>
         )}
@@ -144,7 +144,7 @@ export default function StackLockPanel({
             type="button"
             disabled={saving || aligning}
             onClick={() => setDraft(p.stack)}
-            className="rounded-full border border-border px-3 py-1 text-xs text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
+            className="rounded-md border border-border px-2.5 py-1.5 font-mono text-[11px] text-muted-foreground transition-colors hover:border-primary hover:text-primary disabled:opacity-50"
           >
             {p.label}
           </button>
@@ -156,14 +156,14 @@ export default function StackLockPanel({
         onChange={(e) => setDraft(e.target.value)}
         rows={3}
         placeholder="E.g., Next.js 14 + TypeScript + Prisma + PostgreSQL on Vercel — no other backend…"
-        className="mb-3 w-full resize-none rounded border border-border bg-background p-3 font-mono text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-ring"
+        className="mb-3 w-full resize-none rounded-md border border-input bg-card-elevated p-3 font-mono text-xs text-foreground outline-none transition-colors placeholder:text-muted-foreground/50 focus:border-foreground"
       />
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="mt-auto flex flex-wrap items-center gap-2 pt-4">
         <button
           onClick={() => save(draft.trim() || null)}
           disabled={saving || aligning}
-          className="rounded bg-primary px-4 py-1.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90 disabled:opacity-50"
+          className="btn-primary !px-4 !py-2 !text-sm"
         >
           {saving ? "Saving…" : locked ? "Update lock" : "Lock stack"}
         </button>
@@ -171,7 +171,7 @@ export default function StackLockPanel({
           <button
             onClick={align}
             disabled={saving || aligning}
-            className="rounded border border-primary px-4 py-1.5 text-sm font-medium text-primary transition-colors hover:bg-primary hover:text-primary-foreground disabled:opacity-50"
+            className="btn-secondary !px-4 !py-2 !text-sm"
           >
             {aligning
               ? `Aligning ${alignLabel}…`
@@ -190,12 +190,12 @@ export default function StackLockPanel({
       </div>
 
       {message && (
-        <p className="mt-3 rounded-lg border border-secondary/40 bg-secondary/10 px-3 py-2 text-sm text-secondary-foreground">
+        <p className="mt-3 rounded-md border border-secondary/40 bg-secondary/10 px-3 py-2 text-sm text-secondary-foreground">
           {message}
         </p>
       )}
       {error && (
-        <p className="mt-3 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+        <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {error}
         </p>
       )}
