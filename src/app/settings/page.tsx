@@ -430,7 +430,7 @@ export default function SettingsPage() {
                       setValues((v) => ({ ...v, [s.key]: e.target.value }))
                     }
                     placeholder={
-                      s.configured ? "•••••••• (enter a new value to replace)" : `Enter ${s.label.toLowerCase()}`
+                      s.configured ? "•••••••• (enter new value)" : `Enter ${s.label.toLowerCase()}`
                     }
                     className="input-paper min-h-[120px] font-mono text-[13px]"
                     autoComplete="off"
@@ -445,7 +445,7 @@ export default function SettingsPage() {
                       setValues((v) => ({ ...v, [s.key]: e.target.value }))
                     }
                     placeholder={
-                      s.configured ? "•••••••• (enter a new value to replace)" : `Enter ${s.label.toLowerCase()}`
+                      s.configured ? "•••••••• (enter new value)" : `Enter ${s.label.toLowerCase()}`
                     }
                     className="input-paper pr-11 font-mono text-[13px]"
                     autoComplete="off"

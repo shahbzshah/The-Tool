@@ -103,7 +103,7 @@ export default function DecisionsPanel({
         your current docs already say — when they disagree, pick the winner.
       </p>
 
-      <div className="grid gap-3 min-[1500px]:grid-cols-2">
+      <div className="grid gap-3">
         {TECH_DECISION_DEFS.map((def) => {
           const det = detected.find((d) => d.key === def.key);
           const locked = !!techDecisions[def.key]?.trim();

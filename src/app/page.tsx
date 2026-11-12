@@ -149,7 +149,7 @@ function RatingStar({
   if (rating == null) return <span aria-label="no rating">—</span>;
   return (
     <span className="inline-flex items-center gap-0.5">
-      {rating}
+      {rating.toFixed(2)}
       <span className={`material-symbols ${iconClass}`} aria-hidden="true">
         star
       </span>
@@ -329,6 +329,9 @@ function OpportunityCard({
               src={opp.thumbnail}
               alt=""
               className="h-8 w-8 shrink-0 rounded border border-border object-cover"
+              onError={(e) => {
+                e.currentTarget.style.display = "none";
+              }}
             />
           )}
           <h3 className="truncate font-serif text-lg font-medium text-foreground">
@@ -1508,13 +1511,16 @@ export default function HunterPage() {
                           <td className="whitespace-nowrap px-3 py-3 font-mono text-sm font-bold text-muted-foreground">
                             {String(showPick ? i + 2 : i + 1).padStart(2, "0")}
                           </td>
-                          <td className="min-w-[220px] px-3 py-3">
+                          <td className="min-w-[160px] px-3 py-3">
                             <div className="flex items-center gap-2.5">
                               {o.thumbnail && (
                                 <img
                                   src={o.thumbnail}
                                   alt=""
                                   className="h-9 w-9 shrink-0 rounded border border-border object-cover"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = "none";
+                                  }}
                                 />
                               )}
                               <div className="min-w-0">
