@@ -55,6 +55,52 @@ export async function PATCH(
       return NextResponse.json({ idea });
     }
 
+    // Direct pitch edit — typo fixes and small corrections without the AI
+    // (the Refine chat is the normal path, but there must be a way to edit
+    // a pitch when the AI is down). Same owner scoping as above. Snapshots
+    // the current idea first so the change stays undoable from the History
+    // panel, mirroring /api/refine/chat; a snapshot failure never breaks
+    // the edit.
+    if (typeof body?.pitch === "string" && body.pitch.trim()) {
+      const current = await prisma.idea.findFirst({
+        where: { id: params.id, project: { userId: auth.user.id } },
+        select: {
+          id: true,
+          title: true,
+          pitch: true,
+          features: true,
+          targetAudience: true,
+          monetization: true,
+        },
+      });
+      if (!current) {
+        return NextResponse.json({ error: "Idea not found." }, { status: 404 });
+      }
+      const nextPitch = body.pitch.trim();
+      if (nextPitch !== current.pitch) {
+        try {
+          await prisma.ideaVersion.create({
+            data: {
+              ideaId: current.id,
+              title: current.title,
+              pitch: current.pitch,
+              features: current.features,
+              targetAudience: current.targetAudience,
+              monetization: current.monetization,
+              note: "before manual edit: pitch",
+            },
+          });
+        } catch (err) {
+          console.error("[ideas] failed to snapshot idea version:", err);
+        }
+      }
+      const idea = await prisma.idea.update({
+        where: { id: params.id },
+        data: { pitch: nextPitch },
+      });
+      return NextResponse.json({ idea });
+    }
+
     const status = String(body?.status ?? "");
     if (!["draft", "approved"].includes(status)) {
       return NextResponse.json({ error: "Invalid status." }, { status: 400 });
