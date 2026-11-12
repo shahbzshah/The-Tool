@@ -97,6 +97,10 @@ export default function RefinePage({ params }: { params: { projectId: string } }
   const [drafting, setDrafting] = useState(false);
   const [modelName, setModelName] = useState("");
   const [copied, setCopied] = useState(false);
+  const [editingPitch, setEditingPitch] = useState(false);
+  const [pitchDraft, setPitchDraft] = useState("");
+  const [pitchSaving, setPitchSaving] = useState(false);
+  const [pitchError, setPitchError] = useState("");
   const [decisionsOpen, setDecisionsOpen] = useState(true);
   // M21-client: the decisions log, built from each chat POST response's
   // `appliedUpdates` instead of parsing persisted messages.
@@ -412,6 +416,31 @@ export default function RefinePage({ params }: { params: { projectId: string } }
 
   function saveBrief() {
     send(undefined, "Save the refined brief now — write the complete file with everything we've decided.");
+  }
+
+  /** Direct pitch edit — the pitch is otherwise only changeable through the
+   * AI chat, so a typo is unfixable while the AI is down. Uses the pitch
+   * branch of PATCH /api/ideas/[id], which snapshots the old version first. */
+  async function savePitch() {
+    if (!ideaId || !pitchDraft.trim() || pitchSaving) return;
+    setPitchSaving(true);
+    setPitchError("");
+    try {
+      const res = await apiFetch(`/api/ideas/${ideaId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pitch: pitchDraft.trim() }),
+      });
+      if (res.status === 401) return; // redirect already fired
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Could not save the pitch.");
+      setIdea((prev) => (prev ? { ...prev, pitch: data.idea.pitch } : prev));
+      setEditingPitch(false);
+    } catch (err) {
+      setPitchError(err instanceof Error ? err.message : "Could not save the pitch.");
+    } finally {
+      setPitchSaving(false);
+    }
   }
 
   async function draftFromAnalysis() {
@@ -785,7 +814,52 @@ export default function RefinePage({ params }: { params: { projectId: string } }
             <h3 className="font-serif text-2xl font-medium leading-tight">{idea?.title ?? "Loading…"}</h3>
             {idea?.pitch && (
               <div className="mt-2 rounded-md border border-border bg-card p-3.5">
-                <p className="text-sm italic leading-relaxed text-foreground/90">&ldquo;{idea.pitch}&rdquo;</p>
+                {editingPitch ? (
+                  <div className="space-y-2">
+                    <textarea
+                      value={pitchDraft}
+                      onChange={(e) => setPitchDraft(e.target.value)}
+                      rows={4}
+                      className="input-paper !h-auto min-h-[90px] text-sm not-italic"
+                      aria-label="Edit pitch"
+                    />
+                    {pitchError && <p className="text-xs text-score-low">{pitchError}</p>}
+                    <div className="flex gap-2">
+                      <button
+                        onClick={savePitch}
+                        disabled={pitchSaving || !pitchDraft.trim()}
+                        className="btn-primary"
+                      >
+                        {pitchSaving ? "Saving…" : "Save pitch"}
+                      </button>
+                      <button
+                        onClick={() => {
+                          setEditingPitch(false);
+                          setPitchError("");
+                        }}
+                        disabled={pitchSaving}
+                        className="btn-secondary"
+                      >
+                        Cancel
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <>
+                    <p className="text-sm italic leading-relaxed text-foreground/90">&ldquo;{idea.pitch}&rdquo;</p>
+                    <button
+                      onClick={() => {
+                        setPitchDraft(idea.pitch);
+                        setPitchError("");
+                        setEditingPitch(true);
+                      }}
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-primary"
+                    >
+                      <span className="material-symbols text-[14px]">edit</span>
+                      Edit pitch
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
