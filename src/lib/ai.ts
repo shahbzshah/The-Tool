@@ -63,8 +63,15 @@ export function aiErrorMessage(err: unknown): string {
     const status = m[1];
     if (status === "401")
       return "NVIDIA rejected the API key (401). The key in Settings is wrong or revoked — paste a fresh key from build.nvidia.com.";
-    if (status === "404")
-      return "NVIDIA doesn't have that model (404). The model in Settings is dead — set NVIDIA Model to minimax-m3.1-flash.";
+    if (status === "404") {
+      // Name the model the server actually tried: it tells us whether the
+      // Settings save is being ignored (still the dead default) or the
+      // account itself lacks the model.
+      const tried = msg.match(/\(model ([^)]+)\)/)?.[1];
+      if (tried === "minimax-m3.1-flash")
+        return "NVIDIA doesn't offer 'minimax-m3.1-flash' on this API key (404). Try another model in Settings, e.g. meta/llama-3.1-8b-instruct.";
+      return `NVIDIA doesn't have that model (404 — tried '${tried ?? "unknown"}'). The model in Settings is dead — set NVIDIA Model to minimax-m3.1-flash.`;
+    }
     if (status === "429")
       return "NVIDIA rate limit (429). Wait a minute and try again.";
     return `NVIDIA returned an error (${status}). Try again, and check the key and model in Settings if it keeps failing.`;
@@ -105,7 +112,7 @@ export async function chat(
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(
-      `nvidia API error ${res.status}: ${body.slice(0, 500) || res.statusText}`
+      `nvidia API error ${res.status} (model ${mdl}): ${body.slice(0, 500) || res.statusText}`
     );
   }
 
