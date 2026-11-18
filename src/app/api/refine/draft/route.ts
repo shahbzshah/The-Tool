@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
-import { chat, parseJsonLoose } from "@/lib/ai";
+import { aiErrorMessage, chat, parseJsonLoose } from "@/lib/ai";
 import { estimateTokens, logAiUsage } from "@/lib/usage";
 
 export const runtime = "nodejs";
@@ -96,13 +96,7 @@ export async function POST(req: Request) {
     );
   } catch (err) {
     console.error("[refine/draft] AI call failed:", err);
-    return NextResponse.json(
-      {
-        error:
-          "The AI couldn't draft right now — the AI service is down. Check the NVIDIA API key in Settings.",
-      },
-      { status: 502 }
-    );
+    return NextResponse.json({ error: aiErrorMessage(err) }, { status: 502 });
   }
 
   // Track NVIDIA token consumption (estimated — the API returns no usage).

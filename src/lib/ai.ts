@@ -46,6 +46,32 @@ export type ChatMessage = {
 
 export class AIConfigError extends Error {}
 
+/**
+ * Turn a chat() failure into a short, user-facing diagnosis. The NVIDIA
+ * error carries its HTTP status ("nvidia API error 401: ..."), which is
+ * the difference between a rejected key and a dead model — the two things
+ * the user can actually fix in Settings. Returns a plain message, never
+ * the raw upstream body.
+ */
+export function aiErrorMessage(err: unknown): string {
+  const msg = err instanceof Error ? err.message : "";
+  if (msg.includes("NVIDIA_API_KEY is not set")) {
+    return "No NVIDIA API key is set. Add one in Settings → NVIDIA API Key.";
+  }
+  const m = msg.match(/nvidia API error (\d+)/);
+  if (m) {
+    const status = m[1];
+    if (status === "401")
+      return "NVIDIA rejected the API key (401). The key in Settings is wrong or revoked — paste a fresh key from build.nvidia.com.";
+    if (status === "404")
+      return "NVIDIA doesn't have that model (404). The model in Settings is dead — set NVIDIA Model to minimax-m3.1-flash.";
+    if (status === "429")
+      return "NVIDIA rate limit (429). Wait a minute and try again.";
+    return `NVIDIA returned an error (${status}). Try again, and check the key and model in Settings if it keeps failing.`;
+  }
+  return "The AI is unavailable right now — the AI service is down. Check the NVIDIA API key in Settings.";
+}
+
 export async function chat(
   messages: ChatMessage[],
   opts: {
