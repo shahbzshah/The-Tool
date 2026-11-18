@@ -7,6 +7,7 @@ import {
   apiFetch,
   consumeSavedState,
   locationKey,
+  readJson,
 } from "@/lib/api";
 import { useEscapeClose } from "@/lib/shortcuts";
 import QuotaIndicator from "@/components/QuotaIndicator";
@@ -352,7 +353,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
         { snapshot: { messages: next, draft: "" } }
       );
       if (res.status === 401) return; // redirect already fired
-      const data = await res.json();
+      const data = (await readJson(res)) ?? {};
       if (!res.ok) {
         setMessages([
           ...next,
@@ -432,7 +433,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
         body: JSON.stringify({ pitch: pitchDraft.trim() }),
       });
       if (res.status === 401) return; // redirect already fired
-      const data = await res.json();
+      const data = (await readJson(res)) ?? {};
       if (!res.ok) throw new Error(data.error || "Could not save the pitch.");
       setIdea((prev) => (prev ? { ...prev, pitch: data.idea.pitch } : prev));
       setEditingPitch(false);
@@ -458,7 +459,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
         { snapshot: { messages, draft: input } }
       );
       if (res.status === 401) return; // redirect already fired
-      const data = await res.json();
+      const data = (await readJson(res)) ?? {};
       if (!res.ok) throw new Error(data.error || "Draft failed.");
       setIdea(data.idea);
       setMessages((prev) => [
@@ -481,7 +482,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
     try {
       const res = await apiFetch(`/api/ideas/${ideaId}/versions`);
       if (res.status === 401) return; // redirect already fired
-      const data = await res.json();
+      const data = (await readJson(res)) ?? {};
       if (!res.ok) throw new Error(data.error || "Could not load history.");
       setVersions(data.versions ?? []);
       versionsLoadedRef.current = true;
@@ -517,7 +518,7 @@ export default function RefinePage({ params }: { params: { projectId: string } }
         { method: "POST" }
       );
       if (res.status === 401) return; // redirect already fired
-      const data = await res.json();
+      const data = (await readJson(res)) ?? {};
       if (!res.ok) throw new Error(data.error || "Restore failed.");
       setIdea(data.idea);
       setIdeaJustUpdated(true);

@@ -82,13 +82,28 @@ export async function POST(req: Request) {
   const draftUserPrompt =
     `App: ${idea.title}\n\nMarket analysis:\n${idea.project.preferences.slice(0, 12000)}`;
 
-  const reply = await chat(
-    [
-      { role: "system", content: DRAFT_SYSTEM },
-      { role: "user", content: draftUserPrompt },
-    ],
-    { temperature: 0.6, maxTokens: 2048 }
-  );
+  // The AI call is the failure point when the NVIDIA key/model is dead:
+  // an uncaught throw used to 500 with an EMPTY body, so the client showed
+  // the raw "Unexpected end of JSON input" error. Return a real JSON error.
+  let reply: string;
+  try {
+    reply = await chat(
+      [
+        { role: "system", content: DRAFT_SYSTEM },
+        { role: "user", content: draftUserPrompt },
+      ],
+      { temperature: 0.6, maxTokens: 2048 }
+    );
+  } catch (err) {
+    console.error("[refine/draft] AI call failed:", err);
+    return NextResponse.json(
+      {
+        error:
+          "The AI couldn't draft right now — the AI service is down. Check the NVIDIA API key in Settings.",
+      },
+      { status: 502 }
+    );
+  }
 
   // Track NVIDIA token consumption (estimated — the API returns no usage).
   await logAiUsage({

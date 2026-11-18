@@ -155,20 +155,38 @@ export async function POST(req: Request) {
     console.error("[refine/chat] failed to persist user message:", err);
   }
 
-  const reply = await chat(
-    [
-      { role: "system", content: SYSTEM_PROMPT },
-      { role: "user", content: `Here is everything about the idea so far:\n${context}` },
-      ...history
-        .filter((m) => typeof m.content === "string")
-        .map((m) => ({
-          role: m.role === "assistant" ? "assistant" : "user",
-          content: m.content.slice(0, 4000),
-        })),
-      { role: "user", content: message.slice(0, 4000) },
-    ] as any,
-    { temperature: 0.6, maxTokens: 2048 }
-  );
+  // Same failure as /api/refine/draft: an uncaught AI throw used to 500
+  // with an EMPTY body, so the client could only show "Something went
+  // wrong." Return a real JSON error naming the outage instead.
+  let reply: string;
+  try {
+    reply = await chat(
+      [
+        { role: "system", content: SYSTEM_PROMPT },
+        {
+          role: "user",
+          content: `Here is everything about the idea so far:\n${context}`,
+        },
+        ...history
+          .filter((m) => typeof m.content === "string")
+          .map((m) => ({
+            role: m.role === "assistant" ? "assistant" : "user",
+            content: m.content.slice(0, 4000),
+          })),
+        { role: "user", content: message.slice(0, 4000) },
+      ] as any,
+      { temperature: 0.6, maxTokens: 2048 }
+    );
+  } catch (err) {
+    console.error("[refine/chat] AI call failed:", err);
+    return NextResponse.json(
+      {
+        error:
+          "The AI is unavailable right now — the AI service is down. Check the NVIDIA API key in Settings.",
+      },
+      { status: 502 }
+    );
+  }
 
   // Track NVIDIA token consumption (estimated — the API returns no usage).
   await logAiUsage({

@@ -52,6 +52,24 @@ export async function apiFetch(
 }
 
 /**
+ * Parse a response as JSON, tolerating an empty body. Some server failures
+ * (an uncaught throw in a route handler) come back as a bare 500 with no
+ * body — calling res.json() on that throws "Unexpected end of JSON input"
+ * and the raw browser error leaks into the UI. Returns null when there is
+ * nothing to parse; callers use `(await readJson(res)) ?? {}` so a null
+ * body degrades to the fallback message instead of a raw TypeError.
+ */
+export async function readJson(res: Response): Promise<any | null> {
+  const text = await res.text();
+  if (!text.trim()) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Reads (and clears) the state snapshot saved for a location key.
  * Call it from a page after login succeeds; returns the snapshot or null.
  */
