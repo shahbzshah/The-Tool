@@ -4,7 +4,8 @@ import { prisma } from "@/lib/db";
 /**
  * Encrypted app settings (API keys & secrets) stored in the DB.
  * Values are AES-256-GCM encrypted with a key derived from AUTH_SECRET,
- * so a DB leak alone doesn't expose them. Env vars always win when set.
+ * so a DB leak alone doesn't expose them. A value saved in Settings wins
+ * over the matching env var; an empty field falls back to it.
  */
 
 const ALGO = "aes-256-gcm";

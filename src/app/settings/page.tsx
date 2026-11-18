@@ -359,8 +359,9 @@ export default function SettingsPage() {
           </h1>
           <p className="mt-3 max-w-xl text-[15px] leading-relaxed text-muted-foreground">
             API keys and secrets for the app. Values are encrypted before they touch
-            the database — they&apos;re never shown back. Environment variables, when
-            set, always take precedence.
+            the database — they&apos;re never shown back. A value saved here
+            overrides the matching environment variable; an empty field falls
+            back to it.
           </p>
           <div className="mt-5 flex flex-wrap gap-3">
             <button
