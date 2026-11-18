@@ -59,22 +59,20 @@ export function aiErrorMessage(err: unknown): string {
     return "No NVIDIA API key is set. Add one in Settings → NVIDIA API Key.";
   }
   const m = msg.match(/nvidia API error (\d+)/);
+  // The model the server actually tried — naming it is the difference
+  // between "the save is ignored" and "that model is dead on this key".
+  const tried = msg.match(/\(model ([^)]+)\)/)?.[1];
   if (m) {
     const status = m[1];
     if (status === "401")
       return "NVIDIA rejected the API key (401). The key in Settings is wrong or revoked — paste a fresh key from build.nvidia.com.";
-    if (status === "404") {
-      // Name the model the server actually tried: it tells us whether the
-      // Settings save is being ignored (still the dead default) or the
-      // account itself lacks the model.
-      const tried = msg.match(/\(model ([^)]+)\)/)?.[1];
-      if (tried === "minimax-m3.1-flash")
-        return "NVIDIA doesn't offer 'minimax-m3.1-flash' on this API key (404). Try another model in Settings, e.g. meta/llama-3.1-8b-instruct.";
-      return `NVIDIA doesn't have that model (404 — tried '${tried ?? "unknown"}'). The model in Settings is dead — set NVIDIA Model to minimax-m3.1-flash.`;
-    }
+    if (status === "404")
+      return `NVIDIA doesn't offer that model on this key (404 — tried '${tried ?? "unknown"}'). Try a current model in Settings — check build.nvidia.com for the current list.`;
+    if (status === "410")
+      return `NVIDIA retired that model (410 — tried '${tried ?? "unknown"}'). Pick a current model in Settings — check build.nvidia.com for the current list.`;
     if (status === "429")
       return "NVIDIA rate limit (429). Wait a minute and try again.";
-    return `NVIDIA returned an error (${status}). Try again, and check the key and model in Settings if it keeps failing.`;
+    return `NVIDIA returned an error (${status}${tried ? ` — tried '${tried}'` : ""}). Try again, and check the key and model in Settings if it keeps failing.`;
   }
   return "The AI is unavailable right now — the AI service is down. Check the NVIDIA API key in Settings.";
 }
