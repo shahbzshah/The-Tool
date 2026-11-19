@@ -23,6 +23,23 @@ function parseFeatures(json: string): string[] {
   }
 }
 
+// The opportunity score is not a stored Idea field — it lives inside the
+// pitch text ("Opportunity score 51.7/100 from your own idea research.").
+// Extract it so it can be carried to Design instead of paraphrased away.
+function extractOpportunityScore(pitch: string): string | null {
+  const m = pitch.match(/Opportunity score\s*([\d.]+)\/100/i);
+  return m ? m[1] : null;
+}
+
+// Significant words (4+ chars) of a value — used to check whether the AI
+// prompt actually names that value, case-insensitively.
+function significantWords(s: string): string[] {
+  return s
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length >= 4);
+}
+
 export async function GET(req: Request) {
   if (IS_BUILD) {
     return NextResponse.json({ prompt: null, building: true });
@@ -44,21 +61,40 @@ export async function GET(req: Request) {
   });
   // Feature list from the approved idea — the Design page uses it for the
   // feature-coverage checklist (all derived from real project data).
+  // The Design page also shows the Refine fields themselves ("From Refine"),
+  // so return the approved idea's identity fields too — never invented,
+  // only what Refine stored. The opportunity score lives inside the pitch.
   const project = await prisma.project.findFirst({
     where: { id: projectId, userId: auth.user.id },
     include: {
       ideas: {
         where: { status: "approved" },
         take: 1,
-        select: { features: true },
+        select: {
+          features: true,
+          title: true,
+          pitch: true,
+          targetAudience: true,
+          monetization: true,
+        },
       },
     },
   });
   if (!project && !prompt) {
     return NextResponse.json({ error: "Project not found." }, { status: 404 });
   }
-  const features = project?.ideas[0] ? parseFeatures(project.ideas[0].features) : [];
-  return NextResponse.json({ prompt, features });
+  const approved = project?.ideas[0];
+  const features = approved ? parseFeatures(approved.features) : [];
+  const idea = approved
+    ? {
+        title: approved.title,
+        pitch: approved.pitch,
+        targetAudience: approved.targetAudience,
+        monetization: approved.monetization ?? null,
+        opportunityScore: extractOpportunityScore(approved.pitch),
+      }
+    : null;
+  return NextResponse.json({ prompt, features, idea });
 }
 
 export async function POST(req: Request) {
@@ -92,6 +128,10 @@ export async function POST(req: Request) {
     }
 
     const features = parseFeatures(approvedIdea.features);
+    // Monetisation and the opportunity score were never passed to the
+    // prompt before, so the AI could not carry them to Design.
+    const monetization = (approvedIdea.monetization ?? "").trim();
+    const opportunityScore = extractOpportunityScore(approvedIdea.pitch);
 
     // User stories define the flows — and flows are what need screens.
     // Without them, designs ship without sign-up, login, or edit screens.
@@ -136,6 +176,8 @@ ${storyList}`
 App: ${approvedIdea.title}
 Pitch: ${approvedIdea.pitch}
 Target audience: ${approvedIdea.targetAudience}
+Monetisation: ${monetization || "n/a"}
+Opportunity score: ${opportunityScore ? `${opportunityScore}/100` : "n/a"}
 
 COMPLETE FEATURE LIST — every feature below MUST be reflected in the screens and components you design. Do not drop any:
 ${featureList}
@@ -149,7 +191,7 @@ Requirements:
 - "colorScheme": specific palette direction (name actual colors/mood, e.g. "dark mode with emerald green accents").
 - "style": visual style direction (e.g. "minimal, clean, card-based layout with generous whitespace").
 - "components": 5-8 key UI components (e.g. "bottom nav bar", "line charts", "FAB button") needed to implement the features.
-${platformRequirement}- "promptText": the full Stitch prompt as ONE detailed paragraph (120-250 words) that weaves together the app type, all screens, the color scheme, style, components, and platform. It must be ready to paste directly into Stitch and produce a consistent, beautiful multi-screen design.${requiredScreens.length > 0 ? " The paragraph MUST name every REQUIRED SCREEN." : ""}
+${platformRequirement}- "promptText": the full Stitch prompt as ONE detailed paragraph (120-250 words) that weaves together the app type, all screens, the color scheme, style, components, and platform. It must be ready to paste directly into Stitch and produce a consistent, beautiful multi-screen design. The paragraph MUST name the target audience, the monetisation model, and EVERY feature in the list above — do not drop any feature, including security/privacy features. When an opportunity score is given above, the paragraph MUST state it.${requiredScreens.length > 0 ? " The paragraph MUST name every REQUIRED SCREEN." : ""}
 
 Respond with JSON:
 {"appType": string, "screens": string[], "colorScheme": string, "style": string, "components": string[], "platform": string, "promptText": string}`;
@@ -195,11 +237,50 @@ Respond with JSON:
       }
     }
 
+    // Deterministic guard — the AI paraphrases and drops fields (verified:
+    // audience, monetisation, opportunity score, and the security feature
+    // never reached Design). Check the returned promptText for each one and
+    // append a short sentence carrying it when missing. Only values that
+    // actually exist are appended — "n/a" is never written into the prompt.
+    let promptText = String(data.promptText);
+    const lower = promptText.toLowerCase();
+    const hasAnyWord = (text: string, words: string[]) =>
+      words.some((w) => text.includes(w));
+    const additions: string[] = [];
+    if (
+      approvedIdea.targetAudience.trim() &&
+      !hasAnyWord(lower, significantWords(approvedIdea.targetAudience))
+    ) {
+      additions.push(`Design for ${approvedIdea.targetAudience.trim()}.`);
+    }
+    if (
+      monetization &&
+      !hasAnyWord(lower, ["freemium", "subscription", "price"]) &&
+      !hasAnyWord(lower, significantWords(monetization))
+    ) {
+      additions.push(`Monetisation: ${monetization}.`);
+    }
+    const securityFeature = features.find((f) =>
+      /secur|encrypt|privacy/i.test(f)
+    );
+    if (
+      securityFeature &&
+      !hasAnyWord(lower, ["secur", "encrypt", "privacy"])
+    ) {
+      additions.push(`Also include this feature: ${securityFeature}`);
+    }
+    if (opportunityScore && !lower.includes(opportunityScore)) {
+      additions.push(`Opportunity score: ${opportunityScore}/100.`);
+    }
+    if (additions.length > 0) {
+      promptText = `${promptText.trim()} ${additions.join(" ")}`;
+    }
+
     const prompt = await prisma.stitchPrompt.upsert({
       where: { projectId },
       create: {
         projectId,
-        promptText: String(data.promptText),
+        promptText,
         appType: String(data.appType ?? ""),
         screens: JSON.stringify(screens),
         colorScheme: String(data.colorScheme ?? ""),
@@ -208,7 +289,7 @@ Respond with JSON:
         platform: String(data.platform ?? ""),
       },
       update: {
-        promptText: String(data.promptText),
+        promptText,
         appType: String(data.appType ?? ""),
         screens: JSON.stringify(screens),
         colorScheme: String(data.colorScheme ?? ""),

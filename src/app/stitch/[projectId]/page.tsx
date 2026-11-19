@@ -24,6 +24,17 @@ type StitchReview = {
   recommendations: string[];
 };
 
+// The approved idea as Refine stored it — returned by GET /api/stitch-prompt
+// alongside the prompt. Shown verbatim in the "From Refine" card; nothing
+// here is invented, and missing values (monetisation, score) render nothing.
+type RefinedIdea = {
+  title: string;
+  pitch: string;
+  targetAudience: string;
+  monetization: string | null;
+  opportunityScore: string | null;
+};
+
 type DesignUpload = {
   id: string;
   type: string;
@@ -117,6 +128,7 @@ export default function StitchPromptPage() {
   const [uploads, setUploads] = useState<DesignUpload[]>([]);
   const [uploading, setUploading] = useState(false);
   const [features, setFeatures] = useState<string[]>([]);
+  const [idea, setIdea] = useState<RefinedIdea | null>(null);
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
   const [loadedStorageKey, setLoadedStorageKey] = useState<string | null>(null);
   const [aiResults, setAiResults] = useState<Record<number, { covered: boolean; matchedFile: string | null; reason: string }>>({});
@@ -185,6 +197,7 @@ export default function StitchPromptPage() {
       const existing = data.prompt ?? null;
       setPrompt(existing);
       setFeatures(Array.isArray(data.features) ? data.features : []);
+      setIdea(data.idea ?? null);
       // No prompt yet → generate it automatically; it's a required step.
       if (!existing) {
         setGenerating(true);
@@ -623,6 +636,46 @@ export default function StitchPromptPage() {
         {prompt && (
           <div className="grid items-start gap-6 lg:grid-cols-12">
             <div className="space-y-6 lg:col-span-7">
+            {idea && (
+              <div className="rounded-md border border-border bg-card p-5">
+                <h2 className="label-caps mb-3 inline-flex items-center gap-2 text-foreground">
+                  <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                  From Refine
+                </h2>
+                <dl className="space-y-2 text-sm leading-relaxed">
+                  {idea.title && (
+                    <div>
+                      <dt className="label-caps text-muted-foreground">Idea</dt>
+                      <dd className="text-foreground">{idea.title}</dd>
+                    </div>
+                  )}
+                  {idea.pitch && (
+                    <div>
+                      <dt className="label-caps text-muted-foreground">Pitch</dt>
+                      <dd className="text-foreground/90">{idea.pitch}</dd>
+                    </div>
+                  )}
+                  {idea.targetAudience && (
+                    <div>
+                      <dt className="label-caps text-muted-foreground">Target audience</dt>
+                      <dd className="text-foreground/90">{idea.targetAudience}</dd>
+                    </div>
+                  )}
+                  {idea.monetization && (
+                    <div>
+                      <dt className="label-caps text-muted-foreground">Monetisation</dt>
+                      <dd className="text-foreground/90">{idea.monetization}</dd>
+                    </div>
+                  )}
+                  {idea.opportunityScore && (
+                    <div>
+                      <dt className="label-caps text-muted-foreground">Opportunity score</dt>
+                      <dd className="text-foreground">{idea.opportunityScore}/100</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
             <div className="rounded-md border border-border bg-card p-5">
               <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <h2 className="label-caps inline-flex items-center gap-2 text-foreground">
