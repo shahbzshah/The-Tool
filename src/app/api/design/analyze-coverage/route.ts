@@ -82,7 +82,8 @@ export async function POST(req: Request) {
 
   // Build a compact summary of each upload: filename + extracted visible text.
   // Strip HTML tags, scripts, and styles — the AI needs to see what the UI
-  // SAYS (buttons, headings, labels), not the markup.
+  // SAYS (buttons, headings, labels), not the markup. Kept short: the
+  // input size drives how long the model takes to start answering.
   function extractVisibleText(html: string): string {
     return html
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -95,7 +96,7 @@ export async function POST(req: Request) {
       .replace(/&quot;/g, '"')
       .replace(/\s+/g, " ")
       .trim()
-      .slice(0, 1500);
+      .slice(0, 900);
   }
 
   const screensSummary = uploads
@@ -105,12 +106,12 @@ export async function POST(req: Request) {
     })
     .join("\n\n");
 
-  const prompt = `You are analyzing a mobile app UI design against its feature requirements.
+  const buildPrompt = (chunk: string[], offset: number) => `You are analyzing a mobile app UI design against its feature requirements.
 
 APP: ${idea.title}
 
 FEATURES (each must be checked):
-${features.map((f, i) => `${i + 1}. ${f}`).join("\n")}
+${chunk.map((f, i) => `${offset + i + 1}. ${f}`).join("\n")}
 
 UPLOADED SCREENS:
 ${screensSummary}
@@ -125,16 +126,30 @@ Respond with ONLY a JSON array, one object per feature, in the same order:
 No other text.`;
 
   try {
-    // Race the AI call against a 45s timeout — Vercel's gateway times out at
-    // 60s, so we fail fast with a clear message instead of a bare 504.
-    const aiPromise = chatJson<{ covered: boolean; matchedFile: string | null; reason: string }[]>(
-      [{ role: "user", content: prompt }],
-      { temperature: 0.1, maxTokens: 4000 }
-    );
+    // One call for all 12 features regularly ran past the 45s limit — the
+    // model is slow, and the whole answer (12 objects) takes the longest
+    // to generate. Split into halves run in parallel: each call writes
+    // half the answer, so the wall time is roughly one half-call.
+    // Race the combined work against a 45s timeout — Vercel's gateway
+    // times out at 60s, so we fail fast with a clear message instead of
+    // a bare 504.
+    const CHUNK = 6;
+    const chunks: string[][] = [];
+    for (let i = 0; i < features.length; i += CHUNK) {
+      chunks.push(features.slice(i, i + CHUNK));
+    }
+    const aiWork = Promise.all(
+      chunks.map((chunk, ci) =>
+        chatJson<{ covered: boolean; matchedFile: string | null; reason: string }[]>(
+          [{ role: "user", content: buildPrompt(chunk, ci * CHUNK) }],
+          { temperature: 0.1, maxTokens: 2000 }
+        )
+      )
+    ).then((parts) => parts.flat());
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("AI analysis timed out after 45 seconds. Try again — it may work on retry.")), 45_000)
     );
-    const results = await Promise.race([aiPromise, timeoutPromise]);
+    const results = await Promise.race([aiWork, timeoutPromise]);
 
     if (!Array.isArray(results) || results.length !== features.length) {
       throw new Error("AI returned an unexpected shape.");
@@ -144,7 +159,9 @@ No other text.`;
       userId: auth.user.id,
       projectId,
       kind: "design-coverage-analysis",
-      tokensIn: estimateTokens(prompt.length),
+      // Two prompts now (one per half); estimate from the screens summary
+      // plus the feature list rather than a single prompt variable.
+      tokensIn: estimateTokens(screensSummary.length + features.join(" ").length),
       tokensOut: estimateTokens(JSON.stringify(results).length),
     });
 
