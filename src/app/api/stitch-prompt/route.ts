@@ -258,11 +258,19 @@ Respond with JSON:
     }
     // Monetisation: one matching word ("freemium") is not enough — the
     // free-tier terms are the point. Append the full model unless at
-    // least half its significant words are already in the prompt.
+    // least half its significant words are already in the prompt — and
+    // always append when a number in the model (e.g. "20 trades") is
+    // missing, since a paraphrase can cover the words while dropping
+    // the actual free-tier limit.
     if (monetization) {
       const monWords = significantWords(monetization);
       const monCovered = monWords.filter((w) => lower.includes(w)).length;
-      if (monWords.length > 0 && monCovered < Math.ceil(monWords.length / 2)) {
+      const monNumbers = monetization.match(/\d[\d,.]*/g) ?? [];
+      const numbersMissing = monNumbers.some((n) => !lower.includes(n));
+      if (
+        (monWords.length > 0 && monCovered < Math.ceil(monWords.length / 2)) ||
+        numbersMissing
+      ) {
         additions.push(`Monetisation: ${clean(monetization)}.`);
       }
     }
