@@ -5,7 +5,8 @@
 // every app came out the same colour. Now the app picks the palette: 16
 // named palettes, every background chromatic (no slate, grey, or ash
 // anywhere), matched to the app type by keyword and to dark/light by
-// whether the idea asks for dark mode. Selection is deterministic — same
+// explicit mention or by app-type convention (trading/music/video read
+// dark, most others light). Selection is deterministic — same
 // project always gets the same palette, different projects get different
 // ones — so no schema change or stored field is needed.
 
@@ -241,13 +242,35 @@ export type PaletteInput = {
   features: string[];
 };
 
-// Pick the palette for a project. Dark mode comes from the idea itself
-// (a "dark mode" feature or mention in the pitch); the palette inside that
-// mode is scored by app-type keywords, with the project id breaking ties
-// so two finance apps still don't land on the same palette every time.
+// Pick the palette for a project. Mode: explicit mentions win; otherwise
+// the app type decides — trading terminals, music and video apps read
+// dark, most others read light. The stored feature list never mentions
+// dark mode at all (the CORE list on Refine does), so a feature-text
+// check alone misses it — the category default is what catches a trading
+// app. Inside the mode, palettes are scored by app-type keywords, with
+// the project id breaking ties so two finance apps still don't land on
+// the same palette every time.
+const DARK_CATEGORIES = [
+  "finance",
+  "trading",
+  "money",
+  "invest",
+  "stock",
+  "crypto",
+  "bank",
+  "music",
+  "video",
+  "game",
+  "gaming",
+];
+
 export function pickPalette(input: PaletteInput): Palette {
   const text = `${input.title} ${input.pitch} ${input.features.join(" ")}`.toLowerCase();
-  const wantsDark = /dark mode/i.test(text);
+  const explicitDark = /dark mode|dark theme|dark ui|night mode/i.test(text);
+  const explicitLight = /light mode|light theme/i.test(text);
+  const wantsDark =
+    explicitDark ||
+    (!explicitLight && DARK_CATEGORIES.some((kw) => text.includes(kw)));
   const pool = PALETTES.filter((p) => p.mode === (wantsDark ? "dark" : "light"));
   const scored = pool.map((p) => ({
     palette: p,
