@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { scoreTier, timeAgo } from "@/lib/hunter/ui";
+import { estimatedRevenue } from "@/lib/hunter/revenueEstimate";
 import { apiFetch } from "@/lib/api";
 import NewBadge from "@/components/NewBadge";
 import ConfirmDialog from "@/components/ConfirmDialog";
@@ -36,6 +37,7 @@ type Opportunity = {
   offersIap: boolean | null;
   containsAds: boolean | null;
   priceText: string | null;
+  installsMin: string | null;
   playUpdated: string | null;
   /** Intake front door: "hunter" for scans, else upload | link | own-idea. */
   source?: string | null;
@@ -778,8 +780,23 @@ function EvidenceSections({ evidence, opp }: { evidence: any; opp: Opportunity }
           <span>Ads: {mon.adSupported ? "yes" : "no"}</span>
           <span>Subscription language: {mon.subscriptionLanguage ? "yes" : "no"}</span>
         </div>
+        {opp &&
+          (() => {
+            const est = estimatedRevenue({
+              priceText: opp.priceText,
+              installsMin: opp.installsMin,
+              offersIap: opp.offersIap,
+            });
+            return est ? (
+              <p className="mt-3 font-mono text-[13px] text-foreground">
+                Est. revenue (modelled): {est.label}
+                <span className="block text-[12px] text-muted-foreground">{est.detail}</span>
+              </p>
+            ) : null;
+          })()}
         <p className="mt-2 font-mono text-[12px] text-muted-foreground">
-          Presence + velocity only. No revenue figure is shown because Play never publishes one.
+          Play never publishes revenue — the estimate above is a model from public
+          price × installs, not a fact. No monthly figure is shown.
         </p>
       </section>
 

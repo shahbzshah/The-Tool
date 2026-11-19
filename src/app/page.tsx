@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { timeAgo } from "@/lib/hunter/ui";
+import { estimatedRevenue } from "@/lib/hunter/revenueEstimate";
 import { useEscapeClose } from "@/lib/shortcuts";
 import NewBadge from "@/components/NewBadge";
 import IntakePanel from "@/components/IntakePanel";
@@ -63,6 +64,9 @@ type Opportunity = {
   velocityPerDay?: number | null;
   deltaRatings30?: number | null;
   isRising?: boolean;
+  priceText?: string | null;
+  installsMin?: string | null;
+  offersIap?: boolean | null;
   /** Intake front door: "hunter" for scans, else upload | link | own-idea. */
   source?: string | null;
   /** Thumbnail data URL (or remote icon/thumbnail URL) for intake rows. */
@@ -359,6 +363,18 @@ function OpportunityCard({
         <span className="text-muted-foreground">
           {opp.installs ? `${opp.installs} installs` : "—"}
         </span>
+        {(() => {
+          const est = estimatedRevenue({
+            priceText: opp.priceText,
+            installsMin: opp.installsMin,
+            offersIap: opp.offersIap,
+          });
+          return est ? (
+            <span className="text-muted-foreground">
+              Est. revenue: {est.label} (modelled)
+            </span>
+          ) : null;
+        })()}
         {opp.velocityPerDay != null && (
           <>
             <span className="text-muted-foreground">
