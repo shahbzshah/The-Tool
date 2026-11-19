@@ -253,19 +253,24 @@ Respond with JSON:
     ) {
       additions.push(`Design for ${approvedIdea.targetAudience.trim()}.`);
     }
-    if (
-      monetization &&
-      !hasAnyWord(lower, ["freemium", "subscription", "price"]) &&
-      !hasAnyWord(lower, significantWords(monetization))
-    ) {
-      additions.push(`Monetisation: ${monetization}.`);
+    // Monetisation: one matching word ("freemium") is not enough — the
+    // free-tier terms are the point. Append the full model unless at
+    // least half its significant words are already in the prompt.
+    if (monetization) {
+      const monWords = significantWords(monetization);
+      const monCovered = monWords.filter((w) => lower.includes(w)).length;
+      if (monWords.length > 0 && monCovered < Math.ceil(monWords.length / 2)) {
+        additions.push(`Monetisation: ${monetization}.`);
+      }
     }
     const securityFeature = features.find((f) =>
       /secur|encrypt|privacy/i.test(f)
     );
+    // Security: "encrypted" alone is not enough — the feature names
+    // security AND privacy, so both words must be in the prompt.
     if (
       securityFeature &&
-      !hasAnyWord(lower, ["secur", "encrypt", "privacy"])
+      (!lower.includes("security") || !lower.includes("privacy"))
     ) {
       additions.push(`Also include this feature: ${securityFeature}`);
     }
