@@ -246,12 +246,15 @@ Respond with JSON:
     const lower = promptText.toLowerCase();
     const hasAnyWord = (text: string, words: string[]) =>
       words.some((w) => text.includes(w));
+    // Strip trailing periods so an appended sentence never ends "backup.."
+    // when the source value already ends with a full stop.
+    const clean = (s: string) => s.trim().replace(/\.+$/, "");
     const additions: string[] = [];
     if (
       approvedIdea.targetAudience.trim() &&
       !hasAnyWord(lower, significantWords(approvedIdea.targetAudience))
     ) {
-      additions.push(`Design for ${approvedIdea.targetAudience.trim()}.`);
+      additions.push(`Design for ${clean(approvedIdea.targetAudience)}.`);
     }
     // Monetisation: one matching word ("freemium") is not enough — the
     // free-tier terms are the point. Append the full model unless at
@@ -260,19 +263,23 @@ Respond with JSON:
       const monWords = significantWords(monetization);
       const monCovered = monWords.filter((w) => lower.includes(w)).length;
       if (monWords.length > 0 && monCovered < Math.ceil(monWords.length / 2)) {
-        additions.push(`Monetisation: ${monetization}.`);
+        additions.push(`Monetisation: ${clean(monetization)}.`);
       }
     }
     const securityFeature = features.find((f) =>
       /secur|encrypt|privacy/i.test(f)
     );
-    // Security: "encrypted" alone is not enough — the feature names
-    // security AND privacy, so both words must be in the prompt.
+    // Security: "encrypted" alone is not enough — both words "security"
+    // AND "privacy" must be in the prompt. The matched feature text
+    // itself may not contain them (live: it only said "encrypted cloud
+    // backup"), so the appended sentence states them explicitly.
     if (
       securityFeature &&
       (!lower.includes("security") || !lower.includes("privacy"))
     ) {
-      additions.push(`Also include this feature: ${securityFeature}`);
+      additions.push(
+        `Also include this feature: ${clean(securityFeature)} — with data security and privacy controls for sensitive financial information.`
+      );
     }
     if (opportunityScore && !lower.includes(opportunityScore)) {
       additions.push(`Opportunity score: ${opportunityScore}/100.`);
