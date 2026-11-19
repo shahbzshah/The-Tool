@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
+import type { Palette } from "@/lib/palettes";
 
 type StitchPrompt = {
   id: string;
@@ -129,6 +130,10 @@ export default function StitchPromptPage() {
   const [uploading, setUploading] = useState(false);
   const [features, setFeatures] = useState<string[]>([]);
   const [idea, setIdea] = useState<RefinedIdea | null>(null);
+  // Palette picked by the app from the colour library (see
+  // src/lib/palettes.ts) — deterministic per project, shown in the
+  // "From Refine" card and baked into the prompt with exact hexes.
+  const [palette, setPalette] = useState<Palette | null>(null);
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
   const [loadedStorageKey, setLoadedStorageKey] = useState<string | null>(null);
   const [aiResults, setAiResults] = useState<Record<number, { covered: boolean; matchedFile: string | null; reason: string }>>({});
@@ -198,6 +203,7 @@ export default function StitchPromptPage() {
       setPrompt(existing);
       setFeatures(Array.isArray(data.features) ? data.features : []);
       setIdea(data.idea ?? null);
+      setPalette(data.palette ?? null);
       // No prompt yet → generate it automatically; it's a required step.
       if (!existing) {
         setGenerating(true);
@@ -671,6 +677,24 @@ export default function StitchPromptPage() {
                     <div>
                       <dt className="label-caps text-muted-foreground">Opportunity score</dt>
                       <dd className="text-foreground">{idea.opportunityScore}/100</dd>
+                    </div>
+                  )}
+                  {palette && (
+                    <div>
+                      <dt className="label-caps text-muted-foreground">Colour palette</dt>
+                      <dd className="flex flex-wrap items-center gap-2 text-foreground">
+                        <span className="flex items-center gap-1">
+                          {[palette.background, palette.surface, palette.primary, palette.secondary, palette.accent].map((hex) => (
+                            <span
+                              key={hex}
+                              title={hex}
+                              className="inline-block h-4 w-4 rounded-full border border-border"
+                              style={{ backgroundColor: hex }}
+                            />
+                          ))}
+                        </span>
+                        {palette.name} ({palette.mode})
+                      </dd>
                     </div>
                   )}
                 </dl>

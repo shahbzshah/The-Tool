@@ -7,6 +7,7 @@ import {
   parseStoryTitles,
   requiredScreensFromStories,
 } from "@/lib/story-screens";
+import { pickPalette, describePalette } from "@/lib/palettes";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -94,7 +95,17 @@ export async function GET(req: Request) {
         opportunityScore: extractOpportunityScore(approved.pitch),
       }
     : null;
-  return NextResponse.json({ prompt, features, idea });
+  // The palette is picked deterministically from the idea (see
+  // src/lib/palettes.ts) — the Design page shows it without regenerating.
+  const palette = approved
+    ? pickPalette({
+        projectId,
+        title: approved.title,
+        pitch: approved.pitch,
+        features,
+      })
+    : null;
+  return NextResponse.json({ prompt, features, idea, palette });
 }
 
 export async function POST(req: Request) {
@@ -132,6 +143,17 @@ export async function POST(req: Request) {
     // prompt before, so the AI could not carry them to Design.
     const monetization = (approvedIdea.monetization ?? "").trim();
     const opportunityScore = extractOpportunityScore(approvedIdea.pitch);
+
+    // Colour: the AI always picked "deep slate dark mode", so every app
+    // came out the same ash grey. The palette is now picked from the
+    // library by app type + dark-mode request — never slate, grey, or ash.
+    const palette = pickPalette({
+      projectId,
+      title: approvedIdea.title,
+      pitch: approvedIdea.pitch,
+      features,
+    });
+    const paletteText = describePalette(palette);
 
     // User stories define the flows — and flows are what need screens.
     // Without them, designs ship without sign-up, login, or edit screens.
@@ -186,12 +208,15 @@ ${requiredScreensBlock}
 
 Design direction: ${project.preferences || "none specified — choose a clean, modern direction that fits the app type and audience"}
 
+COLOUR PALETTE — use EXACTLY this palette. Do not substitute, do not invent another one, and do NOT use slate, grey, ash, or neutral grey backgrounds — the background must be the exact colour below:
+${paletteText}
+
 Requirements:
 - "screens": ${requiredScreens.length > 0 ? "7-10" : "5-7"} concrete screen names for this app (e.g. "Dashboard", "Settings"). Cover ALL features above across these screens.${requiredScreens.length > 0 ? " The \"screens\" array MUST include every REQUIRED SCREEN listed above." : ""}
-- "colorScheme": specific palette direction (name actual colors/mood, e.g. "dark mode with emerald green accents").
+- "colorScheme": MUST be exactly: "${paletteText}".
 - "style": visual style direction (e.g. "minimal, clean, card-based layout with generous whitespace").
 - "components": 5-8 key UI components (e.g. "bottom nav bar", "line charts", "FAB button") needed to implement the features.
-${platformRequirement}- "promptText": the full Stitch prompt as ONE detailed paragraph (120-250 words) that weaves together the app type, all screens, the color scheme, style, components, and platform. It must be ready to paste directly into Stitch and produce a consistent, beautiful multi-screen design. The paragraph MUST name the target audience, the monetisation model, and EVERY feature in the list above — do not drop any feature, including security/privacy features. When an opportunity score is given above, the paragraph MUST state it.${requiredScreens.length > 0 ? " The paragraph MUST name every REQUIRED SCREEN." : ""}
+${platformRequirement}- "promptText": the full Stitch prompt as ONE detailed paragraph (120-250 words) that weaves together the app type, all screens, the color scheme, style, components, and platform. It must be ready to paste directly into Stitch and produce a consistent, beautiful multi-screen design. The paragraph MUST name the target audience, the monetisation model, and EVERY feature in the list above — do not drop any feature, including security/privacy features. It MUST name the colour palette by name and hex codes from the COLOUR PALETTE above. When an opportunity score is given above, the paragraph MUST state it.${requiredScreens.length > 0 ? " The paragraph MUST name every REQUIRED SCREEN." : ""}
 
 Respond with JSON:
 {"appType": string, "screens": string[], "colorScheme": string, "style": string, "components": string[], "platform": string, "promptText": string}`;
@@ -292,6 +317,13 @@ Respond with JSON:
     if (opportunityScore && !lower.includes(opportunityScore)) {
       additions.push(`Opportunity score: ${opportunityScore}/100.`);
     }
+    // Colour: the palette hexes must survive into the prompt — if the AI
+    // dropped them, append the full palette so Stitch gets exact colours.
+    if (!lower.includes(palette.background.toLowerCase())) {
+      additions.push(
+        `Colour palette: ${paletteText}. Use exactly these colours; no grey or slate.`
+      );
+    }
     if (additions.length > 0) {
       promptText = `${promptText.trim()} ${additions.join(" ")}`;
     }
@@ -303,7 +335,8 @@ Respond with JSON:
         promptText,
         appType: String(data.appType ?? ""),
         screens: JSON.stringify(screens),
-        colorScheme: String(data.colorScheme ?? ""),
+        // The palette is authoritative — store it, not the AI's paraphrase.
+        colorScheme: paletteText,
         style: String(data.style ?? ""),
         components: JSON.stringify(asStringArr(data.components)),
         platform: String(data.platform ?? ""),
@@ -312,7 +345,7 @@ Respond with JSON:
         promptText,
         appType: String(data.appType ?? ""),
         screens: JSON.stringify(screens),
-        colorScheme: String(data.colorScheme ?? ""),
+        colorScheme: paletteText,
         style: String(data.style ?? ""),
         components: JSON.stringify(asStringArr(data.components)),
         platform: String(data.platform ?? ""),
