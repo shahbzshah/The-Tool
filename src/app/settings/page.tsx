@@ -98,6 +98,7 @@ function AdminPasswordReset() {
   const [users, setUsers] = useState<{ id: string; email: string; isAdmin: boolean }[]>([]);
   const [email, setEmail] = useState("");
   const [newPassword, setNewPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [status, setStatus] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -174,13 +175,25 @@ function AdminPasswordReset() {
           <label className="label-caps mb-1.5 block text-muted-foreground">
             New password
           </label>
-          <input
-            type="password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            placeholder="New password (min 10 chars)"
-            className="input-paper min-h-[44px] flex-1"
-          />
+          <div className="relative flex-1">
+            <input
+              type={showPassword ? "text" : "password"}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+              placeholder="New password (min 10 chars)"
+              className="input-paper min-h-[44px] w-full pr-11"
+            />
+            <button
+              type="button"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? "Hide password" : "Show password"}
+              className="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+            >
+              <span className="material-symbols text-[20px]">
+                {showPassword ? "visibility_off" : "visibility"}
+              </span>
+            </button>
+          </div>
         </div>
       </div>
       <div className="mt-4 flex justify-end">
