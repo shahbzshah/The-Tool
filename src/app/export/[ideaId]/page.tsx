@@ -167,17 +167,37 @@ function PackChecklist({
         );
         const url =
           step.via === "align" ? "/api/docs/align" : "/api/docs/generate";
-        const res = await apiFetch(url, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ideaId, kind: step.kind }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          throw new Error(
-            data.error || `Could not regenerate ${step.kind}.`
-          );
+        // One automatic retry: a doc generation can exceed the AI timeout
+        // when the model is slow (UI timed out twice at 120s on the Docs
+        // page), and the second attempt usually lands.
+        let lastErr: Error | null = null;
+        for (let attempt = 0; attempt < 2; attempt++) {
+          try {
+            if (attempt === 1)
+              setFixStep(
+                `Regenerating ${step.kind} (retrying…, ${i + 1} of ${fixSteps.length})…`
+              );
+            const res = await apiFetch(url, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ ideaId, kind: step.kind }),
+            });
+            if (!res.ok) {
+              const data = await res.json().catch(() => ({}));
+              throw new Error(
+                data.error || `Could not regenerate ${step.kind}.`
+              );
+            }
+            lastErr = null;
+            break;
+          } catch (err) {
+            lastErr =
+              err instanceof Error
+                ? err
+                : new Error(`Could not regenerate ${step.kind}.`);
+          }
         }
+        if (lastErr) throw lastErr;
       }
       setFixStep("Re-checking…");
       await onRecheck();

@@ -298,7 +298,15 @@ export async function generateDocForIdea(
   const { messages } = await buildDocMessages(ideaId, kind);
 
   const startedAt = Date.now();
-  const content = await chat(messages, { temperature: 0.7, maxTokens: 3500 });
+  // Doc generations carry the full design context and long outputs (the UI
+  // doc describes every screen) — they can exceed the AI client's 120s
+  // default when the model is slow, and the Fix button died on UI twice
+  // that way. 240s still fits under the route's 300s maxDuration.
+  const content = await chat(messages, {
+    temperature: 0.7,
+    maxTokens: 3500,
+    timeoutMs: 240_000,
+  });
   const durationMs = Date.now() - startedAt;
 
   // Log usage before touching the DB so a DB hiccup never loses the record.
