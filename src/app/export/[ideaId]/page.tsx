@@ -31,6 +31,22 @@ type PackPreview = {
   skills: { names: string[]; status: "cached" | "will-download"; cachedCount: number };
 };
 
+// Doc kinds the align pass can regenerate from the locked stack — kept in
+// sync with STACK_SENSITIVE_KINDS in src/lib/docgen.ts.
+const ALIGN_KINDS = new Set([
+  "TECHNICAL_SPEC",
+  "FOLDER_STRUCTURE",
+  "RULES",
+  "MASTER_PROMPT",
+  "BUILD_GUIDE",
+  "ARCHITECTURE",
+  "TASKS",
+  "VOICE_SPEC",
+  "SYNC_SPEC",
+  "BRD",
+  "DATABASE_SCHEMA",
+]);
+
 function ChecklistRow({
   ok,
   title,
@@ -82,6 +98,10 @@ function PackChecklist({
 }) {
   const [fixOpen, setFixOpen] = useState(false);
   const [rechecking, setRechecking] = useState(false);
+  const [fixing, setFixing] = useState(false);
+  const [fixStep, setFixStep] = useState<string | null>(null);
+  const [fixError, setFixError] = useState<string | null>(null);
+  const [fixResult, setFixResult] = useState<string | null>(null);
   const applicableSet = preview.applicableKinds
     ? new Set(preview.applicableKinds)
     : null;
@@ -102,7 +122,6 @@ function PackChecklist({
   const blockingIssues = consistency
     ? consistency.issues.filter((i) => i.severity === "blocking")
     : [];
-  const dbIssue = blockingIssues.some((i) => i.type === "database");
 
   async function recheck() {
     setRechecking(true);
@@ -110,6 +129,66 @@ function PackChecklist({
       await onRecheck();
     } finally {
       setRechecking(false);
+    }
+  }
+
+  // The real fix: regenerate the disagreeing docs so they all derive from
+  // the same locked stack and features. Stack-sensitive kinds go through
+  // /api/docs/align (locked-stack pass); anything else (API_SPEC) is
+  // regenerated directly. Old versions are snapshotted by docgen first, so
+  // a fix can be undone from a doc's history. After regenerating, the
+  // preview is re-loaded in place and the row shows the new count.
+  const fixSteps = (() => {
+    const seen = new Set<string>();
+    const steps: { kind: string; via: "align" | "generate" }[] = [];
+    for (const issue of blockingIssues) {
+      for (const kind of issue.docs) {
+        if (seen.has(kind)) continue;
+        seen.add(kind);
+        steps.push({
+          kind,
+          via: ALIGN_KINDS.has(kind) ? "align" : "generate",
+        });
+      }
+    }
+    return steps;
+  })();
+
+  async function fixNow() {
+    if (fixSteps.length === 0) return;
+    setFixing(true);
+    setFixError(null);
+    setFixResult(null);
+    try {
+      for (let i = 0; i < fixSteps.length; i++) {
+        const step = fixSteps[i];
+        setFixStep(
+          `Regenerating ${step.kind} (${i + 1} of ${fixSteps.length})…`
+        );
+        const url =
+          step.via === "align" ? "/api/docs/align" : "/api/docs/generate";
+        const res = await apiFetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ideaId, kind: step.kind }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(
+            data.error || `Could not regenerate ${step.kind}.`
+          );
+        }
+      }
+      setFixStep("Re-checking…");
+      await onRecheck();
+      setFixResult(
+        `Regenerated ${fixSteps.length} doc${fixSteps.length === 1 ? "" : "s"} — see the row above for the new count.`
+      );
+    } catch (err) {
+      setFixError(err instanceof Error ? err.message : "Fix failed.");
+    } finally {
+      setFixing(false);
+      setFixStep(null);
     }
   }
 
@@ -162,15 +241,42 @@ function PackChecklist({
             {fixOpen && (
               <div className="mt-2 rounded-md border border-border bg-muted/50 p-3">
                 <p className="text-xs leading-relaxed text-foreground">
-                  {dbIssue
-                    ? "This flags when documents name different databases. Here every document names the same set — PostgreSQL in the cloud (via Supabase) and SQLite on the device — which is one local-first architecture, not a disagreement. The checker used to count every database name it found, including Supabase as a second database; that is fixed now, so re-checking should clear this."
-                    : "These documents disagree with each other. Lock the winning choice in Locked Decisions on the Docs page, then regenerate the disagreeing docs — or re-check if you already fixed them."}
+                  Fix now regenerates the disagreeing docs from your locked
+                  stack, so they all say the same thing. The old versions
+                  are kept in each doc&apos;s history.
                 </p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Will regenerate:{" "}
+                  {fixSteps.map((s) => s.kind).join(", ")}.
+                </p>
+                {fixError && (
+                  <p className="mt-2 text-xs font-medium text-score-medium">
+                    {fixError}{" "}
+                    {fixError.includes("stack lock") &&
+                      "Pick the stack in Locked Decisions on the Docs page first, then come back and fix."}
+                  </p>
+                )}
+                {fixResult && (
+                  <p className="mt-2 text-xs font-medium text-score-high">
+                    {fixResult}
+                  </p>
+                )}
                 <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     type="button"
+                    onClick={fixNow}
+                    disabled={fixing || rechecking}
+                    className="btn-primary min-h-[36px] px-3 text-xs"
+                  >
+                    <span className="material-symbols text-[16px]">
+                      build
+                    </span>
+                    {fixing ? (fixStep ?? "Fixing…") : "Fix now"}
+                  </button>
+                  <button
+                    type="button"
                     onClick={recheck}
-                    disabled={rechecking}
+                    disabled={rechecking || fixing}
                     className="btn-secondary min-h-[36px] px-3 text-xs"
                   >
                     <span className="material-symbols text-[16px]">
