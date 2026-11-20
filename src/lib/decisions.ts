@@ -172,7 +172,9 @@ const DETECTION_PATTERNS: Record<TechDecisionKey, DetectionPattern[]> = {
   ],
   hosting: [
     { re: /vercel\b/i, canonical: "Vercel" },
-    { re: /render\b/i, canonical: "Render" },
+    // "Render" is case-sensitive on purpose: lowercase "render" is the
+    // everyday verb ("render the dashboard"), not the hosting platform.
+    { re: /\bRender\b/, canonical: "Render" },
     { re: /railway\b/i, canonical: "Railway" },
     { re: /\beas\b|expo application services/i, canonical: "EAS" },
     { re: /\baws\b|amazon web services/i, canonical: "AWS" },
@@ -184,41 +186,182 @@ export type DetectedDecision = {
   key: TechDecisionKey;
   values: string[];
   sources: string[];
+  /** Which doc kinds named each value — so a fix knows what to regenerate. */
+  valueSources: Record<string, string[]>;
   conflict: boolean;
+};
+
+// Sync model components: a detected component agrees with the lock when
+// the lock names that component ("Offline-first with outbox +
+// last-write-wins" names all three).
+const SYNC_TOKENS: Record<string, string> = {
+  "Offline-first": "offline-first",
+  "Outbox queue": "outbox",
+  "Last-write-wins": "last-write-wins",
+  "Field-level merge": "field-level",
+  CRDT: "crdt",
+};
+
+const ENGINE_OF_VALUE = (value: string): string | null => {
+  const lower = value.toLowerCase();
+  if (/supabase|postgres/.test(lower)) return "PostgreSQL";
+  if (/firestore/.test(lower)) return "Firestore";
+  if (/dynamodb|dynamo/.test(lower)) return "DynamoDB";
+  if (/mongodb|mongo/.test(lower)) return "MongoDB";
+  if (/sqlite/.test(lower)) return "SQLite";
+  if (/mysql/.test(lower)) return "MySQL";
+  return null;
+};
+
+/**
+ * Does a detected value agree with the locked decision? Same thing under
+ * another label counts as agreement, and so do complementary layers —
+ * SQLite is the local half of a local-first database, Node.js + Express
+ * is the API runtime in front of a backend platform, and "Cloud STT/TTS"
+ * without a named provider is the same mode as the Google Cloud one.
+ * This is the one shared rule: the Decisions panel and the consistency
+ * audit both use it, so they can never disagree about what counts.
+ */
+export function valueAgreesWithLock(
+  key: TechDecisionKey,
+  value: string,
+  locked: string
+): boolean {
+  const lock = locked.toLowerCase();
+  const has = (token: string) => lock.includes(token);
+  switch (key) {
+    case "database": {
+      // SQLite is the local layer: it agrees with any cloud database lock.
+      if (value === "SQLite") return true;
+      return ENGINE_OF_VALUE(value) === ENGINE_OF_VALUE(locked);
+    }
+    case "frontend": {
+      // Bare "React" is the framework underneath React Native and Next.js.
+      if (value === "React") return has("react");
+      if (value === "React Native + Expo")
+        return has("react native") || has("expo");
+      if (value === "Next.js") return has("next");
+      return has(value.toLowerCase());
+    }
+    case "backend": {
+      if (value === "Node.js + Express")
+        return (
+          has("node") ||
+          has("express") ||
+          has("supabase") ||
+          has("firebase")
+        );
+      if (value === "Next.js route handlers") return has("next");
+      return has(value.toLowerCase());
+    }
+    case "auth": {
+      if (value === "JWT") return has("jwt");
+      if (value.startsWith("Email")) return has("email");
+      if (value === "Google OAuth") return has("google");
+      if (value === "Magic link") return has("magic");
+      return false;
+    }
+    case "speech": {
+      if (value === "On-device STT/TTS" || value === "Whisper (on-device)")
+        return (
+          has("on-device") || has("on device") || has("local") || has("whisper")
+        );
+      // Both cloud variants agree with any cloud lock.
+      return has("cloud");
+    }
+    case "sync": {
+      const token = SYNC_TOKENS[value];
+      return token ? has(token) : false;
+    }
+    case "hosting": {
+      return has(value.toLowerCase());
+    }
+  }
+}
+
+// [keep, drop] — the same thing under two labels; the drop is noise.
+// Applied to the pooled values before the conflict is computed.
+const ALIAS_DROPS: Partial<Record<TechDecisionKey, [string, string][]>> = {
+  database: [["Supabase (PostgreSQL)", "PostgreSQL"]],
+  frontend: [["React Native + Expo", "React"]],
+  speech: [
+    ["Cloud STT/TTS (Google Cloud)", "Cloud STT/TTS (unspecified provider)"],
+  ],
 };
 
 /**
  * Scan doc contents for what each one claims. Returns one entry per key
- * that appears anywhere. `conflict` is true when docs name different
- * values for the same key — the human must pick the winner.
+ * that appears anywhere.
+ *
+ * `conflict` means a doc disagrees with the LOCKED decision when a lock is
+ * passed in, and "the docs disagree with each other" when it isn't. The
+ * old rule (more than one value mentioned) cried wolf on every layered
+ * architecture: SQLite + PostgreSQL is one local-first design, not a
+ * disagreement, and neither is "React Native" mentioned alongside "React".
  */
 export function detectDecisions(
-  docs: { kind: string; content: string }[]
+  docs: { kind: string; content: string }[],
+  locked?: TechDecisions
 ): DetectedDecision[] {
-  const found = new Map<TechDecisionKey, { values: Set<string>; sources: Set<string> }>();
+  const found = new Map<
+    TechDecisionKey,
+    {
+      values: Set<string>;
+      sources: Set<string>;
+      valueSources: Map<string, Set<string>>;
+    }
+  >();
   for (const doc of docs) {
     if (!doc.content) continue;
     for (const def of TECH_DECISION_DEFS) {
+      // "Google Cloud" as a speech provider ("Cloud STT/TTS (Google
+      // Cloud)") is not a hosting claim — strip that span before the
+      // hosting patterns run.
+      const content =
+        def.key === "hosting"
+          ? doc.content.replace(/stt\/tts\s*\(google cloud\)/gi, " ")
+          : doc.content;
       for (const pattern of DETECTION_PATTERNS[def.key]) {
-        if (pattern.re.test(doc.content)) {
+        if (pattern.re.test(content)) {
           let entry = found.get(def.key);
           if (!entry) {
-            entry = { values: new Set(), sources: new Set() };
+            entry = {
+              values: new Set(),
+              sources: new Set(),
+              valueSources: new Map(),
+            };
             found.set(def.key, entry);
           }
           entry.values.add(pattern.canonical);
           entry.sources.add(doc.kind);
+          const kinds = entry.valueSources.get(pattern.canonical) ?? new Set<string>();
+          kinds.add(doc.kind);
+          entry.valueSources.set(pattern.canonical, kinds);
         }
       }
     }
   }
   return TECH_DECISION_DEFS.filter((d) => found.has(d.key)).map((d) => {
     const entry = found.get(d.key)!;
+    const values = new Set(entry.values);
+    for (const [keep, drop] of ALIAS_DROPS[d.key] ?? []) {
+      if (values.has(keep)) values.delete(drop);
+    }
+    const valueList = [...values];
+    const lockedValue = locked?.[d.key]?.trim();
+    const conflict = lockedValue
+      ? valueList.some((v) => !valueAgreesWithLock(d.key, v, lockedValue))
+      : values.size > 1;
+    const valueSources: Record<string, string[]> = {};
+    for (const [value, kinds] of entry.valueSources) {
+      if (values.has(value)) valueSources[value] = [...kinds];
+    }
     return {
       key: d.key,
-      values: [...entry.values],
+      values: valueList,
       sources: [...entry.sources],
-      conflict: entry.values.size > 1,
+      valueSources,
+      conflict,
     };
   });
 }

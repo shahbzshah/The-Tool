@@ -281,7 +281,8 @@ export async function generateDocForIdea(
       decisions: parseTechDecisions(idea.project.techDecisions),
       stackLock: idea.project.stackLock,
       detected: detectDecisions(
-        idea.documents.map((d) => ({ kind: d.kind, content: d.content }))
+        idea.documents.map((d) => ({ kind: d.kind, content: d.content })),
+        parseTechDecisions(idea.project.techDecisions)
       ),
     });
     await snapshotDocVersion(ideaId, kind);

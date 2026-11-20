@@ -15,6 +15,9 @@ import {
 } from "@/lib/constants";
 import {
   parseTechDecisions,
+  detectDecisions,
+  valueAgreesWithLock,
+  type TechDecisionKey,
   type TechDecisions,
 } from "@/lib/decisions";
 
@@ -109,28 +112,6 @@ function canonicalEngine(value: string): string | null {
   return null;
 }
 
-// Frontend markers by platform — the platform signal. "React" alone is
-// never a marker: it appears inside "React Native".
-const FRONTEND_PATTERNS: { re: RegExp; canonical: "mobile" | "web" }[] = [
-  { re: /react\s+native|expo\b|flutter/i, canonical: "mobile" },
-  { re: /next\.js/i, canonical: "web" },
-];
-
-function frontendsIn(content: string): Set<"mobile" | "web"> {
-  const found = new Set<"mobile" | "web">();
-  for (const p of FRONTEND_PATTERNS) {
-    if (p.re.test(content)) found.add(p.canonical);
-  }
-  return found;
-}
-
-function canonicalFrontend(value: string): "mobile" | "web" | null {
-  const lower = value.toLowerCase();
-  if (/react\s+native|expo|flutter/.test(lower)) return "mobile";
-  if (/next\.js/.test(lower)) return "web";
-  return null;
-}
-
 export function checkConsistency(opts: {
   docs: { kind: string; content: string }[];
   idea: IdeaLike;
@@ -188,7 +169,65 @@ export function checkConsistency(opts: {
   }
 
   // --- Locked-decision agreement ------------------------------------------
+  // The audit and the Decisions panel share one rule for what counts as a
+  // disagreement (valueAgreesWithLock in decisions.ts): a detected value
+  // that names the locked decision, an alias of it, or a complementary
+  // layer does not flag. A doc naming ONLY a value that disagrees with
+  // the lock flags. The docs that name the stack — technical spec, folder
+  // structure, rules, master prompt, architecture, build guide — are
+  // checked for every locked key, so a stale doc cannot hide behind a
+  // key the audit used to ignore (backend, hosting, speech).
   const locked: TechDecisions = parseTechDecisions(techDecisionsRaw);
+  const STACK_DOCS = [
+    "TECHNICAL_SPEC",
+    "FOLDER_STRUCTURE",
+    "RULES",
+    "MASTER_PROMPT",
+    "ARCHITECTURE",
+    "BUILD_GUIDE",
+  ];
+  const LOCK_LABELS: Record<TechDecisionKey, string> = {
+    database: "database",
+    frontend: "frontend",
+    backend: "backend",
+    auth: "app auth",
+    speech: "speech mode",
+    sync: "sync model",
+    hosting: "hosting / deploy",
+  };
+  for (const key of [
+    "frontend",
+    "backend",
+    "hosting",
+    "speech",
+  ] as const satisfies TechDecisionKey[]) {
+    const lockedValue = locked[key]?.trim();
+    if (!lockedValue) continue;
+    for (const kind of STACK_DOCS) {
+      const content = byKind.get(kind);
+      if (!content?.trim()) continue;
+      const det = detectDecisions([{ kind, content }]).find(
+        (d) => d.key === key
+      );
+      if (!det) continue;
+      const bad = det.values.filter(
+        (v) => !valueAgreesWithLock(key, v, lockedValue)
+      );
+      if (bad.length > 0) {
+        issues.push({
+          type: "lock",
+          severity: "blocking",
+          message: `${kind} names ${bad.join(", ")} but the locked ${LOCK_LABELS[key]} decision is ${lockedValue}. Regenerate it with the lock applied.`,
+          docs: [kind],
+        });
+      }
+    }
+  }
+
+  // Database lock over the remaining stack-naming docs: a doc naming an
+  // engine outside the locked engine and the local SQLite layer flags.
+  // (The four schema docs above keep the stricter check — a schema doc
+  // that never names the cloud database at all is still flagged there.)
   const lockedEngine = locked.database ? canonicalEngine(locked.database) : null;
   if (lockedEngine) {
     for (const [kind, set] of perDocEngines) {
@@ -201,42 +240,23 @@ export function checkConsistency(opts: {
         });
       }
     }
-  }
-
-  // --- Locked-frontend agreement ------------------------------------------
-  // Same shape as the database lock check, but for the client framework —
-  // the platform marker. After a platform switch the docs still name the
-  // old platform's framework, and without this the audit stays green
-  // while the pack describes the wrong platform (verified live: switching
-  // the trading journal to web left "No conflicts" even though every doc
-  // says React Native + Expo). A doc naming BOTH is not flagged — it may
-  // be a migration note. The docgen prompt forbids naming alternative
-  // frameworks when a stack is locked, so a doc naming ONLY the other
-  // platform's framework is a genuine disagreement.
-  const lockedFrontend = locked.frontend
-    ? canonicalFrontend(locked.frontend)
-    : null;
-  if (lockedFrontend) {
-    const frontendDocs = [
-      "TECHNICAL_SPEC",
+    for (const kind of [
       "FOLDER_STRUCTURE",
       "RULES",
-      "MASTER_PROMPT",
       "ARCHITECTURE",
       "BUILD_GUIDE",
-    ];
-    for (const kind of frontendDocs) {
+    ]) {
       const content = byKind.get(kind);
       if (!content?.trim()) continue;
-      const found = frontendsIn(content);
-      if (found.size > 0 && !found.has(lockedFrontend)) {
-        const named = [...found]
-          .map((f) => (f === "mobile" ? "React Native/Expo" : "Next.js"))
-          .join(", ");
+      const set = enginesIn(content);
+      const foreign = [...set].filter(
+        (e) => e !== lockedEngine && e !== "SQLite"
+      );
+      if (foreign.length > 0) {
         issues.push({
           type: "lock",
           severity: "blocking",
-          message: `${kind} names ${named} but the locked frontend decision is ${locked.frontend}. Regenerate it with the lock applied.`,
+          message: `${kind} names ${foreign.join(", ")} but the locked database decision is ${locked.database}. Regenerate it with the lock applied.`,
           docs: [kind],
         });
       }

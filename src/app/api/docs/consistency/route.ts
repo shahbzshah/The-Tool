@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import { checkConsistency } from "@/lib/consistency";
-import { detectDecisions } from "@/lib/decisions";
+import { detectDecisions, parseTechDecisions } from "@/lib/decisions";
 import { applicableKinds } from "@/lib/constants";
 
 export const runtime = "nodejs";
@@ -61,7 +61,10 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       ...report,
-      detected: detectDecisions(idea.documents),
+      detected: detectDecisions(
+        idea.documents,
+        parseTechDecisions(idea.project.techDecisions)
+      ),
       applicableKinds: applicableKinds({
         title: idea.title,
         pitch: idea.pitch,

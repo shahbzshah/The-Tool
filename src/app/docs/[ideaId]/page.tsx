@@ -10,6 +10,7 @@ import DecisionsPanel from "@/components/DecisionsPanel";
 import { DOC_KINDS, type DocKindDef } from "@/lib/constants";
 import {
   parseTechDecisions,
+  valueAgreesWithLock,
   type DetectedDecision,
   type TechDecisions,
 } from "@/lib/decisions";
@@ -23,6 +24,22 @@ import {
 } from "@/lib/api";
 import { useEscapeClose } from "@/lib/shortcuts";
 import QuotaIndicator from "@/components/QuotaIndicator";
+
+// Doc kinds the fix pass can regenerate from the locked stack — kept in
+// sync with STACK_SENSITIVE_KINDS in src/lib/docgen.ts.
+const ALIGN_KINDS = new Set([
+  "TECHNICAL_SPEC",
+  "FOLDER_STRUCTURE",
+  "RULES",
+  "MASTER_PROMPT",
+  "BUILD_GUIDE",
+  "ARCHITECTURE",
+  "TASKS",
+  "VOICE_SPEC",
+  "SYNC_SPEC",
+  "BRD",
+  "DATABASE_SCHEMA",
+]);
 
 type Idea = {
   id: string;
@@ -304,6 +321,12 @@ export default function DocsPage() {
     ConsistencyIssue[]
   >([]);
   const [consistencyOk, setConsistencyOk] = useState<boolean | null>(null);
+  // Fix disagreements: regenerate the docs that disagree with the locked
+  // decisions (same flow as the Export page's Fix now).
+  const [fixing, setFixing] = useState(false);
+  const [fixStep, setFixStep] = useState<string | null>(null);
+  const [fixError, setFixError] = useState<string | null>(null);
+  const [fixResult, setFixResult] = useState<string | null>(null);
   const [applicableKindSet, setApplicableKindSet] = useState<Set<string> | null>(
     null
   );
@@ -846,6 +869,84 @@ export default function DocsPage() {
     [loadConsistency]
   );
 
+  // The fix: regenerate every doc that disagrees with the locked decisions,
+  // from the two views that must agree — the audit's blocking issues (which
+  // name their docs) and the Decisions panel's detected values (which name
+  // their doc kinds per value). Stack-sensitive kinds go through
+  // /api/docs/align; anything else is regenerated directly. Old versions
+  // are snapshotted by docgen first, so a fix can be undone from a doc's
+  // history.
+  const fixSteps = (() => {
+    const seen = new Set<string>();
+    const steps: { kind: string; via: "align" | "generate" }[] = [];
+    const add = (kind: string) => {
+      if (seen.has(kind)) return;
+      seen.add(kind);
+      steps.push({
+        kind,
+        via: ALIGN_KINDS.has(kind) ? "align" : "generate",
+      });
+    };
+    for (const issue of consistencyIssues) {
+      if (issue.severity !== "blocking") continue;
+      for (const kind of issue.docs) add(kind);
+    }
+    for (const det of detected) {
+      const lockedValue = techDecisions[det.key]?.trim();
+      if (!lockedValue || !det.conflict) continue;
+      for (const value of det.values) {
+        if (valueAgreesWithLock(det.key, value, lockedValue)) continue;
+        for (const kind of det.valueSources?.[value] ?? []) add(kind);
+      }
+    }
+    return steps;
+  })();
+
+  async function fixDisagreements() {
+    if (fixSteps.length === 0) return;
+    setFixing(true);
+    setFixError(null);
+    setFixResult(null);
+    try {
+      for (let i = 0; i < fixSteps.length; i++) {
+        const step = fixSteps[i];
+        setFixStep(
+          `Regenerating ${step.kind} (${i + 1} of ${fixSteps.length})…`
+        );
+        const url =
+          step.via === "align" ? "/api/docs/align" : "/api/docs/generate";
+        const res = await apiFetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ ideaId, kind: step.kind }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || `Could not regenerate ${step.kind}.`);
+        }
+      }
+      setFixStep("Re-checking…");
+      await loadAll();
+      setFixResult(
+        `Regenerated ${fixSteps.length} doc${fixSteps.length === 1 ? "" : "s"} — the audit above shows the new count.`
+      );
+    } catch (err) {
+      setFixError(err instanceof Error ? err.message : "Fix failed.");
+    } finally {
+      setFixing(false);
+      setFixStep(null);
+    }
+  }
+
+  const fixState = {
+    steps: fixSteps,
+    fixing,
+    step: fixStep,
+    error: fixError,
+    result: fixResult,
+    onFix: () => void fixDisagreements(),
+  };
+
   if (loading) {
     return (
       <main className="mx-auto max-w-[1200px] px-6 py-16 text-center">
@@ -920,8 +1021,8 @@ export default function DocsPage() {
         />
       </div>
 
-      {/* 01–03: stack lock, locked decisions, consistency audit */}
-      <div className="print-hide mt-6 grid items-start gap-4 xl:grid-cols-3">
+      {/* 01–02: stack lock, locked decisions */}
+      <div className="print-hide mt-6 grid items-start gap-4 xl:grid-cols-2">
         {/* Stack lock: the canonical tech stack injected into generated docs */}
         <StackLockPanel
           projectId={idea.projectId}
@@ -940,10 +1041,13 @@ export default function DocsPage() {
           detected={detected}
           onTechDecisionsChange={setTechDecisions}
           onDocsUpdated={handleDocsAligned}
+          fix={fixState}
         />
+      </div>
 
-      {/* Consistency: deterministic check — where docs disagree or are missing */}
-      <div className="card-paper p-5">
+      {/* 03 // Consistency audit — full width, so the short card no longer
+          leaves a tall empty column beside the decisions panel. */}
+      <div className="card-paper print-hide mt-4 p-5">
         <div className="mb-1 flex items-center justify-between gap-2">
           <h2 className="label-caps text-muted-foreground">
             03 // Consistency Audit
@@ -1000,11 +1104,43 @@ export default function DocsPage() {
             ))}
           </ul>
         )}
-        <p className="mt-3 text-xs text-muted-foreground">
-          Fix by locking the decision above, then regenerating or aligning the
-          disagreeing docs.
-        </p>
-      </div>
+        {fixSteps.length > 0 && (
+          <div className="mt-3 rounded-md border border-border bg-muted/50 p-3">
+            <p className="text-xs leading-relaxed text-foreground">
+              Fix now regenerates the disagreeing docs from your locked
+              decisions, so they all say the same thing. The old versions
+              are kept in each doc&apos;s history.
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Will regenerate: {fixSteps.map((s) => s.kind).join(", ")}.
+            </p>
+            {fixError && (
+              <p className="mt-2 text-xs font-medium text-destructive">
+                {fixError}
+              </p>
+            )}
+            {fixResult && (
+              <p className="mt-2 text-xs font-medium text-score-high">
+                {fixResult}
+              </p>
+            )}
+            <button
+              type="button"
+              onClick={() => void fixDisagreements()}
+              disabled={fixing}
+              className="btn-primary mt-3 min-h-[36px] px-3 text-xs"
+            >
+              <span className="material-symbols text-[16px]">build</span>
+              {fixing ? (fixStep ?? "Fixing…") : "Fix now"}
+            </button>
+          </div>
+        )}
+        {fixSteps.length === 0 && (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Fix by locking the decision above, then regenerating or aligning the
+            disagreeing docs.
+          </p>
+        )}
       </div>
 
       {/* Two-pane workspace */}

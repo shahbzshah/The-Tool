@@ -16,6 +16,15 @@ import {
  * what the existing docs claim; when they disagree, the human picks the
  * winner here. Saving re-renders DECISIONS.md from the locked record.
  */
+export type DecisionsFix = {
+  steps: { kind: string; via: "align" | "generate" }[];
+  fixing: boolean;
+  step: string | null;
+  error: string | null;
+  result: string | null;
+  onFix: () => void;
+};
+
 export default function DecisionsPanel({
   projectId,
   ideaId,
@@ -23,6 +32,7 @@ export default function DecisionsPanel({
   detected,
   onTechDecisionsChange,
   onDocsUpdated,
+  fix,
 }: {
   projectId: string;
   ideaId: string;
@@ -30,6 +40,8 @@ export default function DecisionsPanel({
   detected: DetectedDecision[];
   onTechDecisionsChange: (next: TechDecisions) => void;
   onDocsUpdated: (updated: Record<string, string>) => void;
+  /** Fix flow owned by the Docs page — regenerates the disagreeing docs. */
+  fix?: DecisionsFix;
 }) {
   const [draft, setDraft] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
@@ -186,7 +198,40 @@ export default function DecisionsPanel({
         >
           {saving ? "Saving…" : "Save decisions"}
         </button>
+        {fix && fix.steps.length > 0 && (
+          <button
+            type="button"
+            onClick={fix.onFix}
+            disabled={fix.fixing || saving}
+            className="btn-secondary !px-4 !py-2 !text-sm"
+          >
+            <span className="material-symbols text-[18px]">build</span>
+            {fix.fixing ? (fix.step ?? "Fixing…") : "Fix disagreements"}
+          </button>
+        )}
       </div>
+      {fix && fix.steps.length > 0 && (
+        <div className="mt-3 rounded-md border border-border bg-muted/50 p-3">
+          <p className="text-xs leading-relaxed text-foreground">
+            Fix now regenerates the disagreeing docs from your locked
+            decisions, so they all say the same thing. The old versions
+            are kept in each doc&apos;s history.
+          </p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Will regenerate: {fix.steps.map((s) => s.kind).join(", ")}.
+          </p>
+          {fix.error && (
+            <p className="mt-2 text-xs font-medium text-destructive">
+              {fix.error}
+            </p>
+          )}
+          {fix.result && (
+            <p className="mt-2 text-xs font-medium text-score-high">
+              {fix.result}
+            </p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
