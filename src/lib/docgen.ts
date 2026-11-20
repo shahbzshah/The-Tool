@@ -146,12 +146,33 @@ export async function buildDocMessages(
     return text;
   };
 
+  // Only the newest export batch feeds the docs — same scoping as the
+  // coverage/review routes (864cb5d). Before this, EVERY version's HTML
+  // went in (83 files on the trading journal), blowing the prompt past
+  // the model's context limit: NVIDIA answered 400 for all 15 AI docs
+  // while the two kinds that skip design context (RULES, BUILD_GUIDE)
+  // succeeded. Total budget keeps the section inside what the review
+  // route already proved the model handles.
+  const sortedUploads = [...idea.project.uploads].sort(
+    (a, b) => +new Date(b.createdAt) - +new Date(a.createdAt)
+  );
+  const newestBatch = sortedUploads[0]?.batchId ?? "legacy";
+  const scopedUploads = sortedUploads.filter(
+    (u) => (u.batchId ?? "legacy") === newestBatch
+  );
+  const MAX_UPLOAD_CHARS = 32000;
+  let uploadBody = scopedUploads
+    .map((u) => `### ${u.filename} (${u.type})\n${condenseUpload(u)}`)
+    .join("\n\n");
+  if (uploadBody.length > MAX_UPLOAD_CHARS) {
+    uploadBody =
+      uploadBody.slice(0, MAX_UPLOAD_CHARS) +
+      "\n… [remaining screens omitted to fit the model's context]";
+  }
   const uploadContext =
-    idea.project.uploads.length === 0
+    scopedUploads.length === 0
       ? "## Uploaded Stitch Exports\nNone uploaded yet — base the design system on the Stitch prompt above."
-      : `## Uploaded Stitch Exports\n${idea.project.uploads
-          .map((u) => `### ${u.filename} (${u.type})\n${condenseUpload(u)}`)
-          .join("\n\n")}`;
+      : `## Uploaded Stitch Exports\n${uploadBody}`;
 
   const platformLine =
     idea.project.platform === "mobile"
