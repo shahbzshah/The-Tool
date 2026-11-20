@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { DOC_KINDS } from "@/lib/constants";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, readJson } from "@/lib/api";
 
 const PRESETS: { label: string; stack: string }[] = [
   {
@@ -33,6 +33,10 @@ const ALIGN_KINDS = [
   "FOLDER_STRUCTURE",
   "RULES",
   "MASTER_PROMPT",
+  // BRD and DATABASE_SCHEMA name the database too — the audit flags them
+  // when they disagree with the lock, so the align pass must cover them.
+  "BRD",
+  "DATABASE_SCHEMA",
 ];
 
 export default function StackLockPanel({
@@ -98,11 +102,14 @@ export default function StackLockPanel({
         const res = await apiFetch("/api/docs/align", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ideaId }),
+          body: JSON.stringify({ ideaId, kind: ALIGN_KINDS[i] }),
         });
-        const data = await res.json();
+        // readJson (not res.json()): a gateway timeout returns a non-JSON
+        // error page, and res.json() turns that into a cryptic parse error
+        // instead of the real message.
+        const data = (await readJson(res)) ?? {};
         if (!res.ok) throw new Error(data.error || "Alignment failed.");
-        if (i === ALIGN_KINDS.length - 1 && Array.isArray(data.docs)) {
+        if (Array.isArray(data.docs)) {
           const map: Record<string, string> = {};
           for (const d of data.docs) map[d.kind] = d.content;
           onDocsUpdated(map);

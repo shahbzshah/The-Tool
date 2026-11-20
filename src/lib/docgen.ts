@@ -20,6 +20,10 @@ export const STACK_SENSITIVE_KINDS = [
   "TASKS",
   "VOICE_SPEC",
   "SYNC_SPEC",
+  // BRD and DATABASE_SCHEMA name the database too — the audit flags them
+  // when they disagree with the lock, so the align pass must cover them.
+  "BRD",
+  "DATABASE_SCHEMA",
 ] as const;
 
 /**

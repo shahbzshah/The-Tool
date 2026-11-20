@@ -7,13 +7,19 @@ import { applicableKinds } from "@/lib/constants";
 import { AIConfigError } from "@/lib/ai";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 /**
  * POST /api/docs/align
- * Regenerates every stack-sensitive document (TECHNICAL_SPEC,
- * FOLDER_STRUCTURE, RULES, MASTER_PROMPT) so the whole doc set agrees on the
+ * Regenerates stack-sensitive documents so the whole doc set agrees on the
  * project's canonical stack. Requires a stack lock to be set.
+ *
+ * Body { ideaId, kind? }: a kind narrows the pass to that one document —
+ * the panel aligns kinds one at a time with per-kind progress, so each call
+ * must regenerate only that kind. Before this, every call regenerated ALL
+ * stack-sensitive kinds, so one click was ~32 sequential AI generations
+ * behind a 60s limit and Vercel killed it with a non-JSON error page.
+ * Without a kind, all applicable stack-sensitive kinds are regenerated.
  */
 export async function POST(req: Request) {
   const auth = await requireUser(req);
@@ -61,9 +67,18 @@ export async function POST(req: Request) {
       features,
       category: idea.project.category,
     }).map((d) => d.kind);
-    const kinds = STACK_SENSITIVE_KINDS.filter((k) =>
-      applicable.includes(k)
-    );
+    // A requested kind narrows the pass to that one document (see header).
+    const requestedKind = String(body?.kind ?? "");
+    const candidates = requestedKind
+      ? STACK_SENSITIVE_KINDS.filter((k) => k === requestedKind)
+      : [...STACK_SENSITIVE_KINDS];
+    if (requestedKind && candidates.length === 0) {
+      return NextResponse.json(
+        { error: `Kind ${requestedKind} is not stack-sensitive.` },
+        { status: 400 }
+      );
+    }
+    const kinds = candidates.filter((k) => applicable.includes(k));
 
     const docs = [];
     for (const kind of kinds) {
