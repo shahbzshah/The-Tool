@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser, isAdminUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { getSetting } from "@/lib/settings";
 import { buildExportPack } from "@/lib/export-pack";
 import {
@@ -22,12 +22,8 @@ export const maxDuration = 300;
 export async function POST(req: Request) {
   const auth = await requireUser(req);
   if ("response" in auth) return auth.response;
-  if (!(await isAdminUser(auth.user.id, auth.user.email))) {
-    return NextResponse.json(
-      { error: "Admin access required." },
-      { status: 403 }
-    );
-  }
+  // Any signed-in user may push their own idea's pack (buildExportPack is
+  // owner-scoped to auth.user.id); the GitHub connection itself is shared.
 
   try {
     const body = await req.json().catch(() => ({}));

@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { requireUser, isAdminUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { getSetting, setSetting } from "@/lib/settings";
 import { githubCallbackUrl } from "@/lib/github";
 
@@ -29,12 +29,7 @@ function clearCookie(name: string): string {
 export async function GET(req: Request) {
   const auth = await requireUser(req);
   if ("response" in auth) return auth.response;
-  if (!(await isAdminUser(auth.user.id, auth.user.email))) {
-    return NextResponse.json(
-      { error: "Admin access required." },
-      { status: 403 }
-    );
-  }
+  // Any signed-in user may complete the connect flow (see auth route).
 
   const url = new URL(req.url);
   const code = url.searchParams.get("code");

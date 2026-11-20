@@ -412,6 +412,7 @@ export default function ExportPage() {
     login: string | null;
     oauthConfigured: boolean;
     tokenInvalid?: boolean;
+    isAdmin: boolean;
   };
   const [ghStatus, setGhStatus] = useState<GhStatus | null>(null);
   const [ghRepo, setGhRepo] = useState("");
@@ -1131,12 +1132,22 @@ export default function ExportPage() {
             </p>
             {!ghStatus.connected && !ghStatus.oauthConfigured ? (
               <p className="rounded-md border border-score-medium/40 bg-score-medium/10 px-3 py-2 text-sm text-foreground">
-                GitHub isn&apos;t set up yet — add the OAuth App Client ID
-                and Secret in{" "}
-                <Link href="/settings" className="underline">
-                  Settings
-                </Link>{" "}
-                first, then connect here.
+                {ghStatus.isAdmin ? (
+                  <>
+                    GitHub isn&apos;t set up yet — add the OAuth App Client
+                    ID and Secret in{" "}
+                    <Link href="/settings" className="underline">
+                      Settings
+                    </Link>{" "}
+                    first, then connect here.
+                  </>
+                ) : (
+                  <>
+                    GitHub isn&apos;t set up yet — the admin needs to add
+                    the OAuth App Client ID and Secret in Settings first,
+                    then anyone can connect here.
+                  </>
+                )}
               </p>
             ) : !ghStatus.connected ? (
               <button
@@ -1181,13 +1192,15 @@ export default function ExportPage() {
                     <span className="material-symbols text-[20px]">upload</span>
                     {ghPushing ? "Pushing to GitHub…" : "Upload to GitHub"}
                   </button>
-                  <button
-                    onClick={disconnectGh}
-                    disabled={ghPushing}
-                    className="btn-ghost min-h-[48px] px-4"
-                  >
-                    Disconnect
-                  </button>
+                  {ghStatus.isAdmin && (
+                    <button
+                      onClick={disconnectGh}
+                      disabled={ghPushing}
+                      className="btn-ghost min-h-[48px] px-4"
+                    >
+                      Disconnect
+                    </button>
+                  )}
                 </div>
                 {ghResult && (
                   <p className="flex flex-wrap items-center gap-1.5 rounded-md border border-score-high/30 bg-score-high/10 px-3 py-2 text-sm text-score-high">

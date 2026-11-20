@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { randomBytes } from "crypto";
-import { requireUser, isAdminUser } from "@/lib/auth";
+import { requireUser } from "@/lib/auth";
 import { getSetting } from "@/lib/settings";
 import { githubCallbackUrl } from "@/lib/github";
 
@@ -22,12 +22,8 @@ function cookie(name: string, value: string, maxAge: number): string {
 export async function GET(req: Request) {
   const auth = await requireUser(req);
   if ("response" in auth) return auth.response;
-  if (!(await isAdminUser(auth.user.id, auth.user.email))) {
-    return NextResponse.json(
-      { error: "Admin access required." },
-      { status: 403 }
-    );
-  }
+  // Any signed-in user may connect: the token is shared (one token in
+  // Settings), so connecting as the same GitHub account is equivalent.
 
   const clientId = await getSetting("GITHUB_OAUTH_CLIENT_ID");
   if (!clientId) {
