@@ -58,6 +58,16 @@ export default function DecisionsPanel({
         const v = (draft[def.key] ?? "").trim();
         if (v) cleaned[def.key] = v;
       }
+      // Guard: the grey text in each box is only a suggestion
+      // (placeholder), not a value. Saving with every box empty stored
+      // "{}" and showed a success message while locking nothing.
+      if (Object.keys(cleaned).length === 0) {
+        setError(
+          "Nothing to save — type a value for at least one decision first. The grey text in each box is only a suggestion, not a saved value."
+        );
+        setSaving(false);
+        return;
+      }
       const res = await apiFetch(`/api/projects/${projectId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
