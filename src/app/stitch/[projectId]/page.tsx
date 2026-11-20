@@ -142,6 +142,7 @@ export default function StitchPromptPage() {
   const [dragOver, setDragOver] = useState(false);
   const [copiedRec, setCopiedRec] = useState<number | null>(null);
   const [copiedAllRecs, setCopiedAllRecs] = useState(false);
+  const [copiedMissing, setCopiedMissing] = useState(false);
 
   // Preview viewer state.
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -286,6 +287,28 @@ export default function StitchPromptPage() {
       await navigator.clipboard.writeText(text);
       setCopiedRec(i);
       setTimeout(() => setCopiedRec((cur) => (cur === i ? null : cur)), 2000);
+    } catch {
+      setError("Clipboard blocked — select the text and copy manually.");
+    }
+  }
+
+  // One tap copies every uncovered feature as a single numbered block, so
+  // the whole missing list can be pasted into Stitch at once — same idea
+  // as "Copy all fixes" on the review. The AI reason rides along in
+  // brackets when there is one, so Stitch sees why each one is missing.
+  async function copyMissingFeatures() {
+    const missing = coverage.filter((c) => !c.covered);
+    if (missing.length === 0) return;
+    const block = `Please add these missing features to the design:\n${missing
+      .map(
+        (c, i) =>
+          `${i + 1}. ${c.feature}${c.aiReason ? ` (${c.aiReason})` : ""}`
+      )
+      .join("\n")}`;
+    try {
+      await navigator.clipboard.writeText(block);
+      setCopiedMissing(true);
+      setTimeout(() => setCopiedMissing(false), 2000);
     } catch {
       setError("Clipboard blocked — select the text and copy manually.");
     }
@@ -991,6 +1014,17 @@ export default function StitchPromptPage() {
                       {analyzing ? "Analyzing with AI…" : "Analyze with AI"}
                     </button>
                   )}
+                  {features.length > 0 &&
+                    uploads.length > 0 &&
+                    coveredCount < features.length && (
+                      <button
+                        onClick={() => void copyMissingFeatures()}
+                        className="shrink-0 font-mono text-[11px] text-primary hover:underline"
+                        aria-label="Copy all missing features at once"
+                      >
+                        {copiedMissing ? "Copied" : "Copy missing features"}
+                      </button>
+                    )}
                 </div>
               </div>
               <p className="mb-4 text-sm text-muted-foreground">
