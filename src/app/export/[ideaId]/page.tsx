@@ -386,6 +386,16 @@ export default function ExportPage() {
   const [shareBusy, setShareBusy] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  // showDirectoryPicker (File System Access) only exists in desktop
+  // Chrome/Edge — Firefox, Safari and phone browsers don't have it, so the
+  // Save to folder button is hidden there instead of failing on tap.
+  const [folderSaveSupported, setFolderSaveSupported] = useState(false);
+
+  useEffect(() => {
+    setFolderSaveSupported(
+      typeof window !== "undefined" && "showDirectoryPicker" in window
+    );
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -876,14 +886,16 @@ export default function ExportPage() {
                 <span className="material-symbols text-[20px]">download</span>
                 {downloading ? "Building zip…" : `Download ${tool.name} pack`}
               </button>
-              <button
-                onClick={saveToFolder}
-                disabled={downloading || docCount === 0}
-                className="btn-secondary min-h-[48px] w-full"
-              >
-                <span className="material-symbols text-[20px]">folder</span>
-                {downloading ? "Writing files…" : "Save to folder"}
-              </button>
+              {folderSaveSupported && (
+                <button
+                  onClick={saveToFolder}
+                  disabled={downloading || docCount === 0}
+                  className="btn-secondary min-h-[48px] w-full"
+                >
+                  <span className="material-symbols text-[20px]">folder</span>
+                  {downloading ? "Writing files…" : "Save to folder"}
+                </button>
+              )}
               {done && (
                 <span className="inline-flex items-center gap-1.5 text-sm text-score-high">
                   <span className="material-symbols text-[20px]">
@@ -895,10 +907,12 @@ export default function ExportPage() {
                 </span>
               )}
             </div>
-            <p className="mt-4 text-xs text-muted-foreground">
-              “Save to folder” works in Chrome/Edge — pick a folder and the files
-              are written there directly, no unzipping needed.
-            </p>
+            {folderSaveSupported && (
+              <p className="mt-4 text-xs text-muted-foreground">
+                “Save to folder” works in Chrome/Edge — pick a folder and the
+                files are written there directly, no unzipping needed.
+              </p>
+            )}
             {error && (
               <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {error}
