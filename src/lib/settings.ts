@@ -106,6 +106,27 @@ export const SETTING_DEFS = [
     env: "RESEND_FROM",
     multiline: false,
   },
+  {
+    key: "GITHUB_OAUTH_CLIENT_ID",
+    label: "GitHub OAuth App Client ID",
+    hint: "Create an OAuth App at github.com/settings/developers (Authorization callback URL: https://app-green-ten-35.vercel.app/api/github/callback) and paste its Client ID here. The app then offers one-tap GitHub connect on the Export page.",
+    secret: false,
+    env: "GITHUB_OAUTH_CLIENT_ID",
+  },
+  {
+    key: "GITHUB_OAUTH_SECRET",
+    label: "GitHub OAuth App Client Secret",
+    hint: "From the same OAuth App. Stored encrypted; never shown again.",
+    secret: true,
+    env: "GITHUB_OAUTH_SECRET",
+  },
+  {
+    key: "GITHUB_TOKEN",
+    label: "GitHub Access Token",
+    hint: "Set automatically when you connect GitHub from the Export page. You can also paste a personal access token with repo scope here instead of using OAuth.",
+    secret: true,
+    env: "GITHUB_TOKEN",
+  },
 ] as const;
 
 export type SettingKey = (typeof SETTING_DEFS)[number]["key"];

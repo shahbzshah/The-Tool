@@ -1,12 +1,7 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/db";
 import { requireUser } from "@/lib/auth";
 import JSZip from "jszip";
-import { findTool } from "@/lib/exporters";
-import { DOC_KINDS, applicableKinds } from "@/lib/constants";
-import { buildSkillsBundle } from "@/lib/skills";
-import { checkConsistency } from "@/lib/consistency";
-import { collectEnvVars, buildEnvExample, buildGitignore } from "@/lib/packfiles";
+import { buildExportPack } from "@/lib/export-pack";
 
 export const runtime = "nodejs";
 
@@ -19,186 +14,13 @@ export async function POST(req: Request) {
     const ideaId = String(body?.ideaId ?? "");
     const toolId = String(body?.tool ?? "");
 
-    const tool = findTool(toolId);
-    if (!tool) {
-      return NextResponse.json(
-        { error: `Unknown export tool: ${toolId}` },
-        { status: 400 }
-      );
-    }
-
-    // C5: user-scoped lookup — cross-user exports 404.
-    const idea = await prisma.idea.findFirst({
-      where: { id: ideaId, project: { userId: auth.user.id } },
-      include: {
-        project: {
-          select: {
-            category: true,
-            platform: true,
-            stackLock: true,
-            techDecisions: true,
-          },
-        },
-      },
+    // The pack itself is built in src/lib/export-pack.ts — the GitHub
+    // push reuses the same builder, so the zip and the repo never drift.
+    const { files, slug } = await buildExportPack({
+      ideaId,
+      userId: auth.user.id,
+      toolId,
     });
-    if (!idea) {
-      return NextResponse.json({ error: "Idea not found." }, { status: 404 });
-    }
-    if (idea.status !== "approved") {
-      return NextResponse.json(
-        { error: "Approve this idea first." },
-        { status: 400 }
-      );
-    }
-
-    const documents = await prisma.document.findMany({ where: { ideaId } });
-    if (documents.length === 0) {
-      return NextResponse.json(
-        {
-          error:
-            "No documents generated yet. Generate the docs first, then export.",
-        },
-        { status: 400 }
-      );
-    }
-
-    const docs: Record<string, string> = {};
-    for (const d of documents) docs[d.kind] = d.content;
-
-    const files = tool.build({
-      ideaTitle: idea.title,
-      pitch: idea.pitch,
-      docs,
-    });
-
-    // Curated agent skills for the project's platform (cached, fail-soft —
-    // the pack still builds when GitHub is unreachable).
-    const skillsBundle = await buildSkillsBundle(idea.project.platform);
-    Object.assign(files, skillsBundle.files);
-
-    // Deterministic scaffold files — generated from the pack's own
-    // documents, so every pack ships with them, no AI call, no download.
-    files[".env.example"] = buildEnvExample(collectEnvVars(docs));
-    const stackText = [
-      idea.project.stackLock ?? "",
-      idea.project.techDecisions ?? "",
-    ].join(" ");
-    files[".gitignore"] = buildGitignore(stackText);
-
-    // Deterministic consistency report for the README: contradictions must
-    // be visible in the pack, never silently shipped.
-    let features: string[] = [];
-    try {
-      const parsed = JSON.parse(idea.features);
-      if (Array.isArray(parsed)) features = parsed.map(String);
-    } catch {
-      // leave empty
-    }
-    const consistency = checkConsistency({
-      docs: documents.map((d) => ({ kind: d.kind, content: d.content })),
-      idea: {
-        title: idea.title,
-        pitch: idea.pitch,
-        features,
-        category: idea.project.category,
-      },
-      techDecisionsRaw: idea.project.techDecisions,
-    });
-    const applicableKindList = applicableKinds({
-      title: idea.title,
-      pitch: idea.pitch,
-      features,
-      category: idea.project.category,
-    }).map((d) => d.label);
-    const consistencySection =
-      consistency.issues.length === 0
-        ? "No contradictions detected across documents and locked decisions."
-        : consistency.issues.map((i) => `- ${i.message}`).join("\n");
-
-    // Design uploads with stored content (text exports: md/html). Screenshots
-    // carry no stored bytes, so they are counted as skipped, not included.
-    const uploads = await prisma.upload.findMany({
-      where: { projectId: idea.projectId },
-      select: { filename: true, content: true },
-    });
-    let includedUploads = 0;
-    let skippedUploads = 0;
-    for (const u of uploads) {
-      if (!u.content) {
-        skippedUploads++;
-        continue;
-      }
-      const safe = u.filename
-        .split("/")
-        .filter((p) => p && p !== "." && p !== "..")
-        .join("/");
-      if (!safe || safe.length > 200) {
-        skippedUploads++;
-        continue;
-      }
-      files[`uploads/${safe}`] = u.content;
-      includedUploads++;
-    }
-
-    const skillsLine =
-      skillsBundle.included.length > 0
-        ? `skills/ — ${skillsBundle.included.length} curated agent skill(s) from addyosmani/agent-skills${skillsBundle.note ? ` (${skillsBundle.note})` : ""}`
-        : `(none) — ${skillsBundle.note ?? "no skills selected"}`;
-    const uploadsLine =
-      includedUploads > 0
-        ? `uploads/ — ${includedUploads} design file(s)${skippedUploads > 0 ? `, ${skippedUploads} skipped (no stored content)` : ""}`
-        : skippedUploads > 0
-          ? `(none) — ${skippedUploads} upload(s) have no stored content to include`
-          : "(none) — no design uploads yet";
-
-    // Warn when the idea changed after docs were generated — those docs may
-    // not reflect the current idea. Mirrors the stale check in
-    // /api/export/preview (1s tolerance for clock skew).
-    const labelByKind = new Map(DOC_KINDS.map((d) => [d.kind, d.label]));
-    const staleDocs = documents.filter(
-      (d) => idea.updatedAt.getTime() > d.updatedAt.getTime() + 1000
-    );
-    if (staleDocs.length > 0) {
-      files["STALE_WARNING.txt"] =
-        `WARNING: ${staleDocs.length} document(s) in this pack may be outdated.\n` +
-        `The idea was updated after these documents were generated. Regenerate\n` +
-        `them from the Docs page before handing this pack to a builder.\n\n` +
-        `Stale documents:\n` +
-        staleDocs
-          .map(
-            (d) =>
-              `  - ${labelByKind.get(d.kind) ?? d.kind}` +
-              ` (doc generated ${d.updatedAt.toISOString()},` +
-              ` idea updated ${idea.updatedAt.toISOString()})`
-          )
-          .join("\n") +
-        "\n";
-    }
-
-    // Always include a README explaining where to put the files
-    files["README.txt"] = `${tool.name} export pack for "${idea.title}"
-Generated by Ideas App.
-
-HOW TO USE:
-${tool.usage}
-
-AGENT SKILLS:
-${skillsLine}
-
-DESIGN UPLOADS:
-${uploadsLine}
-
-DOC CONSISTENCY (checked from the documents themselves):
-${consistencySection}
-
-REQUIRED DOCUMENTS FOR THIS PROJECT:
-${applicableKindList.map((l) => `  - ${l}`).join("\n")}
-
-CONTENTS:
-${Object.keys(files)
-  .filter((f) => f !== "README.txt")
-  .map((f) => `  - ${f}`)
-  .join("\n")}`;
 
     const zip = new JSZip();
     for (const [path, content] of Object.entries(files)) {
@@ -206,23 +28,27 @@ ${Object.keys(files)
     }
 
     const buffer = await zip.generateAsync({ type: "nodebuffer" });
-    const slug =
-      idea.title
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-        .slice(0, 40) || "project";
 
     return new NextResponse(new Uint8Array(buffer), {
       status: 200,
       headers: {
         "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="${slug}-${tool.id}-pack.zip"`,
+        "Content-Disposition": `attachment; filename="${slug}-${toolId}-pack.zip"`,
         "Content-Length": String(buffer.length),
       },
     });
   } catch (err) {
     console.error("Export failed:", err);
-    return NextResponse.json({ error: "Export failed." }, { status: 500 });
+    const message =
+      err instanceof Error ? err.message : "Export failed.";
+    // Known pack errors (unknown tool, idea not found, no docs) are
+    // client errors — surface the message instead of a bare 500.
+    const status =
+      /unknown export tool|idea not found|approve this idea|no documents/i.test(
+        message
+      )
+        ? 400
+        : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

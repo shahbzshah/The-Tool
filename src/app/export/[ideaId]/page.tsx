@@ -386,6 +386,25 @@ export default function ExportPage() {
   const [shareBusy, setShareBusy] = useState(false);
   const [shareError, setShareError] = useState<string | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  // GitHub upload — push the finished pack as a repo (one commit).
+  type GhStatus = {
+    connected: boolean;
+    login: string | null;
+    oauthConfigured: boolean;
+    tokenInvalid?: boolean;
+  };
+  const [ghStatus, setGhStatus] = useState<GhStatus | null>(null);
+  const [ghRepo, setGhRepo] = useState("");
+  const [ghPrivate, setGhPrivate] = useState(true);
+  const [ghPushing, setGhPushing] = useState(false);
+  const [ghError, setGhError] = useState<string | null>(null);
+  const [ghResult, setGhResult] = useState<{
+    repoUrl: string;
+    commitSha: string;
+    filesPushed: number;
+    created: boolean;
+  } | null>(null);
+  const [ghNotice, setGhNotice] = useState<string | null>(null);
   // showDirectoryPicker (File System Access) only exists in desktop
   // Chrome/Edge — Firefox, Safari and phone browsers don't have it, so the
   // Save to folder button is hidden there instead of failing on tap.
@@ -410,6 +429,16 @@ export default function ExportPage() {
         previewRes.json(),
       ]);
       if (ideaRes.ok) setIdea(ideaData.idea);
+      if (ideaRes.ok && ideaData.idea?.title) {
+        // Default repo name for the GitHub push — same slug rule as the zip.
+        setGhRepo(
+          String(ideaData.idea.title)
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, "-")
+            .replace(/^-+|-+$/g, "")
+            .slice(0, 40) || "project"
+        );
+      }
       if (docsRes.ok) setDocCount((docsData.docs ?? []).length);
       if (previewRes.ok) setPreview(previewData);
     } catch {
@@ -421,7 +450,70 @@ export default function ExportPage() {
 
   useEffect(() => {
     load();
+    // GitHub connection state — non-admins get a 403 and simply don't
+    // see the upload section.
+    apiFetch("/api/github/status")
+      .then(async (r) => {
+        if (!r.ok) return;
+        const d = await r.json().catch(() => null);
+        if (d) {
+          setGhStatus(d);
+          if (d.tokenInvalid) {
+            setGhError("GitHub rejected the saved token — reconnect and try again.");
+          }
+        }
+      })
+      .catch(() => {
+        // ignore
+      });
+    // Result of the OAuth connect flow, which redirects back here.
+    if (typeof window !== "undefined") {
+      const q = new URLSearchParams(window.location.search);
+      if (q.get("github") === "connected") {
+        setGhNotice("GitHub connected.");
+      } else if (q.get("github") === "error") {
+        setGhError(q.get("msg") || "GitHub sign-in did not complete.");
+      }
+    }
   }, [load]);
+
+  async function disconnectGh() {
+    try {
+      await apiFetch("/api/github/disconnect", { method: "POST" });
+      setGhStatus((s) =>
+        s ? { ...s, connected: false, login: null } : s
+      );
+      setGhResult(null);
+    } catch {
+      // ignore
+    }
+  }
+
+  async function pushToGitHub() {
+    if (!idea) return;
+    setGhPushing(true);
+    setGhError(null);
+    setGhResult(null);
+    try {
+      const res = await apiFetch("/api/github/push", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ideaId,
+          tool: selected,
+          repo: ghRepo.trim(),
+          isPrivate: ghPrivate,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "GitHub push failed.");
+      setGhResult(data);
+    } catch (err) {
+      setGhError(err instanceof Error ? err.message : "GitHub push failed.");
+    } finally {
+      setGhPushing(false);
+    }
+  }
 
   async function download() {
     if (!idea) return;
@@ -994,6 +1086,126 @@ export default function ExportPage() {
             </p>
           )}
         </section>
+
+        {ghStatus && (
+          <section className="card-paper mt-6 p-4 md:p-6">
+            <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="flex items-center gap-2 font-serif text-xl font-medium text-foreground">
+                <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-sm bg-primary font-mono text-[11px] font-bold text-primary-foreground">
+                  5
+                </span>
+                Upload to GitHub
+              </h2>
+              {ghStatus.connected && ghStatus.login && (
+                <span className="pill border border-score-high/30 bg-score-high/10 text-score-high">
+                  <span className="h-1.5 w-1.5 rounded-full bg-score-high" />
+                  Connected as {ghStatus.login}
+                </span>
+              )}
+            </div>
+            <p className="mb-4 text-sm text-muted-foreground">
+              Push this pack to GitHub as a repository — the same files as
+              the zip, in one commit, so you can clone it straight into{" "}
+              {tool.name}. Upload again later and it pushes a new commit
+              updating the same repo.
+            </p>
+            {!ghStatus.connected && !ghStatus.oauthConfigured ? (
+              <p className="rounded-md border border-score-medium/40 bg-score-medium/10 px-3 py-2 text-sm text-foreground">
+                GitHub isn&apos;t set up yet — add the OAuth App Client ID
+                and Secret in{" "}
+                <Link href="/settings" className="underline">
+                  Settings
+                </Link>{" "}
+                first, then connect here.
+              </p>
+            ) : !ghStatus.connected ? (
+              <button
+                onClick={() => {
+                  window.location.href = `/api/github/auth?returnTo=${encodeURIComponent(`/export/${ideaId}`)}`;
+                }}
+                className="btn-secondary min-h-[48px]"
+              >
+                <span className="material-symbols text-[20px]">link</span>
+                Connect GitHub
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+                  <label className="flex-1">
+                    <span className="label-caps text-muted-foreground">
+                      Repository name
+                    </span>
+                    <input
+                      value={ghRepo}
+                      onChange={(e) => setGhRepo(e.target.value)}
+                      className="input-paper mt-1 w-full font-mono text-sm"
+                      aria-label="Repository name"
+                    />
+                  </label>
+                  <label className="inline-flex min-h-[44px] cursor-pointer items-center gap-2 text-sm text-foreground">
+                    <input
+                      type="checkbox"
+                      checked={ghPrivate}
+                      onChange={(e) => setGhPrivate(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    Private
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={pushToGitHub}
+                    disabled={ghPushing || docCount === 0 || !ghRepo.trim()}
+                    className="btn-primary min-h-[48px]"
+                  >
+                    <span className="material-symbols text-[20px]">upload</span>
+                    {ghPushing ? "Pushing to GitHub…" : "Upload to GitHub"}
+                  </button>
+                  <button
+                    onClick={disconnectGh}
+                    disabled={ghPushing}
+                    className="btn-ghost min-h-[48px] px-4"
+                  >
+                    Disconnect
+                  </button>
+                </div>
+                {ghResult && (
+                  <p className="flex flex-wrap items-center gap-1.5 rounded-md border border-score-high/30 bg-score-high/10 px-3 py-2 text-sm text-score-high">
+                    <span className="material-symbols text-[18px]">
+                      check_circle
+                    </span>
+                    <span>
+                      Pushed {ghResult.filesPushed} files{" "}
+                      {ghResult.created
+                        ? "to a new repo"
+                        : "as a new commit"}{" "}
+                      —{" "}
+                      <a
+                        href={ghResult.repoUrl}
+                        target="_blank"
+                        rel="noopener"
+                        className="underline"
+                      >
+                        Open on GitHub
+                      </a>{" "}
+                      · commit {ghResult.commitSha.slice(0, 7)}
+                    </span>
+                  </p>
+                )}
+              </div>
+            )}
+            {ghNotice && (
+              <p className="mt-3 rounded-md border border-score-high/30 bg-score-high/10 px-3 py-2 text-sm text-score-high">
+                {ghNotice}
+              </p>
+            )}
+            {ghError && (
+              <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                {ghError}
+              </p>
+            )}
+          </section>
+        )}
 
         <div className="mt-10 flex flex-col gap-3 border-t border-border pt-6 sm:flex-row sm:items-center sm:justify-between">
           <Link
