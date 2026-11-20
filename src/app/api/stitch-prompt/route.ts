@@ -105,7 +105,17 @@ export async function GET(req: Request) {
         features,
       })
     : null;
-  return NextResponse.json({ prompt, features, idea, palette });
+  // The Design page's platform switch needs the project's current
+  // platform, stack lock and locked decisions to flip them together.
+  return NextResponse.json({
+    prompt,
+    features,
+    idea,
+    palette,
+    platform: project?.platform ?? null,
+    stackLock: project?.stackLock ?? null,
+    techDecisions: project?.techDecisions ?? null,
+  });
 }
 
 export async function POST(req: Request) {
@@ -179,10 +189,13 @@ export async function POST(req: Request) {
         : "n/a";
 
     // Play Store opportunities are mobile apps — don't let the AI guess web.
+    // A project explicitly switched to web gets a web prompt instead.
     const platformRequirement =
       project.platform === "mobile"
         ? '- "platform": MUST be "mobile (Android + iOS native app)". This is a Play Store opportunity — a mobile app, not a website.\n'
-        : '- "platform": mobile or web recommendation that best fits the idea.\n';
+        : project.platform === "web"
+          ? '- "platform": MUST be "web application (responsive website for desktop and mobile browsers — NOT a native app)". Design web screens with a responsive desktop-first layout (sidebar/top-nav navigation, data tables, wide content areas), not phone screens.\n'
+          : '- "platform": mobile or web recommendation that best fits the idea.\n';
 
     const requiredScreensBlock =
       requiredScreens.length > 0
@@ -192,6 +205,13 @@ ${requiredScreens.map((s, i) => `${i + 1}. ${s}`).join("\n")}
 USER STORIES — every story must have a corresponding screen:
 ${storyList}`
         : "";
+
+    // Component examples must fit the platform — a bottom nav bar is a
+    // phone pattern, not a website one.
+    const componentsHint =
+      project.platform === "web"
+        ? `"components": 5-8 key UI components (e.g. "sidebar nav", "data table", "top bar") needed to implement the features.`
+        : `"components": 5-8 key UI components (e.g. "bottom nav bar", "line charts", "FAB button") needed to implement the features.`;
 
     const user = `Create a copy-paste-ready prompt for Google Stitch based on this approved app idea.
 
@@ -215,7 +235,7 @@ Requirements:
 - "screens": ${requiredScreens.length > 0 ? "7-10" : "5-7"} concrete screen names for this app (e.g. "Dashboard", "Settings"). Cover ALL features above across these screens.${requiredScreens.length > 0 ? " The \"screens\" array MUST include every REQUIRED SCREEN listed above." : ""}
 - "colorScheme": MUST be exactly: "${paletteText}".
 - "style": visual style direction (e.g. "minimal, clean, card-based layout with generous whitespace").
-- "components": 5-8 key UI components (e.g. "bottom nav bar", "line charts", "FAB button") needed to implement the features.
+- ${componentsHint}
 ${platformRequirement}- "promptText": the full Stitch prompt as ONE detailed paragraph (120-250 words) that weaves together the app type, all screens, the color scheme, style, components, and platform. It must be ready to paste directly into Stitch and produce a consistent, beautiful multi-screen design. The paragraph MUST name the target audience, the monetisation model, and EVERY feature in the list above — do not drop any feature, including security/privacy features. It MUST name the colour palette by name and hex codes from the COLOUR PALETTE above. When an opportunity score is given above, the paragraph MUST state it.${requiredScreens.length > 0 ? " The paragraph MUST name every REQUIRED SCREEN." : ""}
 
 Respond with JSON:

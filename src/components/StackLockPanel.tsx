@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { DOC_KINDS } from "@/lib/constants";
 import { apiFetch, readJson } from "@/lib/api";
+import { PLATFORM_STACKS } from "@/lib/platforms";
 
 const PRESETS: { label: string; stack: string }[] = [
   {
@@ -12,8 +13,9 @@ const PRESETS: { label: string; stack: string }[] = [
   },
   {
     label: "React Native / Expo",
-    stack:
-      "React Native + Expo (TypeScript) + Expo Router. Supabase (Postgres + Auth + Storage). Zustand for state. Tailwind via NativeWind. EAS Build for distribution.",
+    // Same string as the platform switch's mobile stack — one source so
+    // the two never drift apart.
+    stack: PLATFORM_STACKS.mobile,
   },
   {
     label: "FastAPI + React",

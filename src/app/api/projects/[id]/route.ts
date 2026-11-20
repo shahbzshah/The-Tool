@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 async function ownedProject(userId: string, id: string) {
   return prisma.project.findFirst({
     where: { id, userId },
-    select: { id: true, name: true, stackLock: true, decisions: true, techDecisions: true },
+    select: { id: true, name: true, stackLock: true, decisions: true, techDecisions: true, platform: true },
   });
 }
 
@@ -39,6 +39,10 @@ export async function GET(
  *                                     decisions (null clears the log)
  *   { techDecisions: string | null } — JSON object string of locked technical
  *                                     decisions (null clears the lock)
+ *   { platform: "mobile" | "web" | null } — target platform; null clears it
+ *                                     (AI decides). The Design page's platform
+ *                                     switch sends this together with the
+ *                                     matching stack lock + decisions.
  */
 export async function PATCH(
   req: Request,
@@ -56,6 +60,7 @@ export async function PATCH(
       archivedAt?: Date | null;
       decisions?: string | null;
       techDecisions?: string | null;
+      platform?: string | null;
     } = {};
 
     // --- Worker F: extended PATCH fields (rename / notes / archive) ---
@@ -87,6 +92,21 @@ export async function PATCH(
       const raw = body.stackLock;
       data.stackLock =
         raw === null ? null : String(raw).trim().slice(0, 2000) || null;
+    }
+
+    // Target platform — "mobile", "web", or null (AI decides).
+    if ("platform" in body) {
+      const raw = body.platform;
+      if (raw === null) {
+        data.platform = null;
+      } else if (raw === "mobile" || raw === "web") {
+        data.platform = raw;
+      } else {
+        return NextResponse.json(
+          { error: "platform must be 'mobile', 'web', or null." },
+          { status: 400 }
+        );
+      }
     }
 
     // Decisions log — stored as a JSON array string so the Refine page can
@@ -160,7 +180,7 @@ export async function PATCH(
 
     if (Object.keys(data).length === 0) {
       return NextResponse.json(
-        { error: "No updatable field provided (name, notes, archived, stackLock, decisions, techDecisions)." },
+        { error: "No updatable field provided (name, notes, archived, stackLock, decisions, techDecisions, platform)." },
         { status: 400 }
       );
     }
@@ -182,6 +202,7 @@ export async function PATCH(
         stackLock: true,
         decisions: true,
         techDecisions: true,
+        platform: true,
       },
     });
     return NextResponse.json({ project });

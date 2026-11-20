@@ -294,6 +294,9 @@ export default function DocsPage() {
   const [docIds, setDocIds] = useState<Record<string, string>>({});
   // Canonical tech stack injected into generated docs (StackLockPanel).
   const [stackLock, setStackLock] = useState<string | null>(null);
+  // Explicit platform ("mobile" | "web" | null) — when set, the Target
+  // label follows it instead of guessing from the stack lock.
+  const [platform, setPlatform] = useState<string | null>(null);
   // Locked technical decisions + consistency report (DecisionsPanel).
   const [techDecisions, setTechDecisions] = useState<TechDecisions>({});
   const [detected, setDetected] = useState<DetectedDecision[]>([]);
@@ -386,6 +389,7 @@ export default function DocsPage() {
         if (projRes.ok) {
           const projData = await projRes.json();
           setStackLock(projData.project?.stackLock ?? null);
+          setPlatform(projData.project?.platform ?? null);
           setTechDecisions(
             parseTechDecisions(projData.project?.techDecisions)
           );
@@ -701,18 +705,23 @@ export default function DocsPage() {
     ? Math.round(((genState.current + 1) / genState.total) * 100)
     : Math.round((generatedCount / applicableDefs.length) * 100);
 
-  // The target follows the locked stack first: a React Native / Expo /
-  // Flutter lock means a native mobile app, whatever the idea's source
-  // category was. The old category-only check called own-idea mobile
-  // projects "Web application" (only Play Store scans got the native
-  // label), which wrongly suggested the docs would be written for the web.
-  const targetLabel = /react native|expo|flutter/i.test(stackLock ?? "")
-    ? "Android + iOS native"
-    : /next\.js/i.test(stackLock ?? "")
-      ? "Web application"
-      : idea?.project.category === "from-play-store-scan"
-        ? "Android + iOS native"
-        : "Web application";
+  // The target follows the explicit platform first (set by the Design
+  // page switch), then the locked stack, then the idea's source category.
+  // The old category-only check called own-idea mobile projects "Web
+  // application" (only Play Store scans got the native label), which
+  // wrongly suggested the docs would be written for the web.
+  const targetLabel =
+    platform === "mobile"
+      ? "Android + iOS native"
+      : platform === "web"
+        ? "Web application"
+        : /react native|expo|flutter/i.test(stackLock ?? "")
+          ? "Android + iOS native"
+          : /next\.js/i.test(stackLock ?? "")
+            ? "Web application"
+            : idea?.project.category === "from-play-store-scan"
+              ? "Android + iOS native"
+              : "Web application";
 
   // --- In-doc search -------------------------------------------------------
   const findMatches = useMemo(() => {

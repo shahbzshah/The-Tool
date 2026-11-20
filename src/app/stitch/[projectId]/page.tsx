@@ -3,8 +3,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, readJson } from "@/lib/api";
 import type { Palette } from "@/lib/palettes";
+import { parseTechDecisions } from "@/lib/decisions";
+import {
+  PLATFORM_DECISIONS,
+  PLATFORM_LABELS,
+  PLATFORM_STACKS,
+  type AppPlatform,
+} from "@/lib/platforms";
 
 type StitchPrompt = {
   id: string;
@@ -134,6 +141,14 @@ export default function StitchPromptPage() {
   // src/lib/palettes.ts) — deterministic per project, shown in the
   // "From Refine" card and baked into the prompt with exact hexes.
   const [palette, setPalette] = useState<Palette | null>(null);
+  // Platform switch: "mobile" | "web" | null (AI decides). Flipping it
+  // swaps the stack lock + the two platform-determined decisions together.
+  const [platform, setPlatform] = useState<AppPlatform | null>(null);
+  const [techDecisions, setTechDecisions] = useState<Record<string, string>>({});
+  const [platformConfirm, setPlatformConfirm] = useState<AppPlatform | null>(null);
+  const [platformSwitching, setPlatformSwitching] = useState(false);
+  const [platformMessage, setPlatformMessage] = useState<string | null>(null);
+  const [platformError, setPlatformError] = useState<string | null>(null);
   const [overrides, setOverrides] = useState<Record<string, boolean>>({});
   const [loadedStorageKey, setLoadedStorageKey] = useState<string | null>(null);
   const [aiResults, setAiResults] = useState<Record<number, { covered: boolean; matchedFile: string | null; reason: string }>>({});
@@ -208,6 +223,12 @@ export default function StitchPromptPage() {
       setFeatures(Array.isArray(data.features) ? data.features : []);
       setIdea(data.idea ?? null);
       setPalette(data.palette ?? null);
+      setPlatform(
+        data.platform === "mobile" || data.platform === "web"
+          ? data.platform
+          : null
+      );
+      setTechDecisions(parseTechDecisions(data.techDecisions ?? null));
       // No prompt yet → generate it automatically; it's a required step.
       if (!existing) {
         setGenerating(true);
@@ -270,6 +291,45 @@ export default function StitchPromptPage() {
       setError(err instanceof Error ? err.message : "Something went wrong.");
     } finally {
       setGenerating(false);
+    }
+  }
+
+  // Flip the project between native mobile and web. One PATCH carries the
+  // platform + the matching stack lock + the two platform-determined
+  // decisions (frontend, hosting); every other decision stays as it is,
+  // and the designs + docs are untouched — they just become stale until
+  // regenerated for the new platform.
+  async function switchPlatform(target: AppPlatform) {
+    if (platformSwitching || platform === target) return;
+    setPlatformSwitching(true);
+    setPlatformError(null);
+    setPlatformMessage(null);
+    try {
+      const merged = {
+        ...techDecisions,
+        ...PLATFORM_DECISIONS[target],
+      };
+      const res = await apiFetch(`/api/projects/${projectId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          platform: target,
+          stackLock: PLATFORM_STACKS[target],
+          techDecisions: JSON.stringify(merged),
+        }),
+      });
+      const data = (await readJson(res)) ?? {};
+      if (!res.ok) throw new Error(data.error || "Switch failed.");
+      setPlatform(target);
+      setTechDecisions(parseTechDecisions(data.project?.techDecisions));
+      setPlatformConfirm(null);
+      setPlatformMessage(
+        `Switched to ${PLATFORM_LABELS[target]}. Stack lock and the Frontend + Hosting decisions now follow it. Regenerate the prompt below for ${target === "web" ? "web" : "mobile"} screens, then re-run Generate All on the Docs page — the docs and designs were made for the old platform. You can switch back the same way.`
+      );
+    } catch (err) {
+      setPlatformError(err instanceof Error ? err.message : "Switch failed.");
+    } finally {
+      setPlatformSwitching(false);
     }
   }
 
@@ -684,6 +744,97 @@ export default function StitchPromptPage() {
         {prompt && (
           <div className="grid items-start gap-6 lg:grid-cols-12">
             <div className="space-y-6 lg:col-span-7">
+            {/* Platform switch — flip the app between native mobile and web.
+                Switching swaps the stack lock + the Frontend/Hosting
+                decisions; designs and docs stay until regenerated. */}
+            <div className="rounded-md border border-border bg-card p-5">
+              <h2 className="label-caps mb-3 inline-flex items-center gap-2 text-foreground">
+                <span className="h-1.5 w-1.5 rounded-full bg-primary" />
+                Platform
+              </h2>
+              <div className="flex flex-wrap gap-2">
+                {(["mobile", "web"] as AppPlatform[]).map((p) => (
+                  <button
+                    key={p}
+                    type="button"
+                    disabled={platformSwitching}
+                    onClick={() => {
+                      if (p !== platform) {
+                        setPlatformConfirm(p);
+                        setPlatformMessage(null);
+                        setPlatformError(null);
+                      }
+                    }}
+                    className={`inline-flex min-h-[44px] items-center gap-2 rounded-md border px-3 py-2 text-sm transition-colors disabled:opacity-50 ${
+                      platform === p
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border text-muted-foreground hover:border-primary hover:text-primary"
+                    }`}
+                  >
+                    <span className="material-symbols text-[18px]">
+                      {p === "mobile" ? "smartphone" : "language"}
+                    </span>
+                    {PLATFORM_LABELS[p]}
+                    {platform === p && (
+                      <span className="font-mono text-[11px] text-primary">
+                        current
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <p className="mt-3 text-sm text-muted-foreground">
+                {platform
+                  ? `Current: ${PLATFORM_LABELS[platform]}.`
+                  : "No platform set yet — the AI decides from the idea."}{" "}
+                Switching swaps the stack lock and the Frontend + Hosting
+                decisions. Your designs and docs stay as they are, but they
+                were made for the old platform — regenerate them after
+                switching.
+              </p>
+              {platformConfirm && (
+                <div className="mt-4 rounded-md border border-primary/40 bg-primary/5 p-4">
+                  <p className="text-sm text-foreground">
+                    Switch to {PLATFORM_LABELS[platformConfirm]}? Stack lock
+                    becomes{" "}
+                    {platformConfirm === "web"
+                      ? "Next.js + Supabase on Vercel"
+                      : "React Native + Expo on EAS"}
+                    , Frontend → {PLATFORM_DECISIONS[platformConfirm].frontend},
+                    Hosting → {PLATFORM_DECISIONS[platformConfirm].hosting}.
+                    Your other decisions stay as they are.
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      onClick={() => switchPlatform(platformConfirm)}
+                      disabled={platformSwitching}
+                      className="btn-primary min-h-[44px] px-4 py-2 text-sm"
+                    >
+                      {platformSwitching
+                        ? "Switching…"
+                        : `Switch to ${PLATFORM_LABELS[platformConfirm]}`}
+                    </button>
+                    <button
+                      onClick={() => setPlatformConfirm(null)}
+                      disabled={platformSwitching}
+                      className="btn-ghost min-h-[44px] px-4 py-2 text-sm"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              )}
+              {platformMessage && (
+                <p className="mt-3 rounded-md border border-secondary/40 bg-secondary/10 px-3 py-2 text-sm text-secondary-foreground">
+                  {platformMessage}
+                </p>
+              )}
+              {platformError && (
+                <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                  {platformError}
+                </p>
+              )}
+            </div>
             {idea && (
               <div className="rounded-md border border-border bg-card p-5">
                 <h2 className="label-caps mb-3 inline-flex items-center gap-2 text-foreground">
