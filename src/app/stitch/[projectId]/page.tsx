@@ -141,6 +141,7 @@ export default function StitchPromptPage() {
   const [analyzeError, setAnalyzeError] = useState("");
   const [dragOver, setDragOver] = useState(false);
   const [copiedRec, setCopiedRec] = useState<number | null>(null);
+  const [copiedAllRecs, setCopiedAllRecs] = useState(false);
 
   // Preview viewer state.
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -285,6 +286,22 @@ export default function StitchPromptPage() {
       await navigator.clipboard.writeText(text);
       setCopiedRec(i);
       setTimeout(() => setCopiedRec((cur) => (cur === i ? null : cur)), 2000);
+    } catch {
+      setError("Clipboard blocked — select the text and copy manually.");
+    }
+  }
+
+  // One tap copies every recommendation as a single numbered block, so the
+  // whole fix list can be pasted into Stitch at once.
+  async function copyAllRecommendations() {
+    if (!review?.recommendations?.length) return;
+    const block = `Please apply these fixes to the design:\n${review.recommendations
+      .map((r, i) => `${i + 1}. ${r}`)
+      .join("\n")}`;
+    try {
+      await navigator.clipboard.writeText(block);
+      setCopiedAllRecs(true);
+      setTimeout(() => setCopiedAllRecs(false), 2000);
     } catch {
       setError("Clipboard blocked — select the text and copy manually.");
     }
@@ -1144,12 +1161,21 @@ export default function StitchPromptPage() {
                   </div>
                   {review.recommendations?.length > 0 && (
                     <div>
-                      <h3 className="label-caps mb-2 inline-flex items-center gap-1.5 text-foreground">
-                        <span className="material-symbols text-[16px] text-primary">
-                          arrow_forward
-                        </span>
-                        Recommended fix (paste into Stitch)
-                      </h3>
+                      <div className="mb-2 flex items-center justify-between gap-2">
+                        <h3 className="label-caps inline-flex items-center gap-1.5 text-foreground">
+                          <span className="material-symbols text-[16px] text-primary">
+                            arrow_forward
+                          </span>
+                          Recommended fix (paste into Stitch)
+                        </h3>
+                        <button
+                          onClick={() => void copyAllRecommendations()}
+                          className="shrink-0 font-mono text-[11px] text-primary hover:underline"
+                          aria-label="Copy all recommendations at once"
+                        >
+                          {copiedAllRecs ? "Copied all" : "Copy all fixes"}
+                        </button>
+                      </div>
                       <ul className="space-y-2 text-sm">
                         {review.recommendations.map((r, i) => (
                           <li
