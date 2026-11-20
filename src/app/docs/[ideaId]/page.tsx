@@ -642,10 +642,18 @@ export default function DocsPage() {
     ? Math.round(((genState.current + 1) / genState.total) * 100)
     : Math.round((generatedCount / applicableDefs.length) * 100);
 
-  const targetLabel =
-    idea?.project.category === "from-play-store-scan"
-      ? "Android + iOS native"
-      : "Web application";
+  // The target follows the locked stack first: a React Native / Expo /
+  // Flutter lock means a native mobile app, whatever the idea's source
+  // category was. The old category-only check called own-idea mobile
+  // projects "Web application" (only Play Store scans got the native
+  // label), which wrongly suggested the docs would be written for the web.
+  const targetLabel = /react native|expo|flutter/i.test(stackLock ?? "")
+    ? "Android + iOS native"
+    : /next\.js/i.test(stackLock ?? "")
+      ? "Web application"
+      : idea?.project.category === "from-play-store-scan"
+        ? "Android + iOS native"
+        : "Web application";
 
   // --- In-doc search -------------------------------------------------------
   const findMatches = useMemo(() => {
