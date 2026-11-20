@@ -206,7 +206,7 @@ export function checkConsistency(opts: {
     for (const kind of STACK_DOCS) {
       const content = byKind.get(kind);
       if (!content?.trim()) continue;
-      const det = detectDecisions([{ kind, content }]).find(
+      const det = detectDecisions([{ kind, content }], locked).find(
         (d) => d.key === key
       );
       if (!det) continue;

@@ -160,7 +160,10 @@ const DETECTION_PATTERNS: Record<TechDecisionKey, DetectionPattern[]> = {
   speech: [
     { re: /on-device|on device|offline speech|local speech|local model/i, canonical: "On-device STT/TTS" },
     { re: /whisper\b/i, canonical: "Whisper (on-device)" },
-    { re: /google cloud speech|cloud speech-to-text|cloud stt/i, canonical: "Cloud STT/TTS (Google Cloud)" },
+    // "cloud stt" on its own is NOT the Google value — a doc that just
+    // says "cloud STT" names no provider. The Google label needs the word
+    // "Google" on the same line, near an STT/TTS/speech word.
+    { re: /google cloud[^.\n]{0,40}(stt|tts|speech)/i, canonical: "Cloud STT/TTS (Google Cloud)" },
     { re: /speech-to-text|text-to-speech|\bstt\b|\btts\b/i, canonical: "Cloud STT/TTS (unspecified provider)" },
   ],
   sync: [
@@ -314,15 +317,57 @@ export function detectDecisions(
   for (const doc of docs) {
     if (!doc.content) continue;
     for (const def of TECH_DECISION_DEFS) {
-      // "Google Cloud" as a speech provider ("Cloud STT/TTS (Google
-      // Cloud)") is not a hosting claim — strip that span before the
-      // hosting patterns run.
+      const lockedValue = locked?.[def.key]?.trim();
+      // "Google Cloud" as a speech provider is not a hosting claim:
+      // drop it from any line that is about STT/TTS/speech before the
+      // hosting patterns run. A genuine hosting mention ("deployed on
+      // Google Cloud") sits on a line with no speech words and survives.
       const content =
         def.key === "hosting"
-          ? doc.content.replace(/stt\/tts\s*\(google cloud\)/gi, " ")
+          ? doc.content
+              .split("\n")
+              .map((line) =>
+                /stt|tts|speech/i.test(line)
+                  ? line.replace(/google cloud/gi, " ")
+                  : line
+              )
+              .join("\n")
           : doc.content;
       for (const pattern of DETECTION_PATTERNS[def.key]) {
-        if (pattern.re.test(content)) {
+        // A disagreeing value is not counted when its own line also names
+        // the locked value — that line is an override note ("the design
+        // says Firebase but the LOCKED stack mandates Supabase"), not a
+        // claim that the alternative IS the stack. Agreeing values are
+        // always counted; without a lock there is no excusal at all.
+        const agrees = lockedValue
+          ? valueAgreesWithLock(def.key, pattern.canonical, lockedValue)
+          : null;
+        const re = new RegExp(
+          pattern.re.source,
+          pattern.re.flags.includes("g")
+            ? pattern.re.flags
+            : pattern.re.flags + "g"
+        );
+        let matched = false;
+        for (const m of content.matchAll(re)) {
+          if (agrees === false) {
+            const at = m.index ?? 0;
+            const start = content.lastIndexOf("\n", at - 1) + 1;
+            const end = content.indexOf("\n", at);
+            const line = content.slice(start, end === -1 ? undefined : end);
+            const overridden = DETECTION_PATTERNS[def.key].some(
+              (p) =>
+                p.canonical !== pattern.canonical &&
+                lockedValue &&
+                valueAgreesWithLock(def.key, p.canonical, lockedValue) &&
+                p.re.test(line)
+            );
+            if (overridden) continue;
+          }
+          matched = true;
+          break;
+        }
+        if (matched) {
           let entry = found.get(def.key);
           if (!entry) {
             entry = {

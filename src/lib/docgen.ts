@@ -35,6 +35,7 @@ export function stackLockBlock(stackLock: string | null | undefined): string {
   return `
 # CANONICAL TECH STACK (MANDATORY)
 The project has LOCKED the following tech stack. Every technology decision in this document MUST use exactly these choices — do not introduce, recommend, or compare alternative frameworks, languages, databases, state libraries, styling systems, or deployment targets. Where the document would normally list options, list only these. Any third-party integration must be compatible with this stack.
+When the Stitch design or a screen label names a different provider than the locked stack (for example a screen that says Firebase or AWS), do NOT transcribe that label as the project's stack — describe what the screen does, name the locked provider, and note that the design label still says the old provider.
 
 """
 ${stackLock.trim()}
