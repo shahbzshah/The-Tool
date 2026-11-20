@@ -19,6 +19,7 @@ import {
   apiFetch,
   consumeSavedState,
   locationKey,
+  readJson,
 } from "@/lib/api";
 import { useEscapeClose } from "@/lib/shortcuts";
 import QuotaIndicator from "@/components/QuotaIndicator";
@@ -319,6 +320,18 @@ export default function DocsPage() {
   stateRef.current = { activeKind, filter };
   // Mobile: the document index collapses into a toggleable drawer.
   const [indexOpen, setIndexOpen] = useState(false);
+  // Manual doc editor popup: view / edit / save any doc, including a
+  // missing one with no AI generation path (e.g. Voice Spec).
+  const [editOpen, setEditOpen] = useState(false);
+  const [editMode, setEditMode] = useState<"view" | "edit">("view");
+  const [editDraft, setEditDraft] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editSaved, setEditSaved] = useState(false);
+  // Esc closes the editor popup (same global Escape as the history menu).
+  useEscapeClose(() => {
+    if (!editSaving) setEditOpen(false);
+  });
 
   // Doc kinds required for this idea: core kinds plus conditional kinds that
   // apply (voice/sync). Until the consistency check loads, assume all kinds.
@@ -621,6 +634,52 @@ export default function DocsPage() {
   const activeContent = docs[activeKind];  const activeMeta = DOC_KINDS.find((d) => d.kind === activeKind);
   const activeUpdatedAt = docsMeta[activeKind];
   const allDone = generatedCount === applicableDefs.length;
+
+  // --- Manual editor popup -----------------------------------------------
+  function openEditor(mode: "view" | "edit") {
+    setEditDraft(activeContent ?? "");
+    // A missing doc has nothing to view — open straight in edit mode.
+    setEditMode(activeContent ? mode : "edit");
+    setEditError(null);
+    setEditSaved(false);
+    setEditOpen(true);
+  }
+
+  async function saveEdit() {
+    if (!idea || editSaving) return;
+    const text = editDraft.trim();
+    if (!text) {
+      setEditError("Write something first — empty documents cannot be saved.");
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    setEditSaved(false);
+    try {
+      const res = await apiFetch("/api/docs", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ideaId, kind: activeKind, content: text }),
+      });
+      const data = (await readJson(res)) ?? {};
+      if (!res.ok) throw new Error(data.error || "Save failed.");
+      const doc = data.doc;
+      setDocs((prev) => ({ ...prev, [activeKind]: text }));
+      setDocsMeta((prev) => ({
+        ...prev,
+        [activeKind]: doc?.updatedAt ?? new Date().toISOString(),
+      }));
+      if (doc?.id) setDocIds((prev) => ({ ...prev, [activeKind]: doc.id }));
+      setEditSaved(true);
+      setEditMode("view");
+      // The saved text may change what the audit detects.
+      void loadConsistency();
+    } catch (err) {
+      setEditError(err instanceof Error ? err.message : "Save failed.");
+    } finally {
+      setEditSaving(false);
+    }
+  }
 
   const q = filter.trim().toLowerCase();
   const visibleKinds = q
@@ -1274,6 +1333,15 @@ export default function DocsPage() {
                     <span className="material-symbols text-[16px]">refresh</span>
                     <span>{regenerating ? "Regenerating…" : "Regenerate"}</span>
                   </button>
+                  <button
+                    onClick={() => openEditor("view")}
+                    disabled={regenerating}
+                    title="View and edit this document"
+                    className="btn-ghost min-h-[44px] !px-3 !py-1.5 !text-xs md:min-h-0"
+                  >
+                    <span className="material-symbols text-[16px]">edit</span>
+                    <span>Edit</span>
+                  </button>
                   {/* foundation: version history */}
                   {docIds[activeKind] && (
                     <DocHistoryMenu
@@ -1327,6 +1395,13 @@ export default function DocsPage() {
                 Select it in the index and hit “Generate All Documents”, or
                 generate it on its own with Regenerate.
               </p>
+              <button
+                onClick={() => openEditor("edit")}
+                className="btn-primary mx-auto mt-5 flex min-h-[44px] items-center gap-2 px-4 py-2 text-sm"
+              >
+                <span className="material-symbols text-[18px]">edit</span>
+                <span>Write it yourself</span>
+              </button>
             </div>
           )}
         </section>
@@ -1346,6 +1421,119 @@ export default function DocsPage() {
           <span className="material-symbols text-[18px]">arrow_forward</span>
         </Link>
       </footer>
+
+      {/* Manual editor popup: view / edit / save any document */}
+      {editOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => {
+            if (!editSaving) setEditOpen(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`${activeMeta?.title ?? activeKind} — view and edit`}
+            className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-lg border border-border bg-background shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+              <div className="min-w-0">
+                <h3 className="font-serif text-xl font-medium text-foreground">
+                  {activeMeta?.title ?? activeKind}
+                </h3>
+                <p className="mt-0.5 font-mono text-[11px] text-muted-foreground">
+                  {activeMeta?.label ?? activeKind}
+                  {activeContent
+                    ? ` · ${wordCount} words`
+                    : " · Not generated yet"}
+                </p>
+              </div>
+              <button
+                onClick={() => !editSaving && setEditOpen(false)}
+                title="Close"
+                className="rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+              >
+                <span className="material-symbols text-[20px]">close</span>
+              </button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-auto p-5">
+              {editMode === "view" ? (
+                editDraft ? (
+                  <pre className="whitespace-pre-wrap font-serif text-[0.9375rem] leading-relaxed text-foreground/90">
+                    {editDraft}
+                  </pre>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Nothing written yet. Switch to Edit and write this
+                    document yourself.
+                  </p>
+                )
+              ) : (
+                <textarea
+                  value={editDraft}
+                  onChange={(e) => setEditDraft(e.target.value)}
+                  placeholder={`Write the ${activeMeta?.title ?? activeKind} in Markdown…`}
+                  className="h-[50vh] w-full resize-none rounded-md border border-border bg-background p-4 font-mono text-sm leading-relaxed text-foreground outline-none focus:border-primary"
+                />
+              )}
+              {editError && (
+                <p className="mt-3 text-sm text-score-low">{editError}</p>
+              )}
+              {editSaved && (
+                <p className="mt-3 text-sm text-score-high">Saved.</p>
+              )}
+            </div>
+            <div className="flex flex-wrap items-center justify-end gap-2 border-t border-border px-5 py-4">
+              {editMode === "view" ? (
+                <>
+                  <button
+                    onClick={() => setEditOpen(false)}
+                    className="btn-ghost min-h-[44px] px-4 py-2 text-sm"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={() => {
+                      setEditSaved(false);
+                      setEditMode("edit");
+                    }}
+                    className="btn-primary min-h-[44px] px-4 py-2 text-sm"
+                  >
+                    <span className="material-symbols text-[18px]">edit</span>
+                    <span>Edit</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={() => {
+                      if (activeContent) {
+                        setEditDraft(activeContent);
+                        setEditMode("view");
+                      } else {
+                        setEditOpen(false);
+                      }
+                    }}
+                    disabled={editSaving}
+                    className="btn-ghost min-h-[44px] px-4 py-2 text-sm"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={saveEdit}
+                    disabled={editSaving || !editDraft.trim()}
+                    className="btn-primary min-h-[44px] px-4 py-2 text-sm"
+                  >
+                    <span className="material-symbols text-[18px]">save</span>
+                    <span>{editSaving ? "Saving…" : "Save"}</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
 }
