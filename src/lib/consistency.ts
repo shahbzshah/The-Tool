@@ -109,6 +109,28 @@ function canonicalEngine(value: string): string | null {
   return null;
 }
 
+// Frontend markers by platform — the platform signal. "React" alone is
+// never a marker: it appears inside "React Native".
+const FRONTEND_PATTERNS: { re: RegExp; canonical: "mobile" | "web" }[] = [
+  { re: /react\s+native|expo\b|flutter/i, canonical: "mobile" },
+  { re: /next\.js/i, canonical: "web" },
+];
+
+function frontendsIn(content: string): Set<"mobile" | "web"> {
+  const found = new Set<"mobile" | "web">();
+  for (const p of FRONTEND_PATTERNS) {
+    if (p.re.test(content)) found.add(p.canonical);
+  }
+  return found;
+}
+
+function canonicalFrontend(value: string): "mobile" | "web" | null {
+  const lower = value.toLowerCase();
+  if (/react\s+native|expo|flutter/.test(lower)) return "mobile";
+  if (/next\.js/.test(lower)) return "web";
+  return null;
+}
+
 export function checkConsistency(opts: {
   docs: { kind: string; content: string }[];
   idea: IdeaLike;
@@ -175,6 +197,46 @@ export function checkConsistency(opts: {
           type: "lock",
           severity: "blocking",
           message: `${kind} names ${[...set].join(", ")} but the locked database decision is ${locked.database}. Regenerate it with the lock applied.`,
+          docs: [kind],
+        });
+      }
+    }
+  }
+
+  // --- Locked-frontend agreement ------------------------------------------
+  // Same shape as the database lock check, but for the client framework —
+  // the platform marker. After a platform switch the docs still name the
+  // old platform's framework, and without this the audit stays green
+  // while the pack describes the wrong platform (verified live: switching
+  // the trading journal to web left "No conflicts" even though every doc
+  // says React Native + Expo). A doc naming BOTH is not flagged — it may
+  // be a migration note. The docgen prompt forbids naming alternative
+  // frameworks when a stack is locked, so a doc naming ONLY the other
+  // platform's framework is a genuine disagreement.
+  const lockedFrontend = locked.frontend
+    ? canonicalFrontend(locked.frontend)
+    : null;
+  if (lockedFrontend) {
+    const frontendDocs = [
+      "TECHNICAL_SPEC",
+      "FOLDER_STRUCTURE",
+      "RULES",
+      "MASTER_PROMPT",
+      "ARCHITECTURE",
+      "BUILD_GUIDE",
+    ];
+    for (const kind of frontendDocs) {
+      const content = byKind.get(kind);
+      if (!content?.trim()) continue;
+      const found = frontendsIn(content);
+      if (found.size > 0 && !found.has(lockedFrontend)) {
+        const named = [...found]
+          .map((f) => (f === "mobile" ? "React Native/Expo" : "Next.js"))
+          .join(", ");
+        issues.push({
+          type: "lock",
+          severity: "blocking",
+          message: `${kind} names ${named} but the locked frontend decision is ${locked.frontend}. Regenerate it with the lock applied.`,
           docs: [kind],
         });
       }
