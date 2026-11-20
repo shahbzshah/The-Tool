@@ -131,7 +131,9 @@ ${project.stitchPrompt ? `\nStitch prompt used (screens: ${project.stitchPrompt.
 ${designContext}
 
 Respond with a JSON object:
-{"alignmentScore": number (1-10, how well the design/prompt covers the idea's features), "matches": string[] (features well represented, at most 5, one short line each), "gaps": string[] (features from the idea missing or underrepresented in the design, at most 5, one short line each), "recommendations": string[] (concrete, copy-paste-ready additions or tweaks to fix each gap, at most 5, one short line each)}`;
+{"alignmentScore": number (1-10, how well the design/prompt covers the idea's features), "matches": string[] (features well represented, at most 5, one short line each), "gaps": string[] (features from the idea missing or underrepresented in the design, at most 5, one short line each), "recommendations": string[] (concrete, copy-paste-ready additions or tweaks to fix each gap, at most 5, one short line each)}
+
+Keep the output stable between runs: list gaps in the SAME order as the FEATURES list above, give EXACTLY one recommendation per gap in that same order, and phrase each recommendation as one short imperative sentence naming the screen and the control to add. Do not invent gaps outside the feature list, and do not reword the same gap differently — the same design must give the same review.`;
 
     // Race the AI call against a 45s timeout — Vercel's gateway times out
     // at 60s, so we fail fast with a clear JSON message instead of a bare
@@ -143,7 +145,13 @@ Respond with a JSON object:
         { role: "system", content: system },
         { role: "user", content: user },
       ],
-      { temperature: 0.6, maxTokens: 1200 }
+      // Temperature 0.1, not 0.6: the review must be stable — the same
+      // design re-run should give the same gaps and the same wording.
+      // At 0.6 the model re-rolled its phrasing and gap picks on every
+      // run, which is why re-runs kept showing different recommendations.
+      // (There is no seed option in the AI client, so low temperature
+      // plus the pinned list order in the prompt is the stability lever.)
+      { temperature: 0.1, maxTokens: 1200 }
     );
     const timeoutPromise = new Promise<never>((_, reject) =>
       setTimeout(() => reject(new Error("Review timed out after 45 seconds. Try again — it may work on retry.")), 45_000)
