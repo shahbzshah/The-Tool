@@ -39,7 +39,9 @@ const ENGINE_PATTERNS: { re: RegExp; canonical: string }[] = [
   { re: /mongodb|mongo\b/i, canonical: "MongoDB" },
   { re: /sqlite\b/i, canonical: "SQLite" },
   { re: /mysql\b/i, canonical: "MySQL" },
-  { re: /supabase\b/i, canonical: "Supabase (PostgreSQL)" },
+  // Supabase IS hosted PostgreSQL, not a second database — alias it so
+  // "Supabase (PostgreSQL)" never counts as its own engine.
+  { re: /supabase\b/i, canonical: "PostgreSQL" },
 ];
 
 function enginesIn(content: string): Set<string> {
@@ -130,18 +132,31 @@ export function checkConsistency(opts: {
   }
 
   // --- Database agreement -------------------------------------------------
+  // A conflict means the documents DISAGREE with each other — different docs
+  // naming different engines. One doc naming a layered set (SQLite on the
+  // device + PostgreSQL in the cloud, via Supabase) is a single architecture,
+  // not a contradiction, as long as every doc names the same layers. The old
+  // rule flagged any doc naming more than one engine, which false-positived
+  // on every local-first design.
   const engineDocs = ["TECHNICAL_SPEC", "BRD", "MASTER_PROMPT", "DATABASE_SCHEMA"];
   const perDocEngines = new Map<string, Set<string>>();
   for (const kind of engineDocs) {
     const content = byKind.get(kind);
     if (content?.trim()) perDocEngines.set(kind, enginesIn(content));
   }
-  const allEngines = new Set<string>();
-  for (const set of perDocEngines.values()) for (const e of set) allEngines.add(e);
-  if (allEngines.size > 1) {
-    const parts = [...perDocEngines.entries()]
-      .filter(([, set]) => set.size > 0)
-      .map(([kind, set]) => `${kind} says ${[...set].join(", ")}`);
+  const setsBySignature = new Map<string, string[]>();
+  for (const [kind, set] of perDocEngines) {
+    if (set.size === 0) continue;
+    const sig = [...set].sort().join(" + ");
+    const kinds = setsBySignature.get(sig) ?? [];
+    kinds.push(kind);
+    setsBySignature.set(sig, kinds);
+  }
+  if (setsBySignature.size > 1) {
+    const parts = [...setsBySignature.entries()].map(
+      ([sig, kinds]) =>
+        `${kinds.join(", ")} ${kinds.length === 1 ? "says" : "say"} ${sig}`
+    );
     issues.push({
       type: "database",
       severity: "blocking",

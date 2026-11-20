@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { EXPORT_TOOLS, type ExportToolId } from "@/lib/exporters";
@@ -36,11 +36,13 @@ function ChecklistRow({
   title,
   detail,
   pill,
+  children,
 }: {
   ok: boolean;
   title: string;
   detail: string;
   pill: string;
+  children?: ReactNode;
 }) {
   return (
     <li className="flex items-start gap-3 py-3">
@@ -54,6 +56,7 @@ function ChecklistRow({
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-foreground">{title}</p>
         <p className="mt-0.5 text-xs text-muted-foreground">{detail}</p>
+        {children}
       </div>
       <span
         className={`pill shrink-0 border ${
@@ -68,7 +71,17 @@ function ChecklistRow({
   );
 }
 
-function PackChecklist({ preview }: { preview: PackPreview }) {
+function PackChecklist({
+  preview,
+  ideaId,
+  onRecheck,
+}: {
+  preview: PackPreview;
+  ideaId: string;
+  onRecheck: () => Promise<void> | void;
+}) {
+  const [fixOpen, setFixOpen] = useState(false);
+  const [rechecking, setRechecking] = useState(false);
   const applicableSet = preview.applicableKinds
     ? new Set(preview.applicableKinds)
     : null;
@@ -89,6 +102,16 @@ function PackChecklist({ preview }: { preview: PackPreview }) {
   const blockingIssues = consistency
     ? consistency.issues.filter((i) => i.severity === "blocking")
     : [];
+  const dbIssue = blockingIssues.some((i) => i.type === "database");
+
+  async function recheck() {
+    setRechecking(true);
+    try {
+      await onRecheck();
+    } finally {
+      setRechecking(false);
+    }
+  }
 
   return (
     <ul className="divide-y divide-border">
@@ -123,7 +146,50 @@ function PackChecklist({ preview }: { preview: PackPreview }) {
             ? "No conflicts"
             : `${blockingIssues.length} conflict${blockingIssues.length === 1 ? "" : "s"}`
         }
-      />
+      >
+        {blockingIssues.length > 0 && (
+          <div className="mt-2">
+            <button
+              type="button"
+              onClick={() => setFixOpen(!fixOpen)}
+              className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
+            >
+              <span className="material-symbols text-[16px]">
+                {fixOpen ? "expand_less" : "build"}
+              </span>
+              {fixOpen ? "Hide fix" : "Fix inline"}
+            </button>
+            {fixOpen && (
+              <div className="mt-2 rounded-md border border-border bg-muted/50 p-3">
+                <p className="text-xs leading-relaxed text-foreground">
+                  {dbIssue
+                    ? "This flags when documents name different databases. Here every document names the same set — PostgreSQL in the cloud (via Supabase) and SQLite on the device — which is one local-first architecture, not a disagreement. The checker used to count every database name it found, including Supabase as a second database; that is fixed now, so re-checking should clear this."
+                    : "These documents disagree with each other. Lock the winning choice in Locked Decisions on the Docs page, then regenerate the disagreeing docs — or re-check if you already fixed them."}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={recheck}
+                    disabled={rechecking}
+                    className="btn-secondary min-h-[36px] px-3 text-xs"
+                  >
+                    <span className="material-symbols text-[16px]">
+                      refresh
+                    </span>
+                    {rechecking ? "Re-checking…" : "Re-check now"}
+                  </button>
+                  <Link
+                    href={`/docs/${ideaId}`}
+                    className="btn-ghost min-h-[36px] px-3 text-xs"
+                  >
+                    Open Docs page
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </ChecklistRow>
       <ChecklistRow
         ok
         title="Scaffold files included"
@@ -651,7 +717,7 @@ export default function ExportPage() {
                 What the pack will contain. Gaps are informational — you can
                 still download.
               </p>
-              <PackChecklist preview={preview} />
+              <PackChecklist preview={preview} ideaId={ideaId} onRecheck={load} />
               {staleDocs.length > 0 && (
                 <div className="mt-4 rounded-md border border-score-medium/40 bg-score-medium/10 p-3">
                   <p className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-score-medium">
