@@ -160,7 +160,9 @@ export default function StitchPromptPage() {
       const r = await apiFetch("/api/design/analyze-coverage", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projectId }),
+        // Send the selected version's key so the analysis judges the
+        // screens on display, not the latest uploads across all versions.
+        body: JSON.stringify({ projectId, versionKey }),
       });
       const d = await readJson<{
         results: { covered: boolean; matchedFile: string | null; reason: string }[];

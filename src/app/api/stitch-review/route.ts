@@ -78,7 +78,10 @@ export async function POST(req: Request) {
 
     // The AI needs what the UI SAYS, not the markup — raw HTML (scripts,
     // styles, Tailwind classes) bloats the prompt and slows the model.
-    // Same visible-text extraction as the coverage analysis.
+    // Same visible-text extraction as the coverage analysis: 4000 chars
+    // per screen, because the old 900-char cut hid content deep in long
+    // screens (notification/export/crash-reporting UI sits past offset
+    // 1700 on the Settings screen) and the review kept calling it missing.
     function extractVisibleText(html: string): string {
       return html
         .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -91,7 +94,7 @@ export async function POST(req: Request) {
         .replace(/&quot;/g, '"')
         .replace(/\s+/g, " ")
         .trim()
-        .slice(0, 900);
+        .slice(0, 4000);
     }
 
     const uploadSummaries = currentScreens

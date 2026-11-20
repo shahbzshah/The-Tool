@@ -21,7 +21,7 @@ export async function POST(req: Request) {
   const auth = await requireUser(req);
   if ("response" in auth) return auth.response;
 
-  const { projectId } = await req.json().catch(() => ({}));
+  const { projectId, versionKey } = await req.json().catch(() => ({}));
   if (!projectId || typeof projectId !== "string") {
     return NextResponse.json({ error: "Project ID is required." }, { status: 400 });
   }
@@ -38,7 +38,7 @@ export async function POST(req: Request) {
       uploads: {
         orderBy: { createdAt: "desc" },
         take: 20,
-        select: { filename: true, type: true, content: true },
+        select: { filename: true, type: true, content: true, batchId: true },
         where: { type: "html" },
       },
     },
@@ -63,11 +63,30 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: "No features to analyze." }, { status: 400 });
   }
 
-  const uploads = project.uploads.filter((u) => u.content);
-  if (uploads.length === 0) {
+  const allUploads = project.uploads.filter((u) => u.content);
+  if (allUploads.length === 0) {
     return NextResponse.json(
       { error: "No uploaded screens with content to analyze." },
       { status: 400 }
+    );
+  }
+
+  // Judge ONLY the selected version's screens (the client sends its
+  // batchId as versionKey; "legacy" means uploads with no batchId).
+  // The old code read the latest 20 uploads across ALL versions, so the
+  // verdict cited old files and missed fixes that were already uploaded.
+  // No versionKey sent → newest batch, same as the design review.
+  const newestBatch = allUploads[0].batchId ?? "legacy";
+  const wantedBatch =
+    typeof versionKey === "string" && versionKey.length > 0
+      ? versionKey
+      : newestBatch;
+  let uploads = allUploads.filter(
+    (u) => (u.batchId ?? "legacy") === wantedBatch
+  );
+  if (uploads.length === 0) {
+    uploads = allUploads.filter(
+      (u) => (u.batchId ?? "legacy") === newestBatch
     );
   }
 
@@ -82,8 +101,12 @@ export async function POST(req: Request) {
 
   // Build a compact summary of each upload: filename + extracted visible text.
   // Strip HTML tags, scripts, and styles — the AI needs to see what the UI
-  // SAYS (buttons, headings, labels), not the markup. Kept short: the
-  // input size drives how long the model takes to start answering.
+  // SAYS (buttons, headings, labels), not the markup. Kept to 4000 chars
+  // per screen: the old 900-char cut hid real content — on the long
+  // Settings screen the notification toggle sits at offset ~1800, the
+  // export buttons at ~2700 and crash reporting at ~3200, so the AI
+  // kept reporting them missing even after the fixed design was uploaded.
+  // A whole version's screens total ~14k chars, so full text stays cheap.
   function extractVisibleText(html: string): string {
     return html
       .replace(/<script[\s\S]*?<\/script>/gi, " ")
@@ -96,7 +119,7 @@ export async function POST(req: Request) {
       .replace(/&quot;/g, '"')
       .replace(/\s+/g, " ")
       .trim()
-      .slice(0, 900);
+      .slice(0, 4000);
   }
 
   const screensSummary = uploads
