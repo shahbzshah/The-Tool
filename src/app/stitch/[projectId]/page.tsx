@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
-import { apiFetch, readJson } from "@/lib/api";
+import { apiFetch } from "@/lib/api";
 import type { Palette } from "@/lib/palettes";
 import { parseTechDecisions } from "@/lib/decisions";
 import {
@@ -318,7 +318,12 @@ export default function StitchPromptPage() {
           techDecisions: JSON.stringify(merged),
         }),
       });
-      const data = (await readJson(res)) ?? {};
+      // Local readJson (defined above): throws a clean message when the
+      // response isn't JSON instead of a raw parse crash.
+      const data = await readJson<{
+        project?: { techDecisions?: string | null };
+        error?: string;
+      }>(res, "Switch timed out — try again.");
       if (!res.ok) throw new Error(data.error || "Switch failed.");
       setPlatform(target);
       setTechDecisions(parseTechDecisions(data.project?.techDecisions));
