@@ -362,7 +362,12 @@ export function detectDecisions(
                 valueAgreesWithLock(def.key, p.canonical, lockedValue) &&
                 p.re.test(line)
             );
-            if (overridden) continue;
+            // Quoted design-label text is not a stack claim either: the
+            // docgen prompt tells the AI to note "the design label still
+            // says the old provider" — a line doing that names the old
+            // provider only to record what the screen shows.
+            const quotedLabel = /design label/i.test(line);
+            if (overridden || quotedLabel) continue;
           }
           matched = true;
           break;

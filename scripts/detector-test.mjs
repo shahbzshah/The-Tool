@@ -56,5 +56,17 @@ check("7d unspecified speech agrees with Google lock", valueAgreesWithLock("spee
 check("7e Firebase disagrees with Supabase lock", !valueAgreesWithLock("backend", "Firebase", "Supabase"));
 check("7f Next.js disagrees with React Native lock", !valueAgreesWithLock("frontend", "Next.js", "React Native + Expo"));
 
+// 8. "Design label still says" note — quoted label text, not a claim
+const note = [{ kind: "UI", content: `- **Cloud Vault**: Backup status (Supabase — the design label still says AWS S3 + Firebase) with last backup timestamp.` }];
+check("8a design-label note: backend has no Firebase", !vals(note, "backend").includes("Firebase"));
+check("8b design-label note: hosting has no AWS", !vals(note, "hosting").includes("AWS"));
+check("8c design-label note: backend has Supabase", vals(note, "backend").includes("Supabase"));
+check("8d design-label note: no backend conflict", !hasConflict(note, "backend"));
+check("8e design-label note: no hosting conflict", !hasConflict(note, "hosting"));
+// 8f. Same names WITHOUT the note still flag (the original transcription)
+const plain = [{ kind: "UI", content: `- **Cloud Vault**: Backup status (AWS S3 + Firebase) with last backup timestamp.` }];
+check("8f bare transcription: backend still has Firebase", vals(plain, "backend").includes("Firebase"));
+check("8g bare transcription: hosting still has AWS", vals(plain, "hosting").includes("AWS"));
+
 console.log(fails === 0 ? "ALL PASS" : fails + " FAILURES");
 process.exit(fails === 0 ? 0 : 1);
